@@ -1,0 +1,275 @@
+from django.shortcuts import render
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import permissions
+from rest_framework import status
+from OnBoard.Company.models import Company
+from OnBoard.Organization.models import Organizations
+from OnBoard.Location.models import Location
+from Dashboard.ModelsByPage.DashAdmin import Vendors
+from .ser import OrganizationgetNameSerializer, CompanygetNameSerializer, LocationGetNameSerializer, VendorNameSerializer
+from .ser import OrganizationGetAllDataSerializer, CompanygetAllDataSerializer, LocationGetAllDataSerializer, VendorGetAllDataSerializer
+from .ser import CompanyShowOnboardSerializer, OrganizationShowOnboardSerializer, BanShowSerializer, OnboardBanshowserializer, BaseDataTableShowSerializer, UploadBANSerializer
+from rest_framework.permissions import IsAuthenticated
+from authenticate.views import saveuserlog
+from OnBoard.Ban.models import UploadBAN, OnboardBan, BaseDataTable
+# Create your views here.
+
+
+class InventorySubjectView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if request.user.designation.name == "Superadmin":
+            objs = Company.objects.all()
+            banobjs = UploadBAN.objects.all()
+            onboardbanObjs = BaseDataTable.objects.all()
+            onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
+            ban_serializer = BanShowSerializer(banobjs, many=True)
+            serializer = CompanyShowOnboardSerializer(objs, many=True)
+            return Response({"data": serializer.data, "bans" : ban_serializer.data, 'banonboarded':onbanser.data}, status=status.HTTP_200_OK)
+        elif request.user.designation.name == "Admin":
+            com = Company.objects.get(Company_name=request.user.company)
+            objs = Organizations.objects.filter(company=com)
+            banobjs = UploadBAN.objects.filter(company=com)
+            ban_serializer = BanShowSerializer(banobjs, many=True)
+            serializer = OrganizationShowOnboardSerializer(objs, many=True)
+            onboardbanObjs = BaseDataTable.objects.filter(company=request.user.company)
+            onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
+            return Response({"data": serializer.data, "bans" : ban_serializer.data, 'banonboarded':onbanser.data}, status=status.HTTP_200_OK)
+        try:
+            if request.user.designation.name == "Superadmin":
+                objs = Company.objects.all()
+                serializer = CompanyShowOnboardSerializer(objs, many=True)
+                print(serializer.data)
+                return Response({"data": serializer.data}, status=status.HTTP_200_OK)
+            elif request.user.designation.name == "Admin":
+                objs = Organizations.objects.all()
+                serializer = OrganizationShowOnboardSerializer(objs, many=True)
+                print(serializer.data)
+                return Response({"data": serializer.data}, status=status.HTTP_200_OK)
+            company = Company.objects.all()
+            organization = Organizations.objects.all()
+            location = Location.objects.all()
+            vendors = Vendors.objects.all()
+            company_serializer = CompanygetNameSerializer(company, many=True)
+            organization_serializer = OrganizationgetNameSerializer(organization, many=True)
+            location_serializer = LocationGetNameSerializer(location, many=True)
+            vendor_serializer = VendorNameSerializer(vendors, many=True)
+
+            return Response({
+                "message" : "Data fetched successfully!",
+                "companies" : company_serializer.data,
+                "organizations" : organization_serializer.data,
+                "locations" : location_serializer.data,
+                "vendors" : vendor_serializer.data,
+            }, status=status.HTTP_200_OK)
+        except:
+            return Response({"message": "Error getting data"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+class InventoryDataView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, subject=None):
+        try:
+            if subject == "Company":
+                company = Company.objects.all()
+                serializer = CompanygetAllDataSerializer(company, many=True)
+                return Response({"data": serializer.data}, status=status.HTTP_200_OK)
+            elif subject == "Organization":
+                organization = Organizations.objects.all()
+                serializer = OrganizationGetAllDataSerializer(organization, many=True)
+                return Response({"data": serializer.data}, status=status.HTTP_200_OK)
+            elif subject == "Location":
+                location = Location.objects.all()
+                serializer = LocationGetAllDataSerializer(location, many=True)
+                return Response({"data": serializer.data}, status=status.HTTP_200_OK)
+            elif subject == "Vendor":
+                vendor = Vendors.objects.all()
+                serializer = VendorGetAllDataSerializer(vendor, many=True)
+                return Response({"data": serializer.data}, status=status.HTTP_200_OK)
+            else:
+                return Response({"message" : "Invalid subject"}, status=status.HTTP_400_BAD_REQUEST)
+        except:
+            return Response({"message": "Error getting data"}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    def delete(self, request, subject, id):
+        try:
+            if subject == "Company":
+                company = Company.objects.filter(id=id).first()
+                company.delete()
+                saveuserlog(request.user, f"Company named {id} deleted successfully!")
+                return Response({"message": "company deleted successfully!"}, status=status.HTTP_200_OK)
+            elif subject == "Organization":
+                organization = Organizations.objects.filter(id=id).first()
+                organization.delete()
+                saveuserlog(request.user, f"Organization named {id} deleted successfully!")
+                return Response({"message" : "organization deleted successfully!"}, status=status.HTTP_200_OK)
+            elif subject == "Location":
+                location = Location.objects.filter(id=id).first()
+                location.delete()
+                saveuserlog(request.user, f"Location named {id} deleted successfully!")
+                return Response({"message" : "Location deleted successfully!"}, status=status.HTTP_200_OK)
+            elif subject == "Vendor":
+                vendor = Vendors.objects.filter(id=id)
+                vendor.delete()
+                saveuserlog(request.user, f"Vendor named {id} deleted successfully!")
+                return Response({"message" : "Vendor deleted successfully!"}, status=status.HTTP_200_OK)
+            else:
+                return Response({"message" : "Invalid subject"}, status=status.HTTP_400_BAD_REQUEST)
+        except:
+            return Response({"message": "Error getting data"}, status=status.HTTP_401_UNAUTHORIZED)
+from OnBoard.Organization.ser import DivisionNameSerializer
+from OnBoard.Organization.models import Division
+class BanInfoView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, org, vendor, ban, *args, **kwargs):
+        try:
+            orgobject = Organizations.objects.get(Organization_name=org)
+            allbans = UploadBAN.objects.filter(organization=orgobject)
+            locobj = Location.objects.filter(organization=orgobject)
+            vendorobject = Vendors.objects.get(name=vendor)
+            banobject = UploadBAN.objects.get(account_number=ban)
+            banser = BanShowSerializer(banobject)
+        except Organizations.DoesNotExist:
+            return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Vendors.DoesNotExist:
+            return Response({"message": "Vendor not found"}, status=status.HTTP_404_NOT_FOUND)
+        except UploadBAN.DoesNotExist:
+            try:
+                banobject = BaseDataTable.objects.get(accountnumber=ban)
+                banser = BaseDataTableShowSerializer(banobject)
+            except BaseDataTable.DoesNotExist:
+                return Response({"message": "Ban not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        allbanser = UploadBANSerializer(allbans, many=True)
+        vendorser = VendorGetAllDataSerializer(vendorobject)
+        orgser = OrganizationGetAllDataSerializer(orgobject)
+        locser = LocationGetAllDataSerializer(locobj, many=True)
+
+        divisions = DivisionNameSerializer(Division.objects.filter(organization=orgobject), many=True)
+
+        allonboards = BaseDataTable.objects.filter(sub_company=org)
+
+
+        allonboards = BaseDataTableShowSerializer(allonboards, many=True)
+
+
+        return Response({
+            "organization": orgser.data,
+            "vendor": vendorser.data,
+            "ban": banser.data,
+            "locations": locser.data,
+            "allbans": allbanser.data,
+            "onboarded": allonboards.data,
+            "divisions" : divisions.data
+            }, status=status.HTTP_200_OK)
+    
+    def post(self, request, org, vendor, ban, *args, **kwargs):
+        print(org, vendor, ban)
+
+        print(request.data)
+        orgobj = Organizations.objects.get(Organization_name=request.data['sub_company'])
+
+        comobj = Company.objects.get(Company_name=request.data['company'])
+
+        try:
+            obj = UploadBAN.objects.get(company=comobj,organization=orgobj, account_number=request.data['AccountNumber'])
+        except UploadBAN.DoesNotExist:
+            try:
+                obj = BaseDataTable.objects.get()
+            except BaseDataTable.DoesNotExist:
+                return Response(
+                    {"message": "Ban not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+
+        if request.data['type'] == 'add-remark':
+            obj.remarks = request.data['remarks']
+            obj.save()
+        elif request.data['type'] == 'add-contract':
+            obj.contract_file = request.data['file']
+            obj.contract_name = request.data['filename']
+            obj.save()
+        else:
+            return Response(
+                {"message": "Invalid request type."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        print(obj.remarks)
+
+        return Response({
+            "message": "Ban information updated successfully!"
+        }, status=status.HTTP_200_OK)
+
+from Dashboard.ModelsByPage.DashAdmin import EntryType, BillType, PaymentType, InvoiceMethod, BanType, BanStatus, CostCenterLevel, CostCenterType
+from OnBoard.Ban.uploadSer.ser import OrganizationShowuploadSerializer, CompanyShowSerializer, VendorShowSerializer, BanTypeShowSerializer, BanStatusShowSerializer, InvoiceMethodShowSerializer, PaymentTypeShowSerializer, CostCenterLevelShowSerializer, CostCenterTypeShowSerializer
+from OnBoard.Ban.ser import EntryTypeShowSerializer, BillTypeShowSerializer
+
+class UploadConsolidated(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(request, *args, **kwargs):
+        orgs = Organizations.objects.all()
+        orgserializer = OrganizationShowuploadSerializer(orgs, many=True)
+        etypes = EntryType.objects.all()
+        etypeserializer = EntryTypeShowSerializer(etypes, many=True)
+        bans = UploadBAN.objects.all()
+        serializer = UploadBANSerializer(bans, many=True)
+        companies = Company.objects.all()
+        companiesserializer = CompanyShowSerializer(companies, many=True)
+        vendors = Vendors.objects.all()
+        vendorsserializer = VendorShowSerializer(vendors, many=True)
+        btypes = BillType.objects.all()
+        btypeserializer = BillTypeShowSerializer(btypes, many=True)
+        banstatuses = BanStatus.objects.all()
+        banstatusesserializer = BanStatusShowSerializer(banstatuses, many=True)
+        bantypes = BanType.objects.all()
+        bantypeesserializer = BanTypeShowSerializer(bantypes, many=True)
+        invoicemethods = InvoiceMethod.objects.all()
+        invoicemethodsserializer = InvoiceMethodShowSerializer(invoicemethods, many=True)
+        paymenttypes = PaymentType.objects.all()
+        paymenttypesserializer = PaymentTypeShowSerializer(paymenttypes, many=True)
+        costcenterlevels = CostCenterLevel.objects.all()
+        costcenterlevelsserializer = CostCenterLevelShowSerializer(costcenterlevels, many=True)
+        costcentertypes = CostCenterType.objects.all()
+        costcentertypesserializer = CostCenterTypeShowSerializer(costcentertypes, many=True)
+        return Response({
+            "data" : serializer.data, 
+            "organizations" : orgserializer.data, 
+            'entrytypes' : etypeserializer.data, 
+            "companies" : companiesserializer.data, 
+            "vendors" : vendorsserializer.data, 
+            "billtypes" : btypeserializer.data, 
+            "banstatuses" : banstatusesserializer.data, 
+            "bantypes" : bantypeesserializer.data,
+            'invoicemethods' : invoicemethodsserializer.data,
+            'paymenttypes' : paymenttypesserializer.data,
+            'costcenterlevels' : costcenterlevelsserializer.data,
+            'costcentertypes' : costcentertypesserializer.data,
+            }, status=status.HTTP_200_OK)
+    def post(request, *args, **kwargs):
+        pass
+
+
+from OnBoard.Ban.models import UniquePdfDataTable, Lines
+from .ser import LineShowSerializer, UniqueTableShowSerializer
+class Mobiles(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    def get(self,request, account, *args, **kwargs):
+
+        mobiles = UniquePdfDataTable.objects.filter(account_number=account)
+        mobiles = UniqueTableShowSerializer(mobiles, many=True)
+        print(mobiles.data)
+
+        acc = UploadBAN.objects.filter(account_number=account)[0]
+        lines = Lines.objects.filter(account_number=acc)
+        lines = LineShowSerializer(lines, many=True)
+        print(lines.data)
+
+        return Response({
+            "mobiles": mobiles.data,
+            "lines": lines.data
+        }, status=status.HTTP_200_OK)
