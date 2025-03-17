@@ -3,8 +3,23 @@ from django.utils import timezone
 
 class Vendors(models.Model):
     name = models.CharField(max_length=255, unique=True)
+    vendor_logo = models.ImageField(upload_to='vendor_logos/', null=True, blank=True)
+    home_page = models.URLField(max_length=200, null=True, blank=True)
+    company_overview = models.TextField(null=True, blank=True)
+    customer_portal_url = models.URLField(max_length=200, null=True, blank=True)
+    review = models.TextField(null=True, blank=True)
+    customer_support_email = models.EmailField(max_length=255, null=True, blank=True)
+    customer_support_phone = models.CharField(max_length=20, null=True, blank=True)
+
+    # Rating fields
+    reliability = models.FloatField(default=0.0)
+    pricing = models.FloatField(default=0.0)
+    user_friendly = models.FloatField(default=0.0)
+    support = models.FloatField(default=0.0)
+    features = models.FloatField(default=0.0)
     created = models.DateTimeField(null=False, auto_now_add=True)
     updated = models.DateTimeField(null=True, blank=True, auto_now=True)
+    
     class Meta:
         db_table = 'Vendors'
 

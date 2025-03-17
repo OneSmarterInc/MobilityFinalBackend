@@ -35,6 +35,7 @@ class Organizations(models.Model):
     Bill_dispute_email = models.EmailField(max_length=255, null=True, blank=True)
     Bill_escalate_email = models.EmailField(max_length=255, null=True, blank=True)
     vendors = models.ManyToManyField(Vendors, related_name='organizations')
+    favorite_vendors = models.ManyToManyField(Vendors, related_name='favorites', blank=True)
     notes = models.TextField(blank=True, null=True)
     contract_file = models.FileField(upload_to='contracts/', null=False)
     contract_name = models.CharField(max_length=255, null=False)

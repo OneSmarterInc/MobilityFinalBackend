@@ -138,3 +138,10 @@ inventory = [
     path("inventory/<pk>/", InventoryView().as_view(), name='inventory-detail'),
 ]
 urlpatterns.extend(inventory)
+
+from .CRUDViews.vendors import VendorsView
+vendors = [
+    path("vendors-portal/", VendorsView().as_view(), name='vendorportal-list-create'),
+    path("vendors-portal/<pk>/", VendorsView().as_view(), name='vendorportal-detail'),
+]
+urlpatterns.extend(vendors)

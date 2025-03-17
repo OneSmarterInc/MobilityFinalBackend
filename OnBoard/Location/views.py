@@ -23,15 +23,24 @@ class LocationView(APIView):
             return Response({"data" : serializer.data}, status=status.HTTP_200_OK)
         
     def post(self, request, org, *args, **kwargs):
+        print(request.data)
         try:
-            organization = Organizations.objects.pop(id=org)
+            organization = Organizations.objects.get(id=org)
             company_name = organization.company.Company_name
         except Organizations.DoesNotExist:
             return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
         try:
-            division = Division.objects.get(name=request.data.pop('division'), organization=organization)
-            
-            data = {"organization": organization, 'company' : Company.objects.get(Company_name=company_name), 'division': division, **request.data}
+            print("organ=", organization)
+            if 'division' in request.data and request.data['division']:
+                print(request.data['division'])
+                division = Division.objects.get(name=request.data['division'], organization=organization)
+                
+            else:
+                division = None
+            print("div=",division)
+            request.data.pop('division', None)
+            request.data.pop('organization', None)
+            data = {"organization": organization, 'company' : organization.company, 'division': division, **request.data}
             cleaned_data = {key: value[0] if isinstance(value, list) else value for key, value in data.items()}
             loc = Location.objects.create(
                 **cleaned_data,
