@@ -3,7 +3,7 @@ from OnBoard.Company.models import Company
 from OnBoard.Organization.models import Organizations
 from OnBoard.Location.models import Location
 from Dashboard.ModelsByPage.DashAdmin import Vendors, EntryType
-from OnBoard.Ban.models import UploadBAN, OnboardBan, BaseDataTable, Lines
+from OnBoard.Ban.models import UploadBAN, OnboardBan, BaseDataTable, Lines, UniquePdfDataTable
 
 class CompanygetNameSerializer(serializers.ModelSerializer):
     class Meta:
@@ -17,6 +17,7 @@ class OrganizationgetNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organizations
         fields = ['Organization_name']
+
 
 
 
@@ -92,12 +93,13 @@ class UploadBANSerializer(serializers.ModelSerializer):
 class OnboardBanshowserializer(serializers.ModelSerializer):
     class Meta:
         model = OnboardBan
-        fields = ['id', 'entryType', 'masteraccount', 'vendor', 'location', 'organization']
+        fields = ['id', 'entryType', 'masteraccount', 'vendor', 'location', 'organization', 'onboardedlines']
     entryType = serializers.CharField()
     masteraccount = serializers.CharField()
     vendor = serializers.CharField()
     location = serializers.CharField()
     organization = serializers.CharField()
+    onboardedlines = serializers.StringRelatedField(many=True)
 
 
 class LocationBANSerializer(serializers.Serializer):
@@ -115,10 +117,10 @@ class OrganizationShowOnboardSerializer(serializers.ModelSerializer):
 class BanShowSerializer(serializers.ModelSerializer):
     class Meta:
         model = UploadBAN
-        fields = ['id', 'location', 'account_number', 'entryType','company', 'organization', 'Vendor', 'lines']
+        fields = ['id', 'location', 'account_number', 'entryType','company', 'organization', 'Vendor', 'uploadedlines']
 
     entryType = serializers.CharField()
-    lines = serializers.StringRelatedField(many=True)
+    uploadedlines = serializers.StringRelatedField(many=True)
     location = serializers.CharField()
     company = serializers.CharField()
     organization = serializers.CharField()
@@ -158,4 +160,9 @@ class LineShowSerializer(serializers.ModelSerializer):
     account_number = serializers.CharField(max_length=255)
     class Meta:
         model = Lines
+        fields = '__all__'
+
+class UniquePdfDataTable(serializers.ModelSerializer):
+    class Meta:
+        model = UniquePdfDataTable
         fields = '__all__'

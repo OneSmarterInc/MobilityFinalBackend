@@ -17,6 +17,7 @@ from ..Location.models import Location
 from Dashboard.ModelsByPage.DashAdmin import Vendors, EntryType, BanStatus, BanType, InvoiceMethod, PaymentType, CostCenterLevel, CostCenterType
 from authenticate.models import PortalUser
 import ast
+from OnBoard.Ban.models import UniquePdfDataTable
 import os
 class UploadBANView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -152,9 +153,8 @@ class UploadBANView(APIView):
                 for line in lines:
                     line = {key: (value if value != "" else None) for key, value in line.items()}
 
-                    line.pop('account_number', None) 
                     if isinstance(line, dict): 
-                        lineobj = Lines.objects.create(account_number=upload_ban, **line)
+                        lineobj = UniquePdfDataTable.objects.create(banUploaded=upload_ban, **line)
                         lineobj.save()
                         saveuserlog(
                             request.user, 
@@ -303,6 +303,11 @@ class OnboardBanView(APIView):
                         loc = None
                     else:
                         loc = get_object_or_404(Location, site_name=loc_value)
+                    etype = rd.pop('entryType', None)
+                    if etype is None:
+                        etype = None
+                    else:
+                        etype = get_object_or_404(EntryType, entry_type=etype)
                     master_account_value = rd.pop('masterAccount', None)
                     if master_account_value is None:
                         masteraccount = None 
@@ -312,14 +317,18 @@ class OnboardBanView(APIView):
                     obj = OnboardBan.objects.create(
                         organization=get_object_or_404(Organizations, Organization_name=rd.pop('organization', None)),
                         vendor=get_object_or_404(Vendors, name=rd.pop('vendor', None)),
-                        entryType=get_object_or_404(EntryType, name=rd.pop('entryType', None)),
+                        entryType=etype,
                         location=loc,
                         masteraccount=masteraccount,
                         uploadBill = rd.pop('uploadBill', None),
-                        addDataToBaseline = rd.pop('baselineCheck', False),
+                        addDataToBaseline = False if etype.name == "Master Account" else rd.pop('baselineCheck', False),
                         is_it_consolidatedBan = rd.pop('is_it_consolidatedBan', False)
                     )
                     obj.save()
+                    if obj.uploadBill.name.endswith('.zip'):
+                        pass
+                    elif obj.uploadBill.name.endswith('.pdf'):
+                        pass
 
                 for i, ed in enumerate(excel_data):
                     print(ed)
@@ -464,6 +473,11 @@ class OnboardBanView(APIView):
         else:
             btype = None
         master_account_value = mutable_data.pop('masteraccount', None)
+        etype = mutable_data.pop('entryType', None)
+        if etype is None:
+            etype = None
+        else:
+            etype = get_object_or_404(EntryType, name=etype)
         if master_account_value is None:
             masteraccount = None 
         else:
@@ -473,12 +487,12 @@ class OnboardBanView(APIView):
                 organization=get_object_or_404(Organizations, Organization_name=mutable_data.pop('organization', None)),
                vendor=get_object_or_404(Vendors, name=mutable_data.pop('vendor', None)),
                
-               entryType=get_object_or_404(EntryType, name=mutable_data.pop('entryType', None)),
+               entryType=etype,
                location=loc,
                masteraccount=masteraccount,
                uploadBill = mutable_data.pop('uploadBill', None),
                billType = btype,
-               addDataToBaseline = mutable_data.pop('addDataToBaseline', False),
+               addDataToBaseline = False if etype.name == "Master Account" else mutable_data.pop('addDataToBaseline', False),
                is_it_consolidatedBan = mutable_data.pop('is_it_consolidatedBan', False)
             )
             obj.save()
@@ -493,7 +507,7 @@ class OnboardBanView(APIView):
                 buffer_data = json.dumps({'pdf_path': obj.uploadBill.path, 'company_name': obj.organization.company.Company_name, 'vendor_name': obj.vendor.name, 'pdf_filename': obj.uploadBill.name, 'month': month, 'year': year, 'sub_company': obj.organization.Organization_name,'entry_type':obj.entryType.name,'user_email':request.user.email,'types':types,'baseline_check':obj.addDataToBaseline,'location':obj.location.site_name,'master_account':obj.masteraccount.account_number})
 
                 from .Background.tasks import process_pdf_task
-                # process_pdf_task(buffer_data)
+                process_pdf_task(buffer_data)
                 # AllUserLogs.objects.create(
                 #     user_email=request.user.email,
                 #     description=(

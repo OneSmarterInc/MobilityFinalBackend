@@ -9,7 +9,7 @@ from OnBoard.Location.models import Location
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 from .ser import OrganizationgetNameSerializer, CompanygetNameSerializer, LocationGetNameSerializer, VendorNameSerializer
 from .ser import OrganizationGetAllDataSerializer, CompanygetAllDataSerializer, LocationGetAllDataSerializer, VendorGetAllDataSerializer
-from .ser import CompanyShowOnboardSerializer, OrganizationShowOnboardSerializer, BanShowSerializer, OnboardBanshowserializer, BaseDataTableShowSerializer, UploadBANSerializer
+from .ser import CompanyShowOnboardSerializer, OrganizationShowOnboardSerializer, BanShowSerializer, OnboardBanshowserializer, BaseDataTableShowSerializer, UploadBANSerializer, UniqueTableShowSerializer
 from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
 from OnBoard.Ban.models import UploadBAN, OnboardBan, BaseDataTable
@@ -27,7 +27,9 @@ class InventorySubjectView(APIView):
             onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
             ban_serializer = BanShowSerializer(banobjs, many=True)
             serializer = CompanyShowOnboardSerializer(objs, many=True)
-            return Response({"data": serializer.data, "bans" : ban_serializer.data, 'banonboarded':onbanser.data}, status=status.HTTP_200_OK)
+            all_lines = UniquePdfDataTable.objects.all()
+            lines_Ser = UniqueTableShowSerializer(all_lines, many=True)
+            return Response({"data": serializer.data, "bans" : ban_serializer.data, 'banonboarded':onbanser.data, "lines":lines_Ser.data}, status=status.HTTP_200_OK)
         elif request.user.designation.name == "Admin":
             com = Company.objects.get(Company_name=request.user.company)
             objs = Organizations.objects.filter(company=com)
@@ -36,7 +38,9 @@ class InventorySubjectView(APIView):
             serializer = OrganizationShowOnboardSerializer(objs, many=True)
             onboardbanObjs = BaseDataTable.objects.filter(company=request.user.company)
             onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
-            return Response({"data": serializer.data, "bans" : ban_serializer.data, 'banonboarded':onbanser.data}, status=status.HTTP_200_OK)
+            all_lines = UniquePdfDataTable.objects.all()
+            lines_Ser = UniqueTableShowSerializer(all_lines, many=True)
+            return Response({"data": serializer.data, "bans" : ban_serializer.data, 'banonboarded':onbanser.data, "lines":lines_Ser.data}, status=status.HTTP_200_OK)
         try:
             if request.user.designation.name == "Superadmin":
                 objs = Company.objects.all()

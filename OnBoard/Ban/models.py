@@ -344,8 +344,9 @@ class BaseDataTable(models.Model):
         return self.accountnumber
     
 class UniquePdfDataTable(models.Model):
-    banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedunique', on_delete=models.CASCADE, null=True, blank=True)
-    inventory = models.ForeignKey(InventoryUpload, related_name='inventoryunique', on_delete=models.CASCADE, null=True, blank=True)
+    banOnboarded = models.ForeignKey(OnboardBan, related_name='onboardedlines', on_delete=models.CASCADE, null=True, blank=True)
+    banUploaded = models.ForeignKey(UploadBAN, related_name='uploadedlines', on_delete=models.CASCADE, null=True, blank=True)
+    inventory = models.ForeignKey(InventoryUpload, related_name='inventorylines', on_delete=models.CASCADE, null=True, blank=True)
     account_number = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     ECPD_Profile_ID = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     wireless_number = models.CharField(max_length=255, blank=True, null=True, default="NaN")
@@ -401,8 +402,14 @@ class UniquePdfDataTable(models.Model):
     insurance = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     device_id = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     cost_centers = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    deviceAmount = models.CharField(max_length=255, null=True, blank=True)
+    deviceCredit = models.CharField(max_length=255, null=True, blank=True)
+    cost_center = models.CharField(max_length=255, null=True, blank=True)
+    cost_center_status = models.CharField(max_length=255, null=True, blank=True)
+    cost_center_notes = models.CharField(max_length=255, null=True, blank=True)
     
     class Meta:
+        
         db_table = 'UniquePdfDataTable'
 
     def __str__(self):
