@@ -17,7 +17,7 @@ class CompanyOperationSerializer(serializers.ModelSerializer):
     # validate company_name not already present
     def validate_company_name(self, value):
         if Company.objects.filter(Company_name=value).exists():
-            raise serializers.ValidationError(f"Company with name '{value}' already exists.")
+            raise serializers.ValidationError(f"Company with name already exists.")
         return value
 
     def create(self, validated_data):

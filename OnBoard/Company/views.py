@@ -29,7 +29,8 @@ class CompanyView(APIView):
             serializer.save()
             saveuserlog(request.user, f"company named {serializer.data['Company_name']} created successfully!")
             return Response({"message" : "Comapany created successfully!", "data" : serializer.data}, status=status.HTTP_201_CREATED)
-        return Response({"message" : serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        print(serializer.errors)
+        return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
     
     def put(self, request, pk):
         company = Company.objects.get(Company_name=pk)

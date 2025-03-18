@@ -299,8 +299,19 @@ class PdfDataTable(models.Model):
     third_party_charges_includes_tax = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     total_charges = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     voice_plan_usage = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    data_usage = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    group_number = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     messaging_usage = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    user_email = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    status = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    cost_center = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    account_charges_credits = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    charges = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     sub_company = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    location = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    item_category =  models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    item_description =  models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    
     vendor = models.CharField(max_length=255, blank=True, null=True, default="NaN")
 
     class Meta:
@@ -324,11 +335,25 @@ class BaseDataTable(models.Model):
     sub_company = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     location = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     master_account = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    website = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     Total_Current_Charges = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    
+    plans = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    
+    charges = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    location = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     Remidence_Address = models.CharField(max_length=255, blank=True, null=True, default="NaN")
-    Billing_Name = models.CharField(max_length=255, blank=True, null=True, default="NaN")
-    Total_Amount_Due = models.CharField(max_length=255, blank=True, null=True, default="NaN")
 
+    Billing_Name = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    Billing_Address = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+
+    Total_Amount_Due =  models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    
+
+    month =  models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    year =  models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    pdf_filename = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    pdf_path = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     remarks = models.CharField(max_length=2550, null=True, blank=True)
     contract_name = models.CharField(max_length=255, null=True, blank=True)
     contract_file = models.FileField(upload_to='ban-contracts/', null=True)
@@ -353,6 +378,7 @@ class UniquePdfDataTable(models.Model):
     user_name = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     plans = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     cost_center = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    bill_date = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     account_charges_and_credits = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     monthly_charges = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     usage_and_purchase_charges = models.CharField(max_length=255, blank=True, null=True, default="NaN")
@@ -363,6 +389,8 @@ class UniquePdfDataTable(models.Model):
     total_charges = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     voice_plan_usage = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     messaging_usage = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    data_usage = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    group_number = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     sub_company = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     company = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     vendor = models.CharField(max_length=255, blank=True, null=True, default="NaN")
@@ -407,6 +435,8 @@ class UniquePdfDataTable(models.Model):
     cost_center = models.CharField(max_length=255, null=True, blank=True)
     cost_center_status = models.CharField(max_length=255, null=True, blank=True)
     cost_center_notes = models.CharField(max_length=255, null=True, blank=True)
+    item_category =  models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    item_description =  models.CharField(max_length=255, blank=True, null=True, default="NaN")
     
     class Meta:
         
@@ -427,6 +457,7 @@ class BaselineDataTable(models.Model):
     monthly_charges = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     usage_and_purchase_charges = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     equipment_charges = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    data_usage = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     surcharges_and_other_charges_and_credits = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     taxes_governmental_surcharges_and_fees = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     third_party_charges_includes_tax = models.CharField(max_length=255, blank=True, null=True, default="NaN")

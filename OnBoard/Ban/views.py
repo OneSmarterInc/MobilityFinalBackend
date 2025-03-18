@@ -496,30 +496,40 @@ class OnboardBanView(APIView):
                is_it_consolidatedBan = mutable_data.pop('is_it_consolidatedBan', False)
             )
             obj.save()
+            print(obj.uploadBill.name.endswith('.zip'), 'verizon' in str(obj.vendor.name).lower())
             if obj.uploadBill.name.endswith('.zip'):
                 addon = ProcessZip(obj)
                 check = addon.startprocess()
+                print(check)
+                if check['error'] == -1:
+                    return Response(
+                        {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
+                    )
             else:
-                addon = ProcessPdf(obj)
-                check = addon.startprocess()
-                month, year = None, None
-                types = []
-                buffer_data = json.dumps({'pdf_path': obj.uploadBill.path, 'company_name': obj.organization.company.Company_name, 'vendor_name': obj.vendor.name, 'pdf_filename': obj.uploadBill.name, 'month': month, 'year': year, 'sub_company': obj.organization.Organization_name,'entry_type':obj.entryType.name,'user_email':request.user.email,'types':types,'baseline_check':obj.addDataToBaseline,'location':obj.location.site_name,'master_account':obj.masteraccount.account_number})
+                if 'verizon' in str(obj.vendor.name).lower():
+                    addon = ProcessPdf(instance=obj, user_mail=request.user.email)
+                    check = addon.startprocess()
+                    print(check)
+                    if check['error'] == -1:
+                        return Response(
+                            {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
+                        )
+                    month, year = None, None
+                    types = []
+                    print(obj)
 
-                from .Background.tasks import process_pdf_task
-                process_pdf_task(buffer_data)
-                # AllUserLogs.objects.create(
-                #     user_email=request.user.email,
-                #     description=(
-                #         f"User uploaded pdf file for {obj.organization.company.Company_name} - {obj.organization.Organization_name}."
-                #         f"with vendor name {obj.vendor.name} and account number {obj.masteraccount.account_number}."
-                #     )
-                # )
-            print(check)
-            if check['error'] == -1:
-                return Response(
-                    {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
-                )
+                    buffer_data = json.dumps({'pdf_path': obj.uploadBill.path, 'company_name': obj.organization.company.Company_name, 'vendor_name': obj.vendor.name, 'pdf_filename': obj.uploadBill.name, 'month': month, 'year': year, 'sub_company': obj.organization.Organization_name,'entry_type':obj.entryType.name,'user_email':request.user.email,'types':types,'baseline_check':obj.addDataToBaseline,'location':obj.location.site_name,'master_account':obj.masteraccount.account_number if obj.masteraccount else None})
+
+                    from .Background.tasks import process_pdf_task
+                    process_pdf_task(buffer_data,obj)
+                    # AllUserLogs.objects.create(
+                    #     user_email=request.user.email,
+                    #     description=(
+                    #         f"User uploaded pdf file for {obj.organization.company.Company_name} - {obj.organization.Organization_name}."
+                    #         f"with vendor name {obj.vendor.name} and account number {obj.masteraccount.account_number}."
+                    #     )
+                    # )
+            
 
             saveuserlog(request.user, f"Onboard BAN with account number created successfully!")
 
@@ -746,18 +756,15 @@ from io import BytesIO, StringIO
 import pandas as pd
 import re
 import pdfplumber
-from .models import PdfDataTable
+from .models import PdfDataTable, BaseDataTable
 class ProcessPdf:
-    def __init__(self, request, instance, **kwargs):
+    def __init__(self, user_mail, instance, **kwargs):
+        print(instance)
         self.instance = instance
         self.file = instance.uploadBill
         if self.file is None:
             return {'message' : 'File not found', 'error' : -1}
-        self.path = instance.uploadBill.path
-        if not self.path:
-            return {'message' : 'File not found', 'error' : -1}
-        else:
-            self.path = self.path.path
+        self.path = self.file.path
         self.org = instance.organization
         self.company = instance.organization.company
         self.vendor = instance.vendor
@@ -770,7 +777,7 @@ class ProcessPdf:
         self.vendorList = Vendors.objects.all()
         self.typesList = BillType.objects.all()
         self.types = None
-        self.email = request.user.email
+        self.email = user_mail
         self.month = None
         self.year = None
     def startprocess(self):
@@ -871,11 +878,15 @@ class ProcessPdf:
             bill_date_info = bill_date1[0]
         acc_no = acc_info
         bill_date_pdf = bill_date_info
-        acc_exists = PdfDataTable.objects.filter(AccountNumber=acc_no)
-        bill_date_exists = PdfDataTable.objects.filter(Bill_Date=bill_date_pdf)
+        print(acc_no, bill_date_pdf)
+
+        acc_exists = BaseDataTable.objects.filter(accountnumber=acc_no, bill_date=bill_date_pdf)
+        # bill_date_exists = PdfDataTable.objects.filter(Bill_Date=bill_date_pdf)
         message = ''
-        if acc_exists:
-            pass
+        if acc_exists.exists():
+            message = f'Account Number {acc_no} and Bill Date {bill_date_pdf} already exists.'
+            print(message)
+            return {'message': message, 'error': -1}
         # storage = FileSystemStorage(location='uploaded_contracts/')
         # filename = storage.save(self.file.name, self.path)
         # path = storage.path(filename)

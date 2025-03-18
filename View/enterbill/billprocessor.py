@@ -9,7 +9,7 @@ import pandas as pd
 import io
 from io import BytesIO, StringIO
 from .scripts.verizon import PDFExtractor, First, Model1, Model2, Model3, Model4
-from .scripts.Att import first_page_extractor, Att, process_all
+from .scripts.Att import First_Page_Extractor, Att, process_all
 from .scripts.t_mobile1 import get_all_dataframes
 from .scripts.t_mobile2 import extract_text_from_t_mobile
 batch_count = '000'
@@ -69,7 +69,7 @@ def extract_data_from_pdf(pdf_path, vendor_nm, pdf_filename,types):
             entry['pdf_path'] = pdf_path
             entry['pdf_filename'] = pdf_filename
     else:
-        first_obj = first_page_extractor(pdf_path)
+        first_obj = First_Page_Extractor(pdf_path)
         data_dict = first_obj.first_page_data_func()
         acc_info = first_obj.get_acc_info()
         bill_date_info = first_obj.get_bill_date_info()

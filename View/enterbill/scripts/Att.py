@@ -3,7 +3,7 @@ import pdfplumber
 import pandas as pd
 
 
-class first_page_extractor:
+class First_Page_Extractor:
     def __init__(self,input_file):
         self.input_path = input_file
         self.Lines_1 = None
