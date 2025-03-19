@@ -1,26 +1,57 @@
-from background_task import background
-import time
-import json
-from .csv_processor import process_csv_from_buffer
-from .pdf_processor import process_pdf_from_buffer
-from .pp import ProcessPdf
-from celery import shared_task
+# from background_task import background
+# import time
+# import json
+# from .csv_processor import process_csv_from_buffer
+# from .pdf_processor import process_pdf_from_buffer
+# from .pp import ProcessPdf
+# from ..models import OnboardBan
+# from celery import shared_task
 
+
+
+
+# # @background(schedule=3600)
+# @shared_task
+# def process_pdf_task(buffer_data, instance_id):
+#     print("Processing PDF...")
+#     buffer_data_dict = json.loads(buffer_data)
+#     # process_pdf_from_buffer(buffer_data_dict)
+#     try:
+#         instance = OnboardBan.objects.filter(id=instance_id)[0]
+#     except Exception as e:
+#         print(f"Error occurred while retrieving instance: {str(e)}")
+#         return {"message": f"Error occurred while retrieving instance: {str(e)}", "error":1}
+#     obj = ProcessPdf(buffer_data=buffer_data_dict, instance=instance)
+#     print(buffer_data)
+#     obj.process_pdf_from_buffer()
+
+from celery import shared_task
+import json
+from OnBoard.Ban.models import OnboardBan
+from OnBoard.Ban.Background.pp import ProcessPdf
+from OnBoard.Ban.Background.cp import ProcessCsv
+
+
+@shared_task
+def process_pdf_task(buffer_data, instance_id):
+    print("Processing PDF...")
+    buffer_data_dict = json.loads(buffer_data)
+
+    try:
+        instance = OnboardBan.objects.get(id=instance_id)
+    except OnboardBan.DoesNotExist:
+        print(f"Error: OnboardBan object with ID {instance_id} not found.")
+        return {"message": f"Error: OnboardBan object with ID {instance_id} not found.", "error": 1}
+
+    obj = ProcessPdf(buffer_data=buffer_data_dict, instance=instance)
+    print(buffer_data_dict)
+    obj.process_pdf_from_buffer()
 
 # @background(schedule=3600)
-# @shared_task(bind=True)
+# @shared_task
 def process_csv(instance, buffer_data):
     print("Processing CSV...")
     buffer_data = str(buffer_data)
     buffer_data_dict = json.loads(buffer_data)
     print(buffer_data_dict)
-    process_csv_from_buffer(instance, buffer_data_dict)
-
-# @background(schedule=3600)
-# @shared_task(bind=True)
-def process_pdf_task(buffer_data, instance):
-    print("Processing PDF...")
-    buffer_data_dict = json.loads(buffer_data)
-    # process_pdf_from_buffer(buffer_data_dict)
-    obj = ProcessPdf(buffer_data=buffer_data_dict, instance=instance)
-    obj.process_pdf_from_buffer()
+    process_csv(instance, buffer_data_dict)

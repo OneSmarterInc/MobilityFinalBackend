@@ -171,10 +171,23 @@ STATICFILES_DIRS = [
 ]
 
 # CELERY SETTINGS
-CELERY_BROKER_URL = "redis://localhost:6379/0"  # Use Redis as message broker
-CELERY_ACCEPT_CONTENT = ["json"]
-CELERY_TASK_SERIALIZER = "json"
-CELERY_TIMEZONE = 'Asia/Kolkata'
-CELERY_RESULT_BACKEND = 'django-db'
+ALLOWED_HOSTS = ['*']
 
-CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Redis as the broker
+CELERY_RESULT_BACKEND = 'django-db'  # Django database as the result backend
+CELERY_ACCEPT_CONTENT = ['application/json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Asia/Kolkata'
+
+# Optional: Retry connection on startup
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+
+
+# Additional Celery settings
+CELERY_TASK_TRACK_STARTED = True  # Track when tasks start
+CELERY_TASK_TIME_LIMIT = 300  # Task time limit in seconds
+
+result_backend = 'django-db'

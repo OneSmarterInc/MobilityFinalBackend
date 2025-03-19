@@ -435,6 +435,7 @@ class ProcessPdf:
             updated_data.pop('bill_date')
             BaselineDataTable.objects.create(banOnboarded=self.instance,**updated_data)
     def process_pdf_from_buffer(self):
+        print(self.buffer_data)
         logger.info('Extracting data from PDF')
         try:    
             data, acc_info, bill_date_info = self.extract_data_from_pdf()

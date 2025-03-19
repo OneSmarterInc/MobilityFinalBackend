@@ -252,6 +252,8 @@ from .models import OnboardBan
 from .ser import OnboardBanSerializer, EntryTypeShowSerializer, BillTypeShowSerializer, OrganizationShowOnboardSerializer
 from Dashboard.ModelsByPage.DashAdmin import EntryType, BillType
 from .models import UploadBAN, MappingObjectBan
+from OnBoard.Ban.Background.tasks import process_pdf_task
+
 class OnboardBanView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -510,7 +512,7 @@ class OnboardBanView(APIView):
                     addon = ProcessPdf(instance=obj, user_mail=request.user.email)
                     check = addon.startprocess()
                     print(check)
-                    if check['error'] == -1:
+                    if check['error'] != 0:
                         return Response(
                             {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
                         )
@@ -520,9 +522,8 @@ class OnboardBanView(APIView):
 
                     buffer_data = json.dumps({'pdf_path': obj.uploadBill.path, 'company_name': obj.organization.company.Company_name, 'vendor_name': obj.vendor.name, 'pdf_filename': obj.uploadBill.name, 'month': month, 'year': year, 'sub_company': obj.organization.Organization_name,'entry_type':obj.entryType.name,'user_email':request.user.email,'types':types,'baseline_check':obj.addDataToBaseline,'location':obj.location.site_name if obj.location else None,'master_account':obj.masteraccount.account_number if obj.masteraccount else None})
 
-                    from .Background.tasks import process_pdf_task
-                    # process_pdf_task.delay(buffer_data,obj)
-                    process_pdf_task(buffer_data,obj)
+                    process_pdf_task.delay(buffer_data,obj.id)
+                    # process_pdf_task(buffer_data,obj)
                     # AllUserLogs.objects.create(
                     #     user_email=request.user.email,
                     #     description=(
