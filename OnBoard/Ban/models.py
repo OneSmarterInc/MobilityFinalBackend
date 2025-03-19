@@ -204,7 +204,7 @@ class OnboardBan(models.Model):
         db_table = 'OnboardBAN'
 
     def __str__(self):
-        return f'{self.masteraccount}'
+        return f'{self.organization.Organization_name} - {self.vendor.name} - {self.uploadBill.name}'
 
 
 class InventoryUpload(models.Model):

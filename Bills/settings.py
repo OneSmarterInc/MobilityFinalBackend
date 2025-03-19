@@ -43,6 +43,8 @@ INSTALLED_APPS = [
 OTHER_DEPENDIES = [
     'rest_framework',
     'corsheaders',
+    'django_celery_results',
+    'django_celery_beat',
 ]
 
 MY_APPS = [
@@ -167,3 +169,12 @@ AUTH_USER_MODEL = 'authenticate.PortalUser'
 STATICFILES_DIRS = [
     BASE_DIR /'static',
 ]
+
+# CELERY SETTINGS
+CELERY_BROKER_URL = "redis://localhost:6379/0"  # Use Redis as message broker
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_TIMEZONE = 'Asia/Kolkata'
+CELERY_RESULT_BACKEND = 'django-db'
+
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'

@@ -508,7 +508,8 @@ class ProcessPdf:
             non_categorical_data = non_cat_df.to_dict(orient='records')
             self.save_to_pdf_data_table(pdf_data)
             print('got here')
-            self.save_to_unique_pdf_data_table(unique_pdf_data)
+            if self.entry_type != "Master Account":
+                self.save_to_unique_pdf_data_table(unique_pdf_data)
             if self.month == None and self.year == None:
                 print("**",type(self.baseline_check))
                 if self.baseline_check == 'false': 

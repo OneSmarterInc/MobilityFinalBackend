@@ -360,7 +360,7 @@ class ViewReportView(APIView):
         if request.user.designation.name == 'Admin':
             orgs = OrganizationShowSerializer(Organizations.objects.filter(company=request.user.company), many=True)
             vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
-            bans = showBanSerializer(UploadBAN.objects.all(company=request.user.company), many=True)
+            bans = showBanSerializer(UploadBAN.objects.filter(company=request.user.company), many=True)
         else:
             orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
             vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
@@ -437,7 +437,7 @@ class ViewReportView(APIView):
                 filter_kwargs = {}
                 company = Company.objects.get(Company_name=request.user.company.Company_name) if request.user.company else None
                 if company:
-                    filter_kwargs['Company_Name'] = company
+                    filter_kwargs['company'] = company
                 if report_type:
                     filter_kwargs['Report_Type'] = report_type
                 filtered_data = Report_Unbilled_Data.objects.filter(**filter_kwargs)

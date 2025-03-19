@@ -448,7 +448,7 @@ class OnboardBanView(APIView):
 
                             from .Background.tasks import process_csv
                             print("process_csv")
-                            process_csv(instance=obj, buffer_data=buffer_data)
+                            process_csv.delay(instance=obj, buffer_data=buffer_data)
                 saveuserlog(
                     request.user, f"Multiple RDD and Excel uploaded successfully!"
                 )
@@ -518,9 +518,10 @@ class OnboardBanView(APIView):
                     types = []
                     print(obj)
 
-                    buffer_data = json.dumps({'pdf_path': obj.uploadBill.path, 'company_name': obj.organization.company.Company_name, 'vendor_name': obj.vendor.name, 'pdf_filename': obj.uploadBill.name, 'month': month, 'year': year, 'sub_company': obj.organization.Organization_name,'entry_type':obj.entryType.name,'user_email':request.user.email,'types':types,'baseline_check':obj.addDataToBaseline,'location':obj.location.site_name,'master_account':obj.masteraccount.account_number if obj.masteraccount else None})
+                    buffer_data = json.dumps({'pdf_path': obj.uploadBill.path, 'company_name': obj.organization.company.Company_name, 'vendor_name': obj.vendor.name, 'pdf_filename': obj.uploadBill.name, 'month': month, 'year': year, 'sub_company': obj.organization.Organization_name,'entry_type':obj.entryType.name,'user_email':request.user.email,'types':types,'baseline_check':obj.addDataToBaseline,'location':obj.location.site_name if obj.location else None,'master_account':obj.masteraccount.account_number if obj.masteraccount else None})
 
                     from .Background.tasks import process_pdf_task
+                    # process_pdf_task.delay(buffer_data,obj)
                     process_pdf_task(buffer_data,obj)
                     # AllUserLogs.objects.create(
                     #     user_email=request.user.email,
@@ -626,7 +627,6 @@ class InventoryUploadView(APIView):
                 saveuserlog(request.user, f"Inventory upload with account number {obj.ban.account_number} created successfully!")
 
                 from .Background.tasks import process_csv
-                
                 buffer_data = json.dumps({
                     'csv_path': obj.uploadFile.path,
                     'company': obj.organization.company.Company_name,
@@ -637,7 +637,7 @@ class InventoryUploadView(APIView):
                 })
                 print(buffer_data)
                 print("Starting CSV process...")
-                process_csv(instance=obj, buffer_data=buffer_data)
+                process_csv.delay(instance=obj, buffer_data=buffer_data)
 
                 return Response({"message" : "Inventory uploaded successfully!", "data" : mutable_data}, status=status.HTTP_201_CREATED)
             else:
@@ -948,6 +948,7 @@ class ProcessZip:
 
             if self.masteraccount:
                 self.masteraccount = self.masteraccount.account_number
+            print("loc=",self.loc)
             if self.loc:
                 self.loc = self.loc.site_name
             if self.billtype:
@@ -991,7 +992,8 @@ class ProcessZip:
                 print('done')
                 self.save_to_batch_report(data_base, self.vendor)
                 print('saved to batch report')
-                self.save_to_unique_pdf_data_table(detailed_df, v, t)
+                if self.entrytype != "Master Account":
+                    self.save_to_unique_pdf_data_table(detailed_df, v, t)
                 print('saved to unique pdf data table')
                 from collections import defaultdict
                 wireless_data = defaultdict(lambda: defaultdict(dict))

@@ -35,6 +35,9 @@ class InventorySubjectView(APIView):
             objs = Organizations.objects.filter(company=com)
             banobjs = UploadBAN.objects.filter(company=com)
             ban_serializer = BanShowSerializer(banobjs, many=True)
+            allobjs = OnboardBan.objects.all()
+            for obj in allobjs:
+                print(f'{obj} - {obj.uploadBill.size}bytes')
             serializer = OrganizationShowOnboardSerializer(objs, many=True)
             onboardbanObjs = BaseDataTable.objects.filter(company=request.user.company)
             onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
