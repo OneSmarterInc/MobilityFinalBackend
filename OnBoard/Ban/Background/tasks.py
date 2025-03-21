@@ -28,6 +28,7 @@
 from celery import shared_task
 import json
 from OnBoard.Ban.models import OnboardBan
+from OnBoard.Ban.models import InventoryUpload
 from OnBoard.Ban.Background.pp import ProcessPdf
 from OnBoard.Ban.Background.cp import ProcessCsv
 
@@ -47,11 +48,24 @@ def process_pdf_task(buffer_data, instance_id):
     print(buffer_data_dict)
     obj.process_pdf_from_buffer()
 
+
 # @background(schedule=3600)
-# @shared_task
-def process_csv(instance, buffer_data):
+@shared_task
+def process_csv(instance_id, buffer_data,type=None):
     print("Processing CSV...")
-    buffer_data = str(buffer_data)
     buffer_data_dict = json.loads(buffer_data)
+
+    try:
+        if type and type == 'inventory':
+            instance = InventoryUpload.objects.get(id=instance_id)
+        else:
+            instance = OnboardBan.objects.get(id=instance_id)
+    except OnboardBan.DoesNotExist:
+        print(f"Error: OnboardBan object with ID {instance_id} not found.")
+        return {"message": f"Error: OnboardBan object with ID {instance_id} not found.", "error": 1}
+    except InventoryUpload.DoesNotExist:
+        print(f"Error: InventoryUpload object with ID {instance_id} not found.")
+        return {"message": f"Error: InventoryUpload object with ID {instance_id} not found.", "error": 1}
     print(buffer_data_dict)
-    process_csv(instance, buffer_data_dict)
+    obj = ProcessCsv(buffer_data=buffer_data_dict, instance=instance)
+    obj.process_csv_from_buffer()

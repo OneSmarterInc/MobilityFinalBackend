@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from ..models import UploadBAN
+from ..models import UploadBAN, BaseDataTable
 from ...Organization.models import Organizations
 
 
@@ -21,3 +21,18 @@ class OrganizationShowSerializer(serializers.ModelSerializer):
     
     def get_company(self, obj):
         return obj.company.Company_name
+    
+class showBaseDataSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BaseDataTable
+        fields = ['company','accountnumber','vendor','master_account','sub_company']
+
+class BanShowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UploadBAN
+        fields = ['id','account_number','company', 'organization', 'Vendor']
+
+    company = serializers.CharField()
+    organization = serializers.CharField()
+    Vendor = serializers.CharField()
+    

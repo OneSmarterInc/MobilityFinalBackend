@@ -214,9 +214,7 @@ class InventoryUpload(models.Model):
     vendor = models.ForeignKey(
         Vendors, null=True, related_name='inventoryupload_vendors', on_delete=models.SET_NULL
     )
-    ban = models.ForeignKey(
-        UploadBAN, related_name='inventoryupload_uploadBAN', on_delete=models.CASCADE
-    )
+    ban = models.CharField(max_length=255, null=True, blank=True)
     uploadFile = models.FileField(upload_to='InventoryExcel/')
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True, null=True)
@@ -225,7 +223,7 @@ class InventoryUpload(models.Model):
         db_table = 'InventoryUpload'
         unique_together = (('organization','vendor', 'ban'),)
     def __str__(self):
-        return f'{self.organization.Organization_name} - {self.ban.account_number} - {self.uploadFile.name}'
+        return f'{self.organization.Organization_name} - {self.ban} - {self.uploadFile.name}'
     
 from View.models import ViewUploadBill
 class MappingObjectBan(models.Model):

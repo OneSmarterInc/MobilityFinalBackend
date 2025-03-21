@@ -31,7 +31,7 @@ class ProcessPdf:
         self.pdf_filename = self.buffer_data['pdf_filename']
         self.month = self.buffer_data['month']
         self.entry_type = self.buffer_data['entry_type']
-        self.baseline_check = self.buffer_data['baseline_check']
+        self.baseline_check = True if self.buffer_data['baseline_check'] != 'true' else False
         self.location = self.buffer_data['location']
         self.master_account = self.buffer_data['master_account']
         self.year = self.buffer_data['year']
@@ -157,6 +157,7 @@ class ProcessPdf:
         if type(data) == dict:
             updated_data = {mapping.get(k, k): v for k, v in data.items()}
             print(updated_data)
+            updated_data.pop("foundation_account") if 'foundation_account' in updated_data else None
             BaseDataTable.objects.create(banOnboarded=self.instance, **updated_data)
         elif type(data) == list:
             for item in data:
@@ -267,7 +268,12 @@ class ProcessPdf:
                 data_df = df_filtered.rename(columns=column_mapping)
 
         if 'Page Number' in data_df.columns:
-            data_df.drop(columns=['Page Number','Monthly charges Add-ons','Billing_Name','Billing_Address', 'Remidence_Addresss','Activity since last bill'],inplace=True)
+            columns_to_drop = ['Page Number', 'Monthly charges Add-ons', 'Billing_Name', 
+                            'Billing_Address', 'Remidence_Addresss', 'Activity since last bill']
+
+            # Drop only the columns that exist in the DataFrame
+            data_df.drop(columns=[col for col in columns_to_drop if col in data_df.columns], inplace=True)
+
         data_df.rename(columns={'Monthly charges Plan':'monthly_charges',"Monthly charges Equipment":'equipment_charges','Company fees & surcharges':'surcharges_and_other_charges_and_credits','Government fees & taxes':'taxes_governmental_surcharges_and_fees','Total':'total_charges','Account_number':'Account_number','Voice_Plan_Usage_':"Voice_Plan_Usage"},inplace=True)
         data_df.columns = data_df.columns.str.replace('&', 'and')
         data_df.columns = data_df.columns.str.replace('-', ' ')
@@ -275,10 +281,11 @@ class ProcessPdf:
         data_df.rename(columns={'Voice_Plan_Usage_':"Voice_Plan_Usage"},inplace=True)
         data = data_df.to_dict(orient='records')
         from ..models import PdfDataTable
-        mapping = {'Wireless_number':"wireless_number", 'Monthly_Charges':"monthly_charges", 'Usage_and_Purchase_Charges':"usage_and_purchase_charges", 'Equipment_Charges':"equipment_charges", 'Surcharges_and_Other_Charges_and_Credits':"surcharges_and_other_charges_and_credits", 'Taxes_Governmental_Surcharges_and_Fees':"taxes_governmental_surcharges_and_fees", 'Third_Party_Charges_includes_Tax':"taxes_governmental_surcharges_and_fees", 'Total_Charges':"total_charges", 'Voice_Plan_Usage':"voice_plan_usage", 'Messaging_Usage':"messaging_usage", 'Data_Usage':"data_usage", 'Foundation_Account':"voice_plan_usage", 'Account_number':"account_number", 'Group_Number':"group_number", 'User_Email':"user_email", 'Status':"status", 'Cost_Center':"cost_center", 'Account_Charges_and_Credits':"account_charges_credits", 'Plans':"plans", 'Item_Category':"item_category", 'Item_Description':"item_description", 'Charges':"charges"}
+        mapping = {'Wireless_number':"wireless_number", 'Monthly_Charges':"monthly_charges", 'Usage_and_Purchase_Charges':"usage_and_purchase_charges", 'Equipment_Charges':"equipment_charges", 'Surcharges_and_Other_Charges_and_Credits':"surcharges_and_other_charges_and_credits", 'Taxes_Governmental_Surcharges_and_Fees':"taxes_governmental_surcharges_and_fees", 'Third_Party_Charges_includes_Tax':"taxes_governmental_surcharges_and_fees", 'Total_Charges':"total_charges", 'Voice_Plan_Usage':"voice_plan_usage", 'Messaging_Usage':"messaging_usage", 'Data_Usage':"data_usage", 'Foundation_Account':"voice_plan_usage", 'Account_number':"account_number", 'Group_Number':"group_number", 'User_Email':"user_email", 'Status':"status", 'Cost_Center':"cost_center", 'Account_Charges_and_Credits':"account_charges_credits", 'Plans':"plans", 'Item_Category':"item_category", 'Item_Description':"item_description", 'Charges':"charges","User_name":"user_name"}
         
 
         for item in data:
+            item.pop('Note') if 'Note' in item else None
             updated_data = {mapping.get(k, k): v for k, v in item.items()}
             PdfDataTable.objects.create(banOnboarded=self.instance, **updated_data)
     def save_to_unique_pdf_data_table(self,data):
@@ -335,7 +342,12 @@ class ProcessPdf:
             data_df = df_filtered.rename(columns=column_mapping)
 
         if 'Page Number' in data_df.columns:
-            data_df.drop(columns=['Page Number','Monthly charges Add-ons','Billing_Name','Billing_Address', 'Remidence_Addresss','Activity since last bill'],inplace=True)
+            columns_to_drop = ['Page Number', 'Monthly charges Add-ons', 'Billing_Name', 
+                            'Billing_Address', 'Remidence_Addresss', 'Activity since last bill']
+
+            # Drop only the columns that exist in the DataFrame
+            data_df.drop(columns=[col for col in columns_to_drop if col in data_df.columns], inplace=True)
+
         data_df.rename(columns={'Monthly charges Plan':'monthly_charges',"Monthly charges Equipment":'equipment_charges','Company fees & surcharges':'surcharges_and_other_charges_and_credits','Government fees & taxes':'taxes_governmental_surcharges_and_fees','Total':'total_charges','Account Number':'account_number_y','Voice_Plan_Usage_':"Voice_Plan_Usage"},inplace=True)
         data_df.columns = data_df.columns.str.replace('&', 'and')
         data_df.columns = data_df.columns.str.replace('-', ' ')
@@ -343,14 +355,14 @@ class ProcessPdf:
         data_df.rename(columns={'Voice_Plan_Usage_':"Voice_Plan_Usage"},inplace=True)
         data = data_df.to_dict(orient='records')
         from ..models import UniquePdfDataTable
-        mapping = {'Wireless_number':"wireless_number", 'Monthly_Charges':"monthly_charges", 'Usage_and_Purchase_Charges':"usage_and_purchase_charges", 'Equipment_Charges':"equipment_charges", 'Surcharges_and_Other_Charges_and_Credits':"surcharges_and_other_charges_credits", 'Taxes_Governmental_Surcharges_and_Fees':"taxes_governmental_surcharges_and_fees", 'Third_Party_Charges_includes_Tax':"taxes_governmental_surcharges_and_fees", 'Total_Charges':"total_charges", 'Voice_Plan_Usage':"voice_plan_usage", 'Messaging_Usage':"messaging_usage", 'Data_Usage':"data_usage", 'Foundation_Account':"voice_plan_usage", 'Account_number':"account_number", 'Group_Number':"group_number", 'User_Email':"User_email", 'Status':"User_status", 'Cost_Center':"cost_center", 'Account_Charges_and_Credits':"account_charges_and_credits", 'Plans':"plans", 'Item_Category':"item_category", 'Item_Description':"item_description", 'Charges':"charges"}
+        mapping = {'Wireless_number':"wireless_number", 'Monthly_charges':"monthly_charges", 'Usage_and_Purchase_Charges':"usage_and_purchase_charges", 'Equipment_Charges':"equipment_charges", 'surcharges_and_other_charges_and_credits':"surcharges_and_other_charges_credits", 'Taxes_Governmental_Surcharges_and_Fees':"taxes_governmental_surcharges_and_fees", 'Third_Party_Charges_includes_Tax':"taxes_governmental_surcharges_and_fees", 'Total_Charges':"total_charges", 'Voice_Plan_Usage':"voice_plan_usage", 'Messaging_Usage':"messaging_usage", 'Data_Usage':"data_usage", 'Foundation_Account':"voice_plan_usage", 'Account_number':"account_number", 'Group_Number':"group_number", 'User_Email':"User_email", 'Status':"User_status", 'Cost_Center':"cost_center", 'Account_Charges_and_Credits':"account_charges_and_credits", 'Plans':"plans", 'Item_Category':"item_category", 'Item_Description':"item_description", 'Charges':"charges", "User_name":"user_name", "Monthly_Charges":"monthly_charges","Surcharges_and_Other_Charges_and_Credits":'surcharges_and_other_charges_credits'}
 
         for item in data:
             print(item)
-            item.pop('Charges')
-            item.pop('location')
             updated_data = {mapping.get(k, k): v for k, v in item.items()}
-
+            updated_data.pop('charges') if 'charges' in updated_data else None
+            updated_data.pop('location') if 'location' in updated_data else None
+            updated_data.pop('Note') if 'Note' in updated_data else None
             UniquePdfDataTable.objects.create(banOnboarded=self.instance,**updated_data)
     def save_to_baseline_data_table(self,data):
         print("saving to baseline_data_table")
@@ -405,7 +417,11 @@ class ProcessPdf:
             data_df = df_filtered.rename(columns=column_mapping)
 
         if 'Page Number' in data_df.columns:
-            data_df.drop(columns=['Page Number','Monthly charges Add-ons','Billing_Name','Billing_Address', 'Remidence_Addresss','Activity since last bill'],inplace=True)
+            columns_to_drop = ['Page Number', 'Monthly charges Add-ons', 'Billing_Name', 
+                            'Billing_Address', 'Remidence_Addresss', 'Activity since last bill']
+
+            data_df.drop(columns=[col for col in columns_to_drop if col in data_df.columns], inplace=True)
+
         data_df.rename(columns={'Monthly charges Plan':'monthly_charges',"Monthly charges Equipment":'equipment_charges','Company fees & surcharges':'surcharges_and_other_charges_and_credits','Government fees & taxes':'taxes_governmental_surcharges_and_fees','Total':'total_charges','Account Number':'account_number_y','Voice_Plan_Usage_':"Voice_Plan_Usage"},inplace=True)
         data_df.columns = data_df.columns.str.replace('&', 'and')
         data_df.columns = data_df.columns.str.replace('-', ' ')
@@ -418,21 +434,21 @@ class ProcessPdf:
         #     cursor.execute(f'INSERT INTO myapp_baseline_data_table ({keys}) VALUES ({values})')
         # Assuming `data` is a list of dictionaries containing the records to insert
         from ..models import BaselineDataTable
-        mapping = {'Monthly_Charges':"monthly_charges", 'Usage_and_Purchase_Charges':"usage_and_purchase_charges", 'Equipment_Charges':"equipment_charges", 'Taxes_Governmental_Surcharges_and_Fees':"taxes_governmental_surcharges_and_fees", "Surcharges_and_Other_Charges_and_Credits":"surcharges_and_other_charges_and_credits",
-        'Third_Party_Charges_includes_Tax':"taxes_governmental_surcharges_and_fees", 'Total_Charges':"total_charges", 'Voice_Plan_Usage':"voice_plan_usage", 'Messaging_Usage':"messaging_usage", 'Data_Usage':"data_usage", 'Foundation_Account':"voice_plan_usage", 'Account_number':"account_number", 'Group_Number':"group_number", 'User_Email':"User_email", 'Status':"User_status", 'Cost_Center':"cost_center", 'Account_Charges_and_Credits':"account_charges_and_credits", 'Plans':"plans", 'Item_Category':"item_category", 'Item_Description':"item_description", 'Charges':"charges"}
+        mapping = {'Monthly_charges':"monthly_charges", 'Usage_and_Purchase_Charges':"usage_and_purchase_charges", 'Equipment_Charges':"equipment_charges", 'Taxes_Governmental_Surcharges_and_Fees':"taxes_governmental_surcharges_and_fees", "Surcharges_and_Other_Charges_and_Credits":"surcharges_and_other_charges_and_credits",
+        'Third_Party_Charges_includes_Tax':"taxes_governmental_surcharges_and_fees", 'Total_Charges':"total_charges", 'Voice_Plan_Usage':"voice_plan_usage", 'Messaging_Usage':"messaging_usage", 'Data_Usage':"data_usage", 'Foundation_Account':"voice_plan_usage", 'Account_number':"account_number", 'Group_Number':"group_number", 'User_Email':"User_email", 'Status':"User_status", 'Cost_Center':"cost_center", 'Account_Charges_and_Credits':"account_charges_and_credits", 'Plans':"plans", 'Item_Category':"item_category", 'Item_Description':"item_description", 'Charges':"charges", "User_name":"user_name", "Monthly_Charges":"monthly_charges"}
         for item in data:
             for key, value in item.items():
                 if isinstance(value, dict):
                     item[key] = json.dumps(value)  
             updated_data = {mapping.get(k, k): v for k, v in item.items()}
-            updated_data.pop('group_number')
-            updated_data.pop('location')
-            updated_data.pop('User_email')
-            updated_data.pop('User_status')
-            updated_data.pop('item_category')
-            updated_data.pop('item_description')
-            updated_data.pop('charges')
-            updated_data.pop('bill_date')
+            updated_data.pop('group_number') if 'group_number' in updated_data else None
+            updated_data.pop('location') if 'location' in updated_data else None
+            updated_data.pop('User_email') if 'User_email' in updated_data else None
+            updated_data.pop('User_status') if 'User_status' in updated_data else None
+            updated_data.pop('item_category') if 'item_category' in updated_data else None
+            updated_data.pop('item_description') if 'item_description' in updated_data else None
+            updated_data.pop('charges') if 'charges' in updated_data else None
+            updated_data.pop('bill_date') if 'bill_date' in updated_data else None
             BaselineDataTable.objects.create(banOnboarded=self.instance,**updated_data)
     def process_pdf_from_buffer(self):
         print(self.buffer_data)
@@ -507,18 +523,16 @@ class ProcessPdf:
             non_cat_df = udf
             non_cat_df['category_object'] = json.dumps({})
             non_categorical_data = non_cat_df.to_dict(orient='records')
-            self.save_to_pdf_data_table(pdf_data)
-            print('got here')
             if self.entry_type != "Master Account":
+                self.save_to_pdf_data_table(pdf_data)
+                print('got here')
                 self.save_to_unique_pdf_data_table(unique_pdf_data)
-            if self.month == None and self.year == None:
-                print("**",type(self.baseline_check))
-                if self.baseline_check == 'false': 
-                    self.baseline_check = False
-                if self.baseline_check:
-                    self.save_to_baseline_data_table(category_data)
-                else:
-                    self.save_to_baseline_data_table(non_categorical_data)    
+                if self.month == None and self.year == None:
+                    print("**",type(self.baseline_check))
+                    if self.baseline_check:
+                        self.save_to_baseline_data_table(category_data)
+                    else:
+                        self.save_to_baseline_data_table(non_categorical_data)    
             print('wie gets')
             message = 'file has been processed successfully'
         except Exception as e:

@@ -7,15 +7,25 @@ class ProcessCsv:
     def __init__(self, buffer_data,instance):
         self.instance = instance
         self.buffer_data = buffer_data
-        self.company = self.buffer_data['company']
+        print(self.buffer_data)
+        self.company = self.buffer_data['company'] 
         self.csv_path = self.buffer_data['csv_path']
         self.vendor = self.buffer_data['vendor']
         self.account_number = buffer_data['account_number']
         self.sub_company = self.buffer_data['sub_company']
         self.mapping_data = self.buffer_data['mapping_json']
-        self.entryType = self.buffer_data['entry_type']
-        self.location = self.buffer_data['location']
-        self.master_account = self.buffer_data['master_account']
+        if 'entry_type' in self.buffer_data:
+            self.entry_type = self.buffer_data['entry_type']
+        else:
+            self.entry_type = None
+        if 'location' in self.buffer_data:
+            self.location = self.buffer_data['location']
+        else:
+            self.location = None
+        if 'master_account' in self.buffer_data:
+            self.master_account = self.buffer_data['master_account']
+        else:
+            self.master_account = None
 
     def process_csv_from_buffer(self):
         if self.csv_path:
@@ -75,6 +85,7 @@ class ProcessCsv:
             b_dict = {key: base_dict[key] for key in keys_to_keep if key in base_dict}
             
             # Insert into BaseDataTable
+            print(b_dict)
             BaseDataTable.objects.create(inventory=self.instance, **b_dict)
             print("Data added to BaseDataTable")
             
@@ -165,6 +176,7 @@ class ProcessCsv:
         sub_company_name = latest_entry_dict.get('sub_company_name')
 
         for item in df_dict:
+            print(item)
             # Add company_name and sub_company_name to each row
             item['company_name'] = company_name
             item['sub_company_name'] = sub_company_name
@@ -265,6 +277,7 @@ class ProcessCsv:
             update_data = {col: row[col] for col in columns if col != 'wireless_number' and pd.notnull(row[col])}
             # Update existing records
             UniquePdfDataTable.objects.filter(wireless_number=wireless_number).update(**update_data)
+            print(row)
             # Insert if not exists
             if not UniquePdfDataTable.objects.filter(wireless_number=wireless_number).exists():
                 UniquePdfDataTable.objects.create(inventory=self.instance, **row.to_dict())

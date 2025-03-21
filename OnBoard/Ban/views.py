@@ -252,7 +252,9 @@ from .models import OnboardBan
 from .ser import OnboardBanSerializer, EntryTypeShowSerializer, BillTypeShowSerializer, OrganizationShowOnboardSerializer
 from Dashboard.ModelsByPage.DashAdmin import EntryType, BillType
 from .models import UploadBAN, MappingObjectBan
-from OnBoard.Ban.Background.tasks import process_pdf_task
+from OnBoard.Ban.Background.tasks import process_pdf_task, process_csv
+from OnBoard.Ban.Background.tasks import process_csv
+
 
 class OnboardBanView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -328,9 +330,36 @@ class OnboardBanView(APIView):
                     )
                     obj.save()
                     if obj.uploadBill.name.endswith('.zip'):
-                        pass
-                    elif obj.uploadBill.name.endswith('.pdf'):
-                        pass
+                        addon = ProcessZip(obj)
+                        check = addon.startprocess()
+                        print(check)
+                        if check['error'] != 0:
+                            return Response(
+                                {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
+                            )
+                    else:
+                        addon = ProcessPdf(instance=obj, user_mail=request.user.email)
+                        check = addon.startprocess()
+                        print(check)
+                        if check['error'] != 0:
+                            return Response(
+                                {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
+                            )
+                        month, year = None, None
+                        types = []
+                        print(obj)
+
+                        buffer_data = json.dumps({'pdf_path': obj.uploadBill.path, 'company_name': obj.organization.company.Company_name, 'vendor_name': obj.vendor.name, 'pdf_filename': obj.uploadBill.name, 'month': month, 'year': year, 'sub_company': obj.organization.Organization_name,'entry_type':obj.entryType.name,'user_email':request.user.email,'types':types,'baseline_check':obj.addDataToBaseline,'location':obj.location.site_name if obj.location else None,'master_account':obj.masteraccount.account_number if obj.masteraccount else None})
+
+                        process_pdf_task.delay(buffer_data,obj.id)
+                        # process_pdf_task(buffer_data,obj)
+                        # AllUserLogs.objects.create(
+                        #     user_email=request.user.email,
+                        #     description=(
+                        #         f"User uploaded pdf file for {obj.organization.company.Company_name} - {obj.organization.Organization_name}."
+                        #         f"with vendor name {obj.vendor.name} and account number {obj.masteraccount.account_number}."
+                        #     )
+                        # )
 
                 for i, ed in enumerate(excel_data):
                     print(ed)
@@ -448,11 +477,10 @@ class OnboardBanView(APIView):
                             #         )
                             #     )
 
-                            from .Background.tasks import process_csv
                             print("process_csv")
-                            process_csv.delay(instance=obj, buffer_data=buffer_data)
+                            process_csv.delay(instance_id=obj.id, buffer_data=buffer_data)
                 saveuserlog(
-                    request.user, f"Multiple RDD and Excel uploaded successfully!"
+                    request.user, f"Multiple RDD and Excel upload is in progress.\n It will take some time. Please check inventory page later."
                 )
                 return Response({"message" :'multiple files uploaded'}, status=status.HTTP_200_OK)
 
@@ -508,35 +536,36 @@ class OnboardBanView(APIView):
                         {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
                     )
             else:
-                if 'verizon' in str(obj.vendor.name).lower():
-                    addon = ProcessPdf(instance=obj, user_mail=request.user.email)
-                    check = addon.startprocess()
-                    print(check)
-                    if check['error'] != 0:
-                        return Response(
-                            {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
-                        )
-                    month, year = None, None
-                    types = []
-                    print(obj)
+                addon = ProcessPdf(instance=obj, user_mail=request.user.email)
+                check = addon.startprocess()
+                print(check)
+                if check['error'] != 0:
+                    return Response(
+                        {"message": f"Problem to onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
+                    )
+                month, year = None, None
+                types = []
+                print(obj)
 
-                    buffer_data = json.dumps({'pdf_path': obj.uploadBill.path, 'company_name': obj.organization.company.Company_name, 'vendor_name': obj.vendor.name, 'pdf_filename': obj.uploadBill.name, 'month': month, 'year': year, 'sub_company': obj.organization.Organization_name,'entry_type':obj.entryType.name,'user_email':request.user.email,'types':types,'baseline_check':obj.addDataToBaseline,'location':obj.location.site_name if obj.location else None,'master_account':obj.masteraccount.account_number if obj.masteraccount else None})
+                buffer_data = json.dumps({'pdf_path': obj.uploadBill.path, 'company_name': obj.organization.company.Company_name, 'vendor_name': obj.vendor.name, 'pdf_filename': obj.uploadBill.name, 'month': month, 'year': year, 'sub_company': obj.organization.Organization_name,'entry_type':obj.entryType.name,'user_email':request.user.email,'types':types,'baseline_check':obj.addDataToBaseline,'location':obj.location.site_name if obj.location else None,'master_account':obj.masteraccount.account_number if obj.masteraccount else None})
 
-                    process_pdf_task.delay(buffer_data,obj.id)
-                    # process_pdf_task(buffer_data,obj)
-                    # AllUserLogs.objects.create(
-                    #     user_email=request.user.email,
-                    #     description=(
-                    #         f"User uploaded pdf file for {obj.organization.company.Company_name} - {obj.organization.Organization_name}."
-                    #         f"with vendor name {obj.vendor.name} and account number {obj.masteraccount.account_number}."
-                    #     )
-                    # )
+                print(buffer_data)
+
+                process_pdf_task.delay(buffer_data,obj.id)
+                # process_pdf_task(buffer_data,obj)
+                # AllUserLogs.objects.create(
+                #     user_email=request.user.email,
+                #     description=(
+                #         f"User uploaded pdf file for {obj.organization.company.Company_name} - {obj.organization.Organization_name}."
+                #         f"with vendor name {obj.vendor.name} and account number {obj.masteraccount.account_number}."
+                #     )
+                # )
             
 
             saveuserlog(request.user, f"Onboard BAN with account number created successfully!")
 
             return Response(
-                {"message": "Onboard BAN created successfully!"}, 
+                {"message": "BAN onboard is in progress.\n It will take some time. Please check inventory page later."}, 
                 status=status.HTTP_201_CREATED,
             )
 
@@ -565,9 +594,10 @@ class OnboardBanView(APIView):
         except OnboardBan.DoesNotExist:
             return Response({"message" : "Onboard BAN not found!"}, status=status.HTTP_404_NOT_FOUND)
         
-from .models import InventoryUpload
+from .models import InventoryUpload, BaseDataTable
 from .ser import InventoryUploadSerializer
-from .InSer.ser import OrganizationShowSerializer
+from .InSer.ser import OrganizationShowSerializer, showBaseDataSerializer, BanShowSerializer
+
 class InventoryUploadView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -581,12 +611,29 @@ class InventoryUploadView(APIView):
             orgserializer = OrganizationShowSerializer(orgs, many=True)
             inventories = InventoryUpload.objects.all()
             serializer = InventoryUploadSerializer(inventories, many=True)
+            base_data = BaseDataTable.objects.all()
+            vendors = Vendors.objects.all()
+
+            if request.user.designation.name == "Admin":
+                com = request.user.company
+                objs = Organizations.objects.filter(company=com)
+                banobjs = UploadBAN.objects.filter(company=com)
+            else:
+                objs = Organizations.objects.all()
+                banobjs = UploadBAN.objects.all()
+            ban_serializer = BanShowSerializer(banobjs, many=True)
             return Response({"data" : serializer.data,
-                             "orgs" : orgserializer.data
-                             }, status=status.HTTP_200_OK)
+                             "orgs" : orgserializer.data,
+                             "base_data" : showBaseDataSerializer(base_data, many=True).data,
+                             "bans":ban_serializer.data,
+                             "vendors" : VendorShowSerializer(vendors, many=True).data
+                             }
+                             , status=status.HTTP_200_OK)
         
     def post(self, request):
-        inv = InventoryUpload.objects.filter(organization=Organizations.objects.get(Organization_name=request.data.get('sub_company')), vendor=Vendors.objects.get(name=request.data.get('vendor_name')), ban=UploadBAN.objects.get(account_number=request.data.get('Ban'))).first()
+        ban = request.data.get('Ban')
+        print(request.data)
+        inv = InventoryUpload.objects.filter(organization=Organizations.objects.get(Organization_name=request.data.get('sub_company')), vendor=Vendors.objects.get(name=request.data.get('vendor_name')), ban=ban).first()
         if inv:
             return Response(
                 {"message": "Inventory already exists for this BAN, Vendor, and Sub-Company"},
@@ -598,11 +645,12 @@ class InventoryUploadView(APIView):
             obj = InventoryUpload.objects.create(
                organization=get_object_or_404(Organizations, Organization_name=mutable_data.pop('sub_company', None)),
                vendor=get_object_or_404(Vendors, name=mutable_data.pop('vendor_name', None)),
-               ban=get_object_or_404(UploadBAN, account_number=mutable_data.pop('Ban', None)),
+               ban=ban,
                uploadFile = mutable_data.pop('file', None),
             )
  
             obj.save()
+            print(obj)
             map = request.data.pop('mapping_obj', None)[0]
             map = map.replace('null', 'None')
             map = ast.literal_eval(map)
@@ -611,9 +659,10 @@ class InventoryUploadView(APIView):
                     map[key] = None
             mobj = MappingObjectBan.objects.create(inventory=obj, **map)
             mobj.save()
-
+            print(obj)
             process  = InventoryProcess(instance=obj)
-            start, previous_data_log, new_data_log  = process.process_file()
+            start, previous_data_log, new_data_log,message  = process.process_file()
+            print(start)
             if start:
                 # All users log
                 # AllUserLogs.objects.create(
@@ -625,24 +674,23 @@ class InventoryUploadView(APIView):
                 #     previus_data=json.dumps(previous_data_log) if previous_data_log else "",
                 #     new_data=json.dumps(new_data_log) if new_data_log else ""
                 # )
-                saveuserlog(request.user, f"Inventory upload with account number {obj.ban.account_number} created successfully!")
+                saveuserlog(request.user, f"Inventory upload with account number {obj.ban} created successfully!")
 
-                from .Background.tasks import process_csv
                 buffer_data = json.dumps({
                     'csv_path': obj.uploadFile.path,
                     'company': obj.organization.company.Company_name,
                     'sub_company': obj.organization.Organization_name,
                     'vendor': obj.vendor.name,
-                    'account_number': obj.ban.account_number,
+                    'account_number': obj.ban,
                     'mapping_json': model_to_dict(MappingObjectBan.objects.get(inventory=obj)) or {}
                 })
                 print(buffer_data)
                 print("Starting CSV process...")
-                process_csv.delay(instance=obj, buffer_data=buffer_data)
+                process_csv.delay(instance_id=obj.id, buffer_data=buffer_data,type='inventory')
 
-                return Response({"message" : "Inventory uploaded successfully!", "data" : mutable_data}, status=status.HTTP_201_CREATED)
+                return Response({"message" : "Inventory upload is in progress.\n It will take some time. Please check inventory page later.", "data" : mutable_data}, status=status.HTTP_201_CREATED)
             else:
-                return Response({"message": "Inventory process failed!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({"message": f"Inventory process failed! due to {message if message else ''}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         except Exception as e:
             print("inventory post error=", str(e))
@@ -677,7 +725,7 @@ class InventoryProcess:
         self.filename = instance.uploadFile.name
         self.org = instance.organization.Organization_name
         self.company = instance.organization.company.Company_name
-        self.ban = instance.ban.account_number
+        self.ban = instance.ban
         self.mapping = model_to_dict(MappingObjectBan.objects.get(inventory=self.instance))
 
     def process_file(self):
@@ -734,11 +782,11 @@ class InventoryProcess:
                     # For new wireless numbers, log the entire row in new data
                     new_data_log.append(self.clean_data_for_json(new_row.to_dict()))
                     
-            return True, previous_data_log, new_data_log
+            return True, previous_data_log, new_data_log, None
     
         except Exception as e:
             print("Error occurred during file processing: ", str(e))
-            return False, previous_data_log, new_data_log
+            return False, previous_data_log, new_data_log, str(e)
     
     def clean_data_for_json(self, data):
         cleaned_data = {}
@@ -809,34 +857,9 @@ class ProcessPdf:
             self.billtype = self.billtype.name
         acc_info = None
         bill_date_info = None
-
-        if self.vendor in self.vendorList and 'mobile' in str(self.vendor).lower():
+        if 'mobile' in str(self.vendor).lower():
             pass
-        elif self.vendor in self.vendorList and str(self.vendor).replace(' ', '').lower().startswith('at'):
-            pages_data = []
-            with pdfplumber.open(self.path) as pdf:
-                num_of_pages = len(pdf.pages)
-            if num_of_pages < 999:
-                with pdfplumber.open(self.path) as pdf:
-                    pages_data = [page.extract_text() for page in pdf.pages[:2]]
-
-                for page_data in pages_data:
-                    first_page_data = page_data
-                    break
-
-                first_page_data_dict = {
-                    "bill_cycle_date": None,
-                    "account_number": None
-                }
-
-                for line in first_page_data.splitlines():
-                    if line.startswith("Issue Date:"):
-                        first_page_data_dict["bill_cycle_date"] = line.split(": ")[-1]
-                    elif line.startswith("Account Number:"):
-                        first_page_data_dict["account_number"] = line.split(": ")[-1]
-                acc_info = first_page_data_dict["account_number"]
-                bill_date_info = first_page_data_dict["bill_cycle_date"]
-        else:
+        elif 'verizon' in str(self.vendor).lower():
             accounts = []
             dates = []
             duration = []
@@ -877,6 +900,71 @@ class ProcessPdf:
             bill_date1 = [f"{info['phone_number']} {info['amount']} {info['pay']}" for info in bill_date]
             acc_info = accounts[0]
             bill_date_info = bill_date1[0]
+        else:
+            pages_data = []
+            with pdfplumber.open(self.path) as pdf:
+                num_of_pages = len(pdf.pages)
+            if num_of_pages < 999:
+                with pdfplumber.open(self.path) as pdf:
+                    pages_data = [page.extract_text() for page in pdf.pages[:2]]
+
+                for page_data in pages_data:
+                    first_page_data = page_data
+                    break
+
+                first_page_data_dict = {
+                    "bill_cycle_date": None,
+                    "account_number": None
+                }
+
+                for line in first_page_data.splitlines():
+                    if line.startswith("Issue Date:"):
+                        first_page_data_dict["bill_cycle_date"] = line.split(": ")[-1]
+                    elif "Account number:" in line:
+                        first_page_data_dict["account_number"] = line.split(": ")[-1]
+                acc_info = first_page_data_dict["account_number"]
+                bill_date_info = first_page_data_dict["bill_cycle_date"]
+        # else:
+        #     accounts = []
+        #     dates = []
+        #     duration = []
+        #     bill_date = []
+        #     with pdfplumber.open(self.path) as pdf:
+        #         for page_number in range(2):
+        #             page = pdf.pages[page_number]
+        #             text = page.extract_text()
+        #             lines = text.split('\n')
+        #             for index, line in enumerate(lines):
+        #                 if line.startswith('InvoiceNumber AccountNumber DateDue'):
+        #                     line = lines[index + 1]
+        #                     items = line.split()
+        #                     del items[3]
+        #                     del items[4]
+        #                     del items[3]
+        #                     date = items[2]
+        #                     account = items[1]
+        #                     dates.append(date)
+        #                     accounts.append(account)
+
+        #             match = re.search(r'Quick Bill Summary (\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s*-\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b)', text)
+        #             if match:
+        #                 phone_number = match.group(1)
+        #                 duration.append(phone_number)
+
+        #             match = re.search(r'Bill Date (January|February|March|April|May|June|July|August|September|October|November|December) (\d{2}), (\d{4})', text)
+        #             if match:
+        #                 phone_number = match.group(1)
+        #                 amount = match.group(2)
+        #                 pay = match.group(3)
+        #                 bill_date.append({
+        #                     "phone_number": phone_number,
+        #                     "amount": amount,
+        #                     "pay": pay
+        #                 })
+
+        #     bill_date1 = [f"{info['phone_number']} {info['amount']} {info['pay']}" for info in bill_date]
+        #     acc_info = accounts[0]
+        #     bill_date_info = bill_date1[0]
         acc_no = acc_info
         bill_date_pdf = bill_date_info
         print(acc_no, bill_date_pdf)
@@ -887,7 +975,7 @@ class ProcessPdf:
         if acc_exists.exists():
             message = f'Account Number {acc_no} and Bill Date {bill_date_pdf} already exists.'
             print(message)
-            return {'message': message, 'error': -1}
+            return {'message': message, 'error': 1}
         # storage = FileSystemStorage(location='uploaded_contracts/')
         # filename = storage.save(self.file.name, self.path)
         # path = storage.path(filename)
