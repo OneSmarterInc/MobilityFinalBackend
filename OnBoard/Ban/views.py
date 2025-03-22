@@ -19,6 +19,7 @@ from authenticate.models import PortalUser
 import ast
 from OnBoard.Ban.models import UniquePdfDataTable
 import os
+from checkbill import prove_bill_ID
 class UploadBANView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -295,6 +296,8 @@ class OnboardBanView(APIView):
 
             try:
                 for i, rd in enumerate(rdd_Data):
+                    # org=get_object_or_404(Organizations, Organization_name=rd.pop('organization', None)),
+                    org = Organizations.objects.filter(Organization_name=rd.pop('organization', None))[0]
                     boolean_fields = ["is_it_consolidatedBan", "baselineCheck"]
                     for field in boolean_fields:
                         rd[field] = self.str_to_bool(rd.get(field, False))
@@ -306,12 +309,13 @@ class OnboardBanView(APIView):
                     if loc_value is None:
                         loc = None
                     else:
-                        loc = get_object_or_404(Location, site_name=loc_value)
+                        # loc = get_object_or_404(Location, site_name=loc_value, organization=org)
+                        loc = Location.objects.filter(site_name=loc_value, organization=org)[0]
                     etype = rd.pop('entryType', None)
                     if etype is None:
                         etype = None
                     else:
-                        etype = get_object_or_404(EntryType, entry_type=etype)
+                        etype = get_object_or_404(EntryType, name=etype)
                     master_account_value = rd.pop('masterAccount', None)
                     if master_account_value is None:
                         masteraccount = None 
@@ -319,7 +323,7 @@ class OnboardBanView(APIView):
                         masteraccount = get_object_or_404(UploadBAN, account_number=master_account_value)
                     print("master account= ", masteraccount)
                     obj = OnboardBan.objects.create(
-                        organization=get_object_or_404(Organizations, Organization_name=rd.pop('organization', None)),
+                        organization=org,
                         vendor=get_object_or_404(Vendors, name=rd.pop('vendor', None)),
                         entryType=etype,
                         location=loc,
@@ -333,35 +337,13 @@ class OnboardBanView(APIView):
                         addon = ProcessZip(obj)
                         check = addon.startprocess()
                         print(check)
-                        if check['error'] != 0:
-                            return Response(
-                                {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
-                            )
-                    else:
-                        addon = ProcessPdf(instance=obj, user_mail=request.user.email)
-                        check = addon.startprocess()
-                        print(check)
-                        if check['error'] != 0:
-                            return Response(
-                                {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
-                            )
-                        month, year = None, None
-                        types = []
-                        print(obj)
-
-                        buffer_data = json.dumps({'pdf_path': obj.uploadBill.path, 'company_name': obj.organization.company.Company_name, 'vendor_name': obj.vendor.name, 'pdf_filename': obj.uploadBill.name, 'month': month, 'year': year, 'sub_company': obj.organization.Organization_name,'entry_type':obj.entryType.name,'user_email':request.user.email,'types':types,'baseline_check':obj.addDataToBaseline,'location':obj.location.site_name if obj.location else None,'master_account':obj.masteraccount.account_number if obj.masteraccount else None})
-
-                        process_pdf_task.delay(buffer_data,obj.id)
-                        # process_pdf_task(buffer_data,obj)
-                        # AllUserLogs.objects.create(
-                        #     user_email=request.user.email,
-                        #     description=(
-                        #         f"User uploaded pdf file for {obj.organization.company.Company_name} - {obj.organization.Organization_name}."
-                        #         f"with vendor name {obj.vendor.name} and account number {obj.masteraccount.account_number}."
+                        # if check['error'] != 0:
+                        #     return Response(
+                        #         {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
                         #     )
-                        # )
-
                 for i, ed in enumerate(excel_data):
+                    # org=get_object_or_404(Organizations, Organization_name=ed.pop('organization', None)),
+                    org = Organizations.objects.filter(Organization_name=ed.pop('organization', None))[0]
                     print(ed)
                     boolean_fields = ["is_it_consolidatedBan", "addDataToBaseline"]
                     for field in boolean_fields:
@@ -375,24 +357,30 @@ class OnboardBanView(APIView):
                                 if value == '' or value == "":
                                     v[key] = None
                     print("ed=", ed)
-                    master_account_value = ed.pop('masteraccount', None)
                     loc_value = ed.pop('location', None)
                     if loc_value is None:
                         loc = None
                     else:
-                        loc = get_object_or_404(Location, site_name=loc_value)
+                        # loc = get_object_or_404(Location, site_name=loc_value,organization=org)
+                        loc = Location.objects.filter(site_name=loc_value, organization=org)[0]
+                    master_account_value = ed.pop('masteraccount', None)
                     if master_account_value is None:
                         masteraccount = None 
                     else:
                         masteraccount = get_object_or_404(UploadBAN, account_number=master_account_value)
+                    etype = ed.pop('entryType', None)
+                    if etype is None:
+                        etype = None
+                    else:
+                        etype = get_object_or_404(EntryType, name=etype)
                     print("master account= ", masteraccount)
                     obj = OnboardBan.objects.create(
-                        organization=get_object_or_404(Organizations, Organization_name=ed.pop('organization', None)),
+                        organization=org,
                         vendor=get_object_or_404(Vendors, name=ed.pop('vendor', None)),
-                        entryType=get_object_or_404(EntryType, name=ed.pop('entryType', None)),
+                        entryType=etype,
                         location=loc,
                         masteraccount=masteraccount,
-                        addDataToBaseline = ed.pop('addDataToBaseline', False),
+                        addDataToBaseline = False if etype.name == "Master Account" else ed.pop('baselineCheck', False),
                         is_it_consolidatedBan = ed.pop('is_it_consolidatedBan', False),
                         uploadBill = ed.pop('uploadBill', None),
                     )
@@ -447,7 +435,6 @@ class OnboardBanView(APIView):
                                 {'message': 'File already exists in the database upload another'}, status=status.HTTP_400_BAD_REQUEST
                             )
                         else:
-
                             print(obj)
 
                             ma = None
@@ -457,7 +444,7 @@ class OnboardBanView(APIView):
                             if obj.location:
                                 site = obj.location.site_name
 
-                            buffer_data = json.dumps({'excel_csv_path': obj.uploadBill.path,'company':obj.organization.company.Company_name,'sub_company':obj.organization.Organization_name,'vendor':obj.vendor.name,'entry_type':obj.entryType.name,"mapping_json":mapping_json,'location':site,'master_account':ma,
+                            buffer_data = json.dumps({'csv_path': obj.uploadBill.path,'company':obj.organization.company.Company_name,'sub_company':obj.organization.Organization_name,'vendor':obj.vendor.name,'entry_type':obj.entryType.name,"mapping_json":mapping_json,'location':site,'master_account':ma,
                             })
 
                             # if obj.location:
@@ -488,6 +475,12 @@ class OnboardBanView(APIView):
                 print(f"Error in creating onboard ban: {e}")
                 return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+        bill = request.data.get('uploadBill')
+        if bill.name.endswith('.pdf'):
+            isreal = prove_bill_ID(bill,request.data.get('vendor'))
+            print(isreal)
+            if not isreal:
+                return Response({"message" : f"the uploaded file is not {request.data.get('vendor')} file!"}, status=status.HTTP_400_BAD_REQUEST)
         mutable_data = request.data.copy()
         mutable_data = {key: (value if value != "" else None) for key, value in mutable_data.items()}
         boolean_fields = ["is_it_consolidatedBan", "addDataToBaseline"]
@@ -969,11 +962,11 @@ class ProcessPdf:
         bill_date_pdf = bill_date_info
         print(acc_no, bill_date_pdf)
 
-        acc_exists = BaseDataTable.objects.filter(accountnumber=acc_no, bill_date=bill_date_pdf)
+        acc_exists = BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org,company=self.org)
         # bill_date_exists = PdfDataTable.objects.filter(Bill_Date=bill_date_pdf)
         message = ''
         if acc_exists.exists():
-            message = f'Account Number {acc_no} and Bill Date {bill_date_pdf} already exists.'
+            message = f'Account Number {acc_no}  already exists.'
             print(message)
             return {'message': message, 'error': 1}
         # storage = FileSystemStorage(location='uploaded_contracts/')
@@ -1072,8 +1065,8 @@ class ProcessZip:
 
 
                 from .models import BaseDataTable
-                if BaseDataTable.objects.filter(accountnumber=acc_no, bill_date=bill_date).exists():
-                    return {'message' : f'Bill already exists for account number {acc_no} and bill date {bill_date}', 'error' : -1}
+                if BaseDataTable.objects.filter(accountnumber=acc_no, company=self.company, sub_company=self.org).exists():
+                    return {'message' : f'Bill already exists for account number {acc_no}', 'error' : -1}
                 else:
                     obj = BaseDataTable.objects.create(banOnboarded=self.instance, **data_base)
                     print("saved to base data table")

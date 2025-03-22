@@ -126,6 +126,7 @@ class InventoryDataView(APIView):
             return Response({"message": "Error getting data"}, status=status.HTTP_401_UNAUTHORIZED)
 from OnBoard.Organization.ser import DivisionNameSerializer
 from OnBoard.Organization.models import Division
+from .ser import UniqueTableShowSerializer
 class BanInfoView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -143,11 +144,11 @@ class BanInfoView(APIView):
             return Response({"message": "Vendor not found"}, status=status.HTTP_404_NOT_FOUND)
         except UploadBAN.DoesNotExist:
             try:
-                banobject = BaseDataTable.objects.get(accountnumber=ban)
+                banobject = BaseDataTable.objects.filter(accountnumber=ban)[0]
                 banser = BaseDataTableShowSerializer(banobject)
             except BaseDataTable.DoesNotExist:
                 return Response({"message": "Ban not found"}, status=status.HTTP_404_NOT_FOUND)
-
+        banlines = UniquePdfDataTable.objects.all()
         allbanser = UploadBANSerializer(allbans, many=True)
         vendorser = VendorGetAllDataSerializer(vendorobject)
         orgser = OrganizationGetAllDataSerializer(orgobject)
@@ -168,7 +169,8 @@ class BanInfoView(APIView):
             "locations": locser.data,
             "allbans": allbanser.data,
             "onboarded": allonboards.data,
-            "divisions" : divisions.data
+            "divisions" : divisions.data,
+            "linesall" : UniqueTableShowSerializer(banlines,many=True).data
             }, status=status.HTTP_200_OK)
     
     def post(self, request, org, vendor, ban, *args, **kwargs):
@@ -261,6 +263,7 @@ class UploadConsolidated(APIView):
 
 from OnBoard.Ban.models import UniquePdfDataTable, Lines
 from .ser import LineShowSerializer, UniqueTableShowSerializer
+
 class Mobiles(APIView):
     permission_classes = [permissions.IsAuthenticated]
     def get(self,request, account, *args, **kwargs):
@@ -278,3 +281,72 @@ class Mobiles(APIView):
             "mobiles": mobiles.data,
             "lines": lines.data
         }, status=status.HTTP_200_OK)
+    
+class MobileView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request,account_number, wireless_number=None, *args, **kwargs):
+        com = request.GET.get('company')
+        sub_com = request.GET.get('sub_company')
+        print(com, sub_com, account_number)
+        lines = UniquePdfDataTable.objects.filter(company=com, sub_company=sub_com, account_number=account_number)
+        if not wireless_number:
+            lines = lines
+        else:
+            lines = lines.filter(wireless_number=wireless_number)
+        
+        lines = UniqueTableShowSerializer(lines, many=True)
+        return Response({
+            "lines": lines.data
+        }, status=status.HTTP_200_OK)
+    
+    def post(self, request, *args, **kwargs):
+        pass
+    def put(self, request,account_number,wireless_number, *args, **kwargs):
+        obj = UniquePdfDataTable.objects.filter(account_number=account_number, wireless_number=wireless_number)
+        if obj:
+            obj = obj[0]
+        else:
+            return Response({
+                "message": "Mobile data not found"
+            },status=status.HTTP_404_NOT_FOUND)
+        try:
+            serializer = UniqueTableShowSerializer(obj, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                saveuserlog(
+                    request.user,
+                    f'mobile data of account number {account_number} and wireless number {wireless_number} updated successfully!'
+                )
+                return Response({
+                    "message": f"mobile data of number {wireless_number} updated successfully!"
+                },status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    "message": str(serializer.errors)
+                },status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+            "message": str(e)
+        },status=status.HTTP_400_BAD_REQUEST)
+    def delete(self, request,account_number,wireless_number, *args, **kwargs):
+        try:
+            obj = UniquePdfDataTable.objects.filter(account_number=account_number, wireless_number=wireless_number)
+            if obj:
+                obj = obj[0]
+            else:
+                return Response({
+                    "message": "Mobile data not found"
+                },status=status.HTTP_404_NOT_FOUND)
+            obj.delete()
+            saveuserlog(
+                request.user,
+                f'mobile data of account number {account_number} and wireless number {wireless_number} deleted successfully!'
+            )
+            return Response({
+                "message": f"mobile data of number {wireless_number} deleted successfully!"
+            },status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({
+            "message": str(e)
+        },status=status.HTTP_400_BAD_REQUEST)

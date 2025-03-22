@@ -25,19 +25,20 @@ logger = logging.getLogger(__name__)
 class ProcessPdf:
     def __init__(self, buffer_data,instance):
         self.buffer_data = buffer_data
-        self.pdf_path = self.buffer_data['pdf_path']
-        self.company_name = self.buffer_data['company_name']
-        self.vendor_name = self.buffer_data['vendor_name']
-        self.pdf_filename = self.buffer_data['pdf_filename']
-        self.month = self.buffer_data['month']
-        self.entry_type = self.buffer_data['entry_type']
-        self.baseline_check = True if self.buffer_data['baseline_check'] != 'true' else False
-        self.location = self.buffer_data['location']
-        self.master_account = self.buffer_data['master_account']
-        self.year = self.buffer_data['year']
-        self.types = self.buffer_data['types']
-        # self.email = self.buffer_data['email']
-        self.sub_company = self.buffer_data['sub_company']
+        self.pdf_path = self.buffer_data['pdf_path'] if 'pdf_path' in self.buffer_data else None
+        self.company_name = self.buffer_data['company_name'] if 'company_name' in self.buffer_data else None
+        self.vendor_name = self.buffer_data['vendor_name'] if 'vendor_name' in self.buffer_data else None
+        self.pdf_filename = self.buffer_data['pdf_filename'] if 'pdf_filename' in self.buffer_data else None
+        self.month = self.buffer_data['month'] if 'month' in self.buffer_data else None
+        self.entry_type = self.buffer_data['entry_type'] if 'entry_type' in self.buffer_data else None
+        print(self.buffer_data['baseline_check']) 
+        self.baseline_check = True if self.buffer_data['baseline_check'] in ('true',True,'True') else False
+        self.location = self.buffer_data['location'] if 'location' in self.buffer_data else None
+        self.master_account = self.buffer_data['master_account'] if 'master_account' in self.buffer_data else None
+        self.year = self.buffer_data['year'] if 'year' in self.buffer_data else None
+        self.types = self.buffer_data['types'] if 'types' in self.buffer_data else None
+        # self.email = self.buffer_data['email'] if 'email' in self.buffer_data else None
+        self.sub_company = self.buffer_data['sub_company'] if 'sub_company' in self.buffer_data else None
         self.t_mobile_type = self.check_tmobile_type() if 'mobile' in str(self.vendor_name).lower() else 0
         logger.info(f'Processing PDF from buffer: {self.pdf_path}, {self.company_name}, {self.vendor_name}, {self.pdf_filename}')
 
@@ -528,8 +529,8 @@ class ProcessPdf:
                 print('got here')
                 self.save_to_unique_pdf_data_table(unique_pdf_data)
                 if self.month == None and self.year == None:
-                    print("**",type(self.baseline_check))
-                    if self.baseline_check:
+                    print("**",type(self.baseline_check), self.baseline_check)
+                    if self.baseline_check == True:
                         self.save_to_baseline_data_table(category_data)
                     else:
                         self.save_to_baseline_data_table(non_categorical_data)    

@@ -4,18 +4,19 @@ import time
 from ..models import PdfDataTable, BaseDataTable, UniquePdfDataTable
 
 class ProcessCsv:
-    def __init__(self, buffer_data,instance):
+    def __init__(self, buffer_data,instance,type=None):
         self.instance = instance
         self.buffer_data = buffer_data
         print(self.buffer_data)
-        self.company = self.buffer_data['company'] 
-        self.csv_path = self.buffer_data['csv_path']
-        self.vendor = self.buffer_data['vendor']
-        self.account_number = buffer_data['account_number']
-        self.sub_company = self.buffer_data['sub_company']
-        self.mapping_data = self.buffer_data['mapping_json']
+        self.type = type
+        self.company = self.buffer_data['company'] if 'company' in self.buffer_data else None
+        self.csv_path = self.buffer_data['csv_path'] if 'csv_path' in self.buffer_data else None
+        self.vendor = self.buffer_data['vendor'] if 'vendor' in self.buffer_data else None
+        self.account_number = buffer_data['account_number'] if 'account_number' in self.buffer_data else None
+        self.sub_company = self.buffer_data['sub_company'] if 'sub_company' in self.buffer_data else None
+        self.mapping_data = self.buffer_data['mapping_json'] if 'mapping_json' in self.buffer_data else None
         if 'entry_type' in self.buffer_data:
-            self.entry_type = self.buffer_data['entry_type']
+            self.entry_type = self.buffer_data['entry_type'] 
         else:
             self.entry_type = None
         if 'location' in self.buffer_data:
@@ -86,7 +87,10 @@ class ProcessCsv:
             
             # Insert into BaseDataTable
             print(b_dict)
-            BaseDataTable.objects.create(inventory=self.instance, **b_dict)
+            if self.type and self.type == 'inventory':
+                BaseDataTable.objects.create(inventory=self.instance, **b_dict)
+            else:
+                BaseDataTable.objects.create(banOnboarded=self.instance,**b_dict)
             print("Data added to BaseDataTable")
             
             df_csv['wireless_number'] = df_csv['wireless_number'].apply(format_wireless_number)
@@ -280,5 +284,9 @@ class ProcessCsv:
             print(row)
             # Insert if not exists
             if not UniquePdfDataTable.objects.filter(wireless_number=wireless_number).exists():
-                UniquePdfDataTable.objects.create(inventory=self.instance, **row.to_dict())
+                print("type=",self.type)
+                if self.type and self.type == 'inventory':
+                    UniquePdfDataTable.objects.create(inventory=self.instance, **row.to_dict())
+                else:
+                    UniquePdfDataTable.objects.create(banOnboarded=self.instance,**row.to_dict())
                 print("Data added to UniquePdfDataTable")

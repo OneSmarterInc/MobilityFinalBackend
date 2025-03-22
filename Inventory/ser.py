@@ -161,8 +161,3 @@ class LineShowSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lines
         fields = '__all__'
-
-class UniquePdfDataTable(serializers.ModelSerializer):
-    class Meta:
-        model = UniquePdfDataTable
-        fields = '__all__'

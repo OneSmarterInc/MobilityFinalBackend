@@ -67,5 +67,5 @@ def process_csv(instance_id, buffer_data,type=None):
         print(f"Error: InventoryUpload object with ID {instance_id} not found.")
         return {"message": f"Error: InventoryUpload object with ID {instance_id} not found.", "error": 1}
     print(buffer_data_dict)
-    obj = ProcessCsv(buffer_data=buffer_data_dict, instance=instance)
+    obj = ProcessCsv(buffer_data=buffer_data_dict, instance=instance,type=type)
     obj.process_csv_from_buffer()
