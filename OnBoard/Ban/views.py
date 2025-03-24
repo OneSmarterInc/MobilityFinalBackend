@@ -155,7 +155,7 @@ class UploadBANView(APIView):
                     line = {key: (value if value != "" else None) for key, value in line.items()}
 
                     if isinstance(line, dict): 
-                        lineobj = UniquePdfDataTable.objects.create(banUploaded=upload_ban, **line)
+                        lineobj = UniquePdfDataTable.objects.create(banUploaded=upload_ban, company=upload_ban.company.Company_name, sub_company=upload_ban.organization.Organization_name, **line)
                         lineobj.save()
                         saveuserlog(
                             request.user, 
@@ -962,9 +962,10 @@ class ProcessPdf:
         bill_date_pdf = bill_date_info
         print(acc_no, bill_date_pdf)
 
-        acc_exists = BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org,company=self.org)
+        print(acc_no, self.org, self.company)
+        acc_exists  = BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org,company=self.company)
+        print(acc_exists)
         # bill_date_exists = PdfDataTable.objects.filter(Bill_Date=bill_date_pdf)
-        message = ''
         if acc_exists.exists():
             message = f'Account Number {acc_no}  already exists.'
             print(message)

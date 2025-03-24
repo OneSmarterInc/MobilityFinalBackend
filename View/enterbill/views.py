@@ -80,7 +80,8 @@ class PendingView(APIView):
         onboarded = showOnboardedSerializer(BaseDataTable.objects.all(), many=True)
 
         baselineData = BaselineDataTableShowSerializer(BaselineDataTable.objects.all(), many=True)
-
+        cat = BaselineDataTable.objects.all()[45]
+        print(cat.category_object)
         return Response(
             {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "baseline":baselineData.data, "onborded":onboarded.data},
             status=status.HTTP_200_OK,

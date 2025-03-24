@@ -270,12 +270,10 @@ class Mobiles(APIView):
 
         mobiles = UniquePdfDataTable.objects.filter(account_number=account)
         mobiles = UniqueTableShowSerializer(mobiles, many=True)
-        print(mobiles.data)
 
         acc = UploadBAN.objects.filter(account_number=account)[0]
         lines = Lines.objects.filter(account_number=acc)
         lines = LineShowSerializer(lines, many=True)
-        print(lines.data)
 
         return Response({
             "mobiles": mobiles.data,
@@ -288,8 +286,7 @@ class MobileView(APIView):
     def get(self, request,account_number, wireless_number=None, *args, **kwargs):
         com = request.GET.get('company')
         sub_com = request.GET.get('sub_company')
-        print(com, sub_com, account_number)
-        lines = UniquePdfDataTable.objects.filter(company=com, sub_company=sub_com, account_number=account_number)
+        lines = UniquePdfDataTable.objects.filter(account_number=account_number)
         if not wireless_number:
             lines = lines
         else:
@@ -301,7 +298,37 @@ class MobileView(APIView):
         }, status=status.HTTP_200_OK)
     
     def post(self, request, *args, **kwargs):
-        pass
+        data = request.data
+        print(data)
+        account_number = data.get('account_number', None)
+        wireless_number = data.get('wireless_number', None)
+        com = data.get('company', None)
+        sub_com = data.get('sub_company', None)
+        print(com, sub_com, account_number, wireless_number)
+        if UniquePdfDataTable.objects.filter(company=com, sub_company=sub_com, account_number=account_number, wireless_number=wireless_number).exists():
+            return Response({
+                "message": f"Mobile data with line {wireless_number} already exists"
+            },status=status.HTTP_400_BAD_REQUEST)
+        try:
+            serializer = UniqueTableShowSerializer(data=data)
+            if serializer.is_valid():
+                serializer.save()
+                saveuserlog(
+                    request.user,
+                    f'mobile data of account number {data["account_number"]} added successfully!'
+                )
+                return Response({
+                    "message": f"mobile data of number {data['wireless_number']} added successfully!"
+                },status=status.HTTP_201_CREATED)
+            else:
+                return Response({
+                    "message": str(serializer.errors)
+                },status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+            "message": str(e)
+        },status=status.HTTP_400_BAD_REQUEST)
+
     def put(self, request,account_number,wireless_number, *args, **kwargs):
         obj = UniquePdfDataTable.objects.filter(account_number=account_number, wireless_number=wireless_number)
         if obj:
