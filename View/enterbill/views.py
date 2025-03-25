@@ -10,11 +10,15 @@ from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, Bas
 from .ser import OrganizationShowSerializer, VendorShowSerializer, showBanSerializer, BaselineDataTableShowSerializer, viewPaperBillserializer, showOnboardedSerializer
 from Dashboard.ModelsByPage.DashAdmin import Vendors, PaymentType
 from ..models import viewPaperBill
-
+from checkbill import prove_bill_ID
 
 from ..models import viewPaperBill
 class PaperBillView(APIView):
+    
     permission_classes = [IsAuthenticated]
+
+    def __init__(self):
+        self.filtered_baseline = None
 
     def get(self, request, *args, **kwargs):
         orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
@@ -22,8 +26,23 @@ class PaperBillView(APIView):
         bans = showBanSerializer(UploadBAN.objects.all(), many=True)
         onboarded = showOnboardedSerializer(BaseDataTable.objects.all(), many=True)
         paperbills = viewPaperBillserializer(viewPaperBill.objects.filter(company=request.user.company), many=True) if request.user.company else viewPaperBillserializer(viewPaperBill.objects.all(), many=True)
+        if request.GET:
+            org = request.GET.get('org')
+            vendor = request.GET.get('ven')
+            ban = request.GET.get('ban')
+            invoice_number = request.GET.get('invoicenumber')
+            billdate = request.GET.get('billdate')
+            duedate = request.GET.get('duedate')
+            print(org, vendor, ban, invoice_number, billdate, duedate)
+            base = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban, invoicenumber=invoice_number)
+            if not base.exists():
+                return Response({"message": f"No data found for invoice {invoice_number}"}, status=status.HTTP_404_NOT_FOUND)
+            print(f"base: {base}")
+            baseline = BaselineDataTable.objects.filter(banOnboarded=base[0].banOnboarded)
+            self.filtered_baseline = BaselineDataTableShowSerializer(baseline, many=True).data
+            print(f"baseline: {self.filtered_baseline}")
         return Response(
-            {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "data":paperbills.data, "onborded": onboarded.data},
+            {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "data":paperbills.data, "onborded": onboarded.data, "filtered_baseline": self.filtered_baseline},
             status=status.HTTP_200_OK,
         )
     def post(self, request, *args, **kwargs):
@@ -80,7 +99,7 @@ class PendingView(APIView):
         onboarded = showOnboardedSerializer(BaseDataTable.objects.all(), many=True)
 
         baselineData = BaselineDataTableShowSerializer(BaselineDataTable.objects.all(), many=True)
-        cat = BaselineDataTable.objects.all()[45]
+        cat = BaselineDataTable.objects.all()[1]
         print(cat.category_object)
         return Response(
             {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "baseline":baselineData.data, "onborded":onboarded.data},
@@ -102,7 +121,6 @@ class DraftView(APIView):
         bans = showBanSerializer(UploadBAN.objects.all(), many=True)
         onboarded = showOnboardedSerializer(BaseDataTable.objects.all(), many=True)
         baselineData = BaselineDataTableShowSerializer(BaselineDataTable.objects.all(), many=True)
-
         return Response(
             {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "baseline":baselineData.data, "onborded":onboarded.data},
             status=status.HTTP_200_OK,
@@ -110,7 +128,28 @@ class DraftView(APIView):
     def post(self, request, *args, **kwargs):
         pass
     def put(self, request, pk, *args, **kwargs):
-        pass
+        
+        try:
+            obj = BaselineDataTable.objects.filter(id=pk)
+        except BaselineDataTable.DoesNotExist:
+            return Response({"message": "Baseline Data not found"}, status=status.HTTP_404_NOT_FOUND)
+        obj = obj[0]
+        action = request.GET.get('action') or request.data.get('action')
+        if action == "update-category":
+            cat = request.data.get('category')
+            print(cat)
+            obj.category_object = cat
+        elif action == "is_draft":
+            obj.is_draft = True
+            obj.is_pending = False
+        elif action == "is_pending":
+            obj.is_draft = False
+            obj.is_pending = True
+        else:
+            return Response({"message": "Invalid action"}, status=status.HTTP_400_BAD_REQUEST)
+        obj.save()
+        return Response({"message": "Baseline updated successfully"}, status=status.HTTP_200_OK)
+
     def delete(self, request, pk, *args, **kwargs):
         pass
 
@@ -161,6 +200,12 @@ class UploadfileView(APIView):
                 return Response({"message": "Invalid file type"}, status=status.HTTP_400_BAD_REQUEST)
             if filetype in ['xls', 'xlsx']:
                 filetype = 'excel'
+            
+            if file.name.endswith('.pdf'):
+                check = prove_bill_ID(vendor_name=request.data.get('vendor'), bill_path=file)
+                if not check:
+                    return Response({"message" : f"the uploaded file is not {request.data.get('vendor')} file!"}, status=status.HTTP_400_BAD_REQUEST)
+            
             company = request.data.get('company')
             org = request.data.get('sub_company')
             vendor = request.data.get('vendor')
@@ -192,16 +237,15 @@ class UploadfileView(APIView):
                     obj.types = None
             saveuserlog(
                 request.user,
-                f"Uploaded File: {file.name} in ViewUploadBill model",
+                f"Uploading File: {file.name} in ViewUploadBill model",
             )
             if str(file.name).endswith('.pdf'):
                 process = ProcessPdf(obj)
                 start = process.process()
-                if start['error'] == 1:
+                if start['error'] != 0:
                     print(start)
                     return Response({"message": f"Error in processing pdf file {start['message']}"}, status=status.HTTP_400_BAD_REQUEST)
             if (str(file.name).endswith('.xls') or str(file.name).endswith('.xlsx')):
-                mapping_obj = request.data.get('mappingobj')
                 map = request.data.pop('mappingobj', None)[0]
                 map = map.replace('null', 'None')
                 map = ast.literal_eval(map)
@@ -213,7 +257,7 @@ class UploadfileView(APIView):
             if str(file.name).endswith('.zip'):
                 pass
             return Response(
-                {"message": "File uploaded successfully"},
+                {"message": "File upload is in progress \n It will take some time. "},
                 status=status.HTTP_200_OK,
             )
         except Exception as e:
@@ -225,7 +269,8 @@ class UploadfileView(APIView):
         pass
 
 import json
-from .tasks import process_view_bills
+# from .tasks import process_view_bills
+from View.enterbill.tasks import process_view_bills
 
 class ProcessPdf:
     def __init__(self, instance):
@@ -258,7 +303,7 @@ class ProcessPdf:
             return {"message": f"Error occurred while processing PDF {str(e)}", "error":1}
         try:
             buffer_data = json.dumps({'pdf_path': self.file.path,'vendor_name': self.vendor,'pdf_filename':self.file.name,'company_name':self.company,'sub_company_name':self.organization,'types':self.types})
-            process_view_bills(buffer_data, self.instance)
+            process_view_bills.delay(buffer_data, self.instance.id)
             print("process ends...")
             return {"message": "File processed successfully in background", "error":0}
         except Exception as e:

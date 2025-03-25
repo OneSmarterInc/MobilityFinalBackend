@@ -655,69 +655,69 @@ def get_first_page_data(uploaded_file):
     return first_dict,acc,incv,bill_date,fa
 
 def process_all(uploaded_file):
-        fs,acc,incv,bill_date,fa = get_first_page_data(uploaded_file)
-        data_list = Att(uploaded_file)
-        no_of_pages = data_list.return_no_of_pages()
-        x,usage_df = data_list.plan_and_price()
-        plan_price_df = data_list.to_csv(x)
-        z,yt = data_list.data_manage_part1()
-        unique_df = data_list.to_csv(z)
-        y = data_list.data_manage_part2()
-        intital_df = data_list.to_csv(y)
-        final_df = pd.merge(intital_df,plan_price_df,on='Group_Number',how='inner')
-        if no_of_pages <= 100:
-            new_df = pd.merge(unique_df,usage_df,on='Wireless_number',how='left')
-            unique_df = new_df
-        else:
-            unique_df['Account_number'] = acc
-            unique_df['foundation_account'] = fa
-            yt.rename(columns={'Text Usage':'Messaging Usage','Talk Usage':'Voice_Plan_Usage ','Wireless number':'Wireless_number'},inplace=True)
-            new_merged_summary_df = pd.merge(unique_df,yt,on='Wireless_number',how='left')
-            def insert_mb(row):
-                data_usage = row['Data Usage']
-                unit = row['Units']
-                
-                # Check if 'data_usage' has a value and 'Units' is empty or NaN
-                if pd.notna(data_usage) and (pd.isna(unit) or unit == ''):
-                    row['Units'] = 'MB'  # Update 'Units' to 'MB'
-                
-                return row['Units']  # Return the updated or original 'Units' value
+    fs,acc,incv,bill_date,fa = get_first_page_data(uploaded_file)
+    data_list = Att(uploaded_file)
+    no_of_pages = data_list.return_no_of_pages()
+    x,usage_df = data_list.plan_and_price()
+    plan_price_df = data_list.to_csv(x)
+    z,yt = data_list.data_manage_part1()
+    unique_df = data_list.to_csv(z)
+    y = data_list.data_manage_part2()
+    intital_df = data_list.to_csv(y)
+    final_df = pd.merge(intital_df,plan_price_df,on='Group_Number',how='inner')
+    if no_of_pages <= 100:
+        new_df = pd.merge(unique_df,usage_df,on='Wireless_number',how='left')
+        unique_df = new_df
+    else:
+        unique_df['Account_number'] = acc
+        unique_df['foundation_account'] = fa
+        yt.rename(columns={'Text Usage':'Messaging Usage','Talk Usage':'Voice_Plan_Usage ','Wireless number':'Wireless_number'},inplace=True)
+        new_merged_summary_df = pd.merge(unique_df,yt,on='Wireless_number',how='left')
+        def insert_mb(row):
+            data_usage = row['Data Usage']
+            unit = row['Units']
+            
+            # Check if 'data_usage' has a value and 'Units' is empty or NaN
+            if pd.notna(data_usage) and (pd.isna(unit) or unit == ''):
+                row['Units'] = 'MB'  # Update 'Units' to 'MB'
+            
+            return row['Units']  # Return the updated or original 'Units' value
 
-            new_merged_summary_df['Units'] = new_merged_summary_df.apply(insert_mb, axis=1)
+        new_merged_summary_df['Units'] = new_merged_summary_df.apply(insert_mb, axis=1)
 
-            def convert_to_gb(row):
-                usage = row['Data Usage']
-                unit = row['Units']
-                
-                if pd.isna(usage) or usage == "":  # Check if empty or NaN
-                    return ""
-                
-                try:
-                    usage = float(usage)  # Convert usage to float if not already
-                except ValueError:
-                    return ""  # Return empty for invalid entries
-                
-                if unit == 'KB':
-                    return round(usage / 1048576, 2)  # Convert KB to GB and round to 6 decimal places
-                elif unit == 'MB':  # Assuming MB if no unit is mentioned
-                    return round(usage / 1024, 2)  # Convert MB to GB and round
-                elif unit == 'GB':
-                    return round(usage, 3)  # Keep GB as is, rounded to 6 decimal places
-                else:
-                    return ""  # 
-            new_merged_summary_df['Data Usage'] = new_merged_summary_df.apply(convert_to_gb, axis=1)
-            new_merged_summary_df.drop('Units', axis=1, inplace=True)
-            def insert_zeros(row):
-                data_usage = row['Data Usage']
-                
-                # Check if 'data_usage' has a value and 'Units' is empty or NaN
-                if pd.isna(data_usage) or data_usage == '':
-                    row['Data Usage'] = 0  # Update 'Units' to 'MB'
-                
-                return row['Data Usage']  # Return the updated or original 'Units' value
-            new_df = new_merged_summary_df
-            new_df['Data Usage'] = new_df.apply(insert_zeros,axis=1)
-            unique_df = new_df
-            final_df = new_df
-        return unique_df,final_df,usage_df,intital_df
+        def convert_to_gb(row):
+            usage = row['Data Usage']
+            unit = row['Units']
+            
+            if pd.isna(usage) or usage == "":  # Check if empty or NaN
+                return ""
+            
+            try:
+                usage = float(usage)  # Convert usage to float if not already
+            except ValueError:
+                return ""  # Return empty for invalid entries
+            
+            if unit == 'KB':
+                return round(usage / 1048576, 2)  # Convert KB to GB and round to 6 decimal places
+            elif unit == 'MB':  # Assuming MB if no unit is mentioned
+                return round(usage / 1024, 2)  # Convert MB to GB and round
+            elif unit == 'GB':
+                return round(usage, 3)  # Keep GB as is, rounded to 6 decimal places
+            else:
+                return ""  # 
+        new_merged_summary_df['Data Usage'] = new_merged_summary_df.apply(convert_to_gb, axis=1)
+        new_merged_summary_df.drop('Units', axis=1, inplace=True)
+        def insert_zeros(row):
+            data_usage = row['Data Usage']
+            
+            # Check if 'data_usage' has a value and 'Units' is empty or NaN
+            if pd.isna(data_usage) or data_usage == '':
+                row['Data Usage'] = 0  # Update 'Units' to 'MB'
+            
+            return row['Data Usage']  # Return the updated or original 'Units' value
+        new_df = new_merged_summary_df
+        new_df['Data Usage'] = new_df.apply(insert_zeros,axis=1)
+        unique_df = new_df
+        final_df = new_df
+    return unique_df,final_df,usage_df,intital_df
 

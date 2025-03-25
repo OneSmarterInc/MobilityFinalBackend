@@ -466,6 +466,9 @@ class BaselineDataTable(models.Model):
     category_object = models.JSONField(default=dict)
     company = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     vendor = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+
+    is_pending = models.BooleanField(default=False)
+    is_draft = models.BooleanField(default=False)
     class Meta:
         db_table = 'BaselineDataTable'
 

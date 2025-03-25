@@ -495,10 +495,13 @@ class ProcessBills:
 
         # Save the workbook to a file
         try:
-            with open(output_file_path, "wb") as f:
-                f.write(workbook.getvalue())
+            # Save workbook data to memory
+            workbook_data = workbook.getvalue()
+            
+            # Create Django File object
+            django_file = File(io.BytesIO(workbook_data), name=workbook_name)
 
-            # Create ProcessedWorkbook instance (WITHOUT setting the FileField yet)
+            # Create ProcessedWorkbook instance
             processed_workbook = ProcessedWorkbook(
                 uploadbill=self.instance,
                 account_number=acc_info,
@@ -506,19 +509,16 @@ class ProcessBills:
                 company_name=self.company_name,
                 sub_company_name=self.sub_company_name,
                 workbook_name=workbook_name,
-                bill_date_info=bill_date_info
+                bill_date_info=bill_date_info,
+                output_file=django_file  # Directly assign File object
             )
-            
-            # Open the saved file and keep it open for Django
-            f = open(output_file_path, "rb")  # DO NOT USE `with open(...)`
-            django_file = File(f, name=workbook_name)
 
-            processed_workbook.output_file = django_file
+            # Assign to self.instance as well
             self.instance.output_file = django_file
             
+            # Save models
             processed_workbook.save()
             self.instance.save()
 
-            f.close()
-        except:
-            pass
+        except Exception as e:
+            print(f"Error: {e}")
