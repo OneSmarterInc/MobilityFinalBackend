@@ -10,7 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from .ser import OrganizationSaveSerializer, OrganizationShowSerializer, DivisionSerializer, LinkSerializer, DivisionNameSerializer
 from authenticate.views import saveuserlog
-from .models import Contract
+
 class OnboardOrganizationView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -20,12 +20,6 @@ class OnboardOrganizationView(APIView):
         if serializer.is_valid():
             serializer.save()
             orgobj = Organizations.objects.get(Organization_name=serializer.data['Organization_name'])
-            vendors = orgobj.vendors.values_list('name', flat=True)
-            for vendor in vendors:
-                contract = Contract.objects.filter(organization=orgobj, vendor=Vendors.objects.get(name=vendor))
-                if not contract.exists():
-                    contract = Contract.objects.create(organization=orgobj, vendor=Vendors.objects.get(name=vendor), created_by=request.user.username, contract_name=serializer.data['contract_name'], contract_file=serializer.data['contract_file'])
-                    contract.save()
             saveuserlog(request.user, f'Organization with name {serializer.data["Organization_name"]} created successfully!')
             return Response({"message" : "Organization created successfully!", "data" : serializer.data}, status=status.HTTP_201_CREATED)
         print(serializer.errors)
@@ -58,12 +52,6 @@ class OnboardOrganizationView(APIView):
         serializer = OrganizationSaveSerializer(organization, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            vendors = organization.vendors.values_list('name', flat=True)
-            for vendor in vendors:
-                contract = Contract.objects.filter(organization=organization, vendor=Vendors.objects.get(name=vendor))
-                if not contract.exists():
-                    contract = Contract.objects.create(organization=organization, vendor=Vendors.objects.get(name=vendor), created_by=request.user.username, contract_name=serializer.data['contract_name'], contract_file=serializer.data['contract_file'])
-                    contract.save()
             saveuserlog(request.user, f'Organization with name {pk} updated successfully!')  
             return Response({"message" : "Organization updated successfully!", "data": serializer.data}, status=status.HTTP_200_OK)
         return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
@@ -97,7 +85,6 @@ class DivisionView(APIView):
                 serializer.save()
                 saveuserlog(request.user, f'Division with name {serializer.data["name"]} created successfully!')
                 return Response({"message" : "Division created successfully!", "data" : serializer.data}, status=status.HTTP_201_CREATED)
-            
             else:
                 print(serializer.errors)
                 return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)        

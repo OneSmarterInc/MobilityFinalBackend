@@ -53,25 +53,7 @@ class Organizations(models.Model):
     def __str__(self):
         return self.Organization_name
     
-class Contract(models.Model):
-    organization = models.ForeignKey(Organizations, on_delete=models.CASCADE, related_name='contract')
-    vendor = models.ForeignKey(Vendors, on_delete=models.SET_NULL, null=True, blank=True)
-    created_by = models.CharField(max_length=255, null=True, blank=True)
-    term = models.CharField(max_length=255, null=True, blank=True)
-    status = models.CharField(max_length=255, null=True, blank=True)
-    notes = models.CharField(max_length=255, null=True, blank=True)
-    contract_file = models.CharField(max_length=255, null=True, blank=True)
-    contract_name = models.CharField(max_length=255, null=True, blank=True)
-    created = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
-    class Meta:
-        db_table = 'Contracts'
-        constraints = [
-            models.UniqueConstraint(fields=['organization','vendor'], name='unique_contract')
-        ]
-    
-    def __str__(self):
-        return f'Contract for {self.organization}'
 
     
 class Division(models.Model):

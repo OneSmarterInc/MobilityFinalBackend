@@ -37,10 +37,8 @@ class PaperBillView(APIView):
             base = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban, invoicenumber=invoice_number)
             if not base.exists():
                 return Response({"message": f"No data found for invoice {invoice_number}"}, status=status.HTTP_404_NOT_FOUND)
-            print(f"base: {base}")
-            baseline = BaselineDataTable.objects.filter(banOnboarded=base[0].banOnboarded)
+            baseline = BaselineDataTable.objects.filter(banOnboarded=base[0].banOnboarded).filter(is_draft=False, is_pending=False)
             self.filtered_baseline = BaselineDataTableShowSerializer(baseline, many=True).data
-            print(f"baseline: {self.filtered_baseline}")
         return Response(
             {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "data":paperbills.data, "onborded": onboarded.data, "filtered_baseline": self.filtered_baseline},
             status=status.HTTP_200_OK,
@@ -108,7 +106,31 @@ class PendingView(APIView):
     def post(self, request, *args, **kwargs):
         pass
     def put(self, request, pk, *args, **kwargs):
-        pass
+        
+        try:
+            obj = BaselineDataTable.objects.filter(id=pk)
+        except BaselineDataTable.DoesNotExist:
+            return Response({"message": "Baseline Data not found"}, status=status.HTTP_404_NOT_FOUND)
+        obj = obj[0]
+        action = request.GET.get('action') or request.data.get('action')
+        if action == "update-category":
+            cat = request.data.get('category')
+            print(cat)
+            obj.category_object = cat
+        elif action == "is_draft":
+            obj.is_draft = True
+            obj.is_pending = False
+        elif action == "is_pending":
+            obj.is_draft = False
+            obj.is_pending = True
+        else:
+            return Response({"message": "Invalid action"}, status=status.HTTP_400_BAD_REQUEST)
+        obj.save()
+        saveuserlog(
+            request.user,
+            f"Baseline with account number {obj.account_number} and invoice number {obj.Wireless_number} Updated with Action: {action}"
+        )
+        return Response({"message": "Baseline updated successfully"}, status=status.HTTP_200_OK)
     def delete(self, request, pk, *args, **kwargs):
         pass
 
@@ -148,6 +170,10 @@ class DraftView(APIView):
         else:
             return Response({"message": "Invalid action"}, status=status.HTTP_400_BAD_REQUEST)
         obj.save()
+        saveuserlog(
+            request.user,
+            f"Baseline with account number {obj.account_number} and invoice number {obj.Wireless_number} Updated with Action: {action}"
+        )
         return Response({"message": "Baseline updated successfully"}, status=status.HTTP_200_OK)
 
     def delete(self, request, pk, *args, **kwargs):

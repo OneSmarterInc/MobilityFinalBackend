@@ -80,3 +80,24 @@ class ProcessedWorkbook(models.Model):
 
     def __str__(self):
         return f'{self.account_number} - {self.vendor_name} - {self.company_name} - {self.sub_company_name} - {self.workbook_name}'
+
+
+from OnBoard.Ban.models import UploadBAN, BaseDataTable
+
+
+class Contracts(models.Model):
+    baseban = models.ForeignKey(BaseDataTable, related_name='base_ban_contracts', on_delete=models.CASCADE, null=True, blank=True)
+    uploadedban = models.ForeignKey(UploadBAN, related_name='uploaded_ban_contracts', on_delete=models.CASCADE, null=True, blank=True)
+    person = models.CharField(max_length=255, null=True, blank=True)
+    term = models.CharField(max_length=255, null=True, blank=True)
+    status = models.CharField(max_length=255, null=True, blank=True)
+    notes = models.CharField(max_length=255, null=True, blank=True)
+    contract_file = models.FileField(upload_to='BanContracts/', null=True, blank=True)
+    contract_name = models.CharField(max_length=255, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+
+    class Meta:
+        db_table = 'Contracts'
+    
+    def __str__(self):
+        return f'Contract for {self.baseban.accountnumber if self.baseban else self.uploadedban.account_number}'

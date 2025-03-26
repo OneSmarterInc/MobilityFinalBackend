@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 # Register your models here.
-from .Organization.models import Organizations, Contract
+from .Organization.models import Organizations
 
 
 class OrganizationAdmin(admin.ModelAdmin):
@@ -13,11 +13,10 @@ class OrganizationAdmin(admin.ModelAdmin):
     ordering = ('-created',)
 
 
-class ContractAdmin(admin.ModelAdmin):
-    list_display = ('organization', 'term', 'status')
-    search_fields = ('organization', 'term', 'status')
-    list_per_page = 10
+# class ContractAdmin(admin.ModelAdmin):
+#     list_display = ('organization', 'term', 'status')
+#     search_fields = ('organization', 'term', 'status')
+#     list_per_page = 10
 
 
 admin.site.register(Organizations, OrganizationAdmin)
-admin.site.register(Contract, ContractAdmin)
