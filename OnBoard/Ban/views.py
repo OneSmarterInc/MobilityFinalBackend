@@ -917,47 +917,7 @@ class ProcessPdf:
                         first_page_data_dict["account_number"] = line.split(": ")[-1]
                 acc_info = first_page_data_dict["account_number"]
                 bill_date_info = first_page_data_dict["bill_cycle_date"]
-        # else:
-        #     accounts = []
-        #     dates = []
-        #     duration = []
-        #     bill_date = []
-        #     with pdfplumber.open(self.path) as pdf:
-        #         for page_number in range(2):
-        #             page = pdf.pages[page_number]
-        #             text = page.extract_text()
-        #             lines = text.split('\n')
-        #             for index, line in enumerate(lines):
-        #                 if line.startswith('InvoiceNumber AccountNumber DateDue'):
-        #                     line = lines[index + 1]
-        #                     items = line.split()
-        #                     del items[3]
-        #                     del items[4]
-        #                     del items[3]
-        #                     date = items[2]
-        #                     account = items[1]
-        #                     dates.append(date)
-        #                     accounts.append(account)
 
-        #             match = re.search(r'Quick Bill Summary (\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s*-\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b)', text)
-        #             if match:
-        #                 phone_number = match.group(1)
-        #                 duration.append(phone_number)
-
-        #             match = re.search(r'Bill Date (January|February|March|April|May|June|July|August|September|October|November|December) (\d{2}), (\d{4})', text)
-        #             if match:
-        #                 phone_number = match.group(1)
-        #                 amount = match.group(2)
-        #                 pay = match.group(3)
-        #                 bill_date.append({
-        #                     "phone_number": phone_number,
-        #                     "amount": amount,
-        #                     "pay": pay
-        #                 })
-
-        #     bill_date1 = [f"{info['phone_number']} {info['amount']} {info['pay']}" for info in bill_date]
-        #     acc_info = accounts[0]
-        #     bill_date_info = bill_date1[0]
         acc_no = acc_info
         bill_date_pdf = bill_date_info
         print(acc_no, bill_date_pdf)

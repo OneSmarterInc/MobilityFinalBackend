@@ -3,6 +3,7 @@ from OnBoard.Company.models import Company
 from OnBoard.Organization.models import Organizations
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 
+
 class viewPaperBill(models.Model):
     account_number = models.CharField(max_length=255, null=False)
     wireless_number = models.CharField(max_length=255, null=True, blank=True)
@@ -31,6 +32,7 @@ class viewPaperBill(models.Model):
         return f'{self.company.Company_name} - {self.organization.Organization_name} - {self.vendor.name} - {self.account_number} - {self.wireless_number}'
 
 # Create your models here.
+
 class ViewUploadBill(models.Model):
     file_type = models.CharField(max_length=255, null=False)
     file = models.FileField(upload_to='ViewUploadedBills/')
@@ -45,7 +47,7 @@ class ViewUploadBill(models.Model):
     )
     month = models.CharField(max_length=255, null=False)
     year = models.IntegerField(null=False)
-
+    ban = models.CharField(max_length=255, null=True, blank=True)
     types = models.CharField(max_length=255, null=True, blank=True)
 
 
@@ -82,8 +84,8 @@ class ProcessedWorkbook(models.Model):
         return f'{self.account_number} - {self.vendor_name} - {self.company_name} - {self.sub_company_name} - {self.workbook_name}'
 
 
-from OnBoard.Ban.models import UploadBAN, BaseDataTable
 
+from OnBoard.Ban.models import UploadBAN, BaseDataTable
 
 class Contracts(models.Model):
     baseban = models.ForeignKey(BaseDataTable, related_name='base_ban_contracts', on_delete=models.CASCADE, null=True, blank=True)

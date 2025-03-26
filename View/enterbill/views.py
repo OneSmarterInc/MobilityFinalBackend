@@ -207,7 +207,7 @@ from ..models import ViewUploadBill
 from OnBoard.Ban.models import MappingObjectBan
 import ast
 import pdfplumber
-
+from OnBoard.Ban.views import ProcessZip
 class UploadfileView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -259,6 +259,7 @@ class UploadfileView(APIView):
             company = request.data.get('company')
             org = request.data.get('sub_company')
             vendor = request.data.get('vendor')
+            ban = request.data.get('ban')
             month  = request.data.get('month')
             year  = request.data.get('year')
             print(filetype, company, org, vendor, month, year)
@@ -274,6 +275,7 @@ class UploadfileView(APIView):
                 vendor = Vendors.objects.filter(name=vendor)[0],
                 month = month,
                 year = year,
+                ban=ban
             )
             obj.save()
 
@@ -285,16 +287,9 @@ class UploadfileView(APIView):
                     obj.types ='second'
                 else:
                     obj.types = None
-            saveuserlog(
-                request.user,
-                f"Uploading File: {file.name} in ViewUploadBill model",
-            )
             if str(file.name).endswith('.pdf'):
-                process = ProcessPdf(obj)
-                start = process.process()
-                if start['error'] != 0:
-                    print(start)
-                    return Response({"message": f"Error in processing pdf file {start['message']}"}, status=status.HTTP_400_BAD_REQUEST)
+                buffer_data = json.dumps({'pdf_path': obj.file.path,'vendor_name': obj.vendor.name if obj.vendor else None,'pdf_filename':obj.file.name,'company_name':obj.company.Company_name,'sub_company_name':obj.organization.Organization_name if obj.organization else None,'types':obj.types})
+                process_view_bills.delay(buffer_data, obj.id)
             if (str(file.name).endswith('.xls') or str(file.name).endswith('.xlsx')):
                 map = request.data.pop('mappingobj', None)[0]
                 map = map.replace('null', 'None')
@@ -305,7 +300,17 @@ class UploadfileView(APIView):
                 mobj = MappingObjectBan.objects.create(viewupload=obj, **map)
                 mobj.save()
             if str(file.name).endswith('.zip'):
-                pass
+                addon = ProcessZip(obj)
+                check = addon.startprocess()
+                print(check)
+                if check['error'] == -1:
+                    return Response(
+                        {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
+                    )
+            saveuserlog(
+                request.user,
+                f"Uploading file with account number {obj.account_number} and invoice number {obj.Wireless_number}"
+            )
             return Response(
                 {"message": "File upload is in progress \n It will take some time. "},
                 status=status.HTTP_200_OK,
@@ -321,41 +326,128 @@ class UploadfileView(APIView):
 import json
 # from .tasks import process_view_bills
 from View.enterbill.tasks import process_view_bills
-
+import re
 class ProcessPdf:
-    def __init__(self, instance):
+    def __init__(self, user_mail, instance, **kwargs):
+        print(instance)
         self.instance = instance
+        self.file = instance.file
+        if self.file is None:
+            return {'message' : 'File not found', 'error' : -1}
+        self.path = self.file.path
+        self.org = instance.organization
+        self.company = instance.organization.company
         self.vendor = instance.vendor
-        self.company = instance.company
-        self.organization = instance.organization
+        self.email = user_mail
         self.month = instance.month
         self.year = instance.year
-        self.file = instance.file
-        self.types = instance.types
-        print(self.instance)
+        self.account_number = instance.ban
+    def startprocess(self):
+        print("start process")
+        if self.org:
+                self.org = self.org.Organization_name
+        else:
+            return {'message' : 'Organization not found', 'error' : -1}
+        if self.company:
+            self.company = self.company.Company_name
+        else:
+            return {'message' : 'Company not found', 'error' : -1}
+        if self.vendor:
+            self.vendor = self.vendor.name
+        else:
+            return {'message' : 'Vendor not found', 'error' : -1}
 
-    def process(self):
-        try:
-            if self.company:
-                self.company = self.company.Company_name
-            else:
-                self.company = None
-            if self.vendor:
-                self.vendor = self.vendor.name
-            else:
-                self.vendor = None
-            if self.organization:
-                self.organization = self.organization.Organization_name
-            else:
-                self.organization = None
-        except Exception as e:
-            print(f"Error occurred while processing PDF: {str(e)}")
-            return {"message": f"Error occurred while processing PDF {str(e)}", "error":1}
-        try:
-            buffer_data = json.dumps({'pdf_path': self.file.path,'vendor_name': self.vendor,'pdf_filename':self.file.name,'company_name':self.company,'sub_company_name':self.organization,'types':self.types})
-            process_view_bills.delay(buffer_data, self.instance.id)
-            print("process ends...")
-            return {"message": "File processed successfully in background", "error":0}
-        except Exception as e:
-            print(f"Error occurred while processing PDF in background: {str(e)}")
-            return {"message": f"Error occurred while processing PDF in background: {str(e)}", "error":1}
+        if self.entrytype:
+            self.entrytype = self.entrytype.name
+        else:
+            return {'message' : 'Entry Type not found', 'error' : -1}
+        acc_info = None
+        bill_date_info = None
+        if 'mobile' in str(self.vendor).lower():
+            pass
+        elif 'verizon' in str(self.vendor).lower():
+            accounts = []
+            dates = []
+            duration = []
+            bill_date = []
+            with pdfplumber.open(self.path) as pdf:
+                for page_number in range(2):
+                    page = pdf.pages[page_number]
+                    text = page.extract_text()
+                    lines = text.split('\n')
+                    for index, line in enumerate(lines):
+                        if line.startswith('InvoiceNumber AccountNumber DateDue'):
+                            line = lines[index + 1]
+                            items = line.split()
+                            del items[3]
+                            del items[4]
+                            del items[3]
+                            date = items[2]
+                            account = items[1]
+                            dates.append(date)
+                            accounts.append(account)
+
+                    match = re.search(r'Quick Bill Summary (\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s*-\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b)', text)
+                    if match:
+                        phone_number = match.group(1)
+                        duration.append(phone_number)
+
+                    match = re.search(r'Bill Date (January|February|March|April|May|June|July|August|September|October|November|December) (\d{2}), (\d{4})', text)
+                    if match:
+                        phone_number = match.group(1)
+                        amount = match.group(2)
+                        pay = match.group(3)
+                        bill_date.append({
+                            "phone_number": phone_number,
+                            "amount": amount,
+                            "pay": pay
+                        })
+
+            bill_date1 = [f"{info['phone_number']} {info['amount']} {info['pay']}" for info in bill_date]
+            acc_info = accounts[0]
+            bill_date_info = bill_date1[0]
+        else:
+            pages_data = []
+            with pdfplumber.open(self.path) as pdf:
+                num_of_pages = len(pdf.pages)
+            if num_of_pages < 999:
+                with pdfplumber.open(self.path) as pdf:
+                    pages_data = [page.extract_text() for page in pdf.pages[:2]]
+
+                for page_data in pages_data:
+                    first_page_data = page_data
+                    break
+
+                first_page_data_dict = {
+                    "bill_cycle_date": None,
+                    "account_number": None
+                }
+
+                for line in first_page_data.splitlines():
+                    if line.startswith("Issue Date:"):
+                        first_page_data_dict["bill_cycle_date"] = line.split(": ")[-1]
+                    elif "Account number:" in line:
+                        first_page_data_dict["account_number"] = line.split(": ")[-1]
+                acc_info = first_page_data_dict["account_number"]
+                bill_date_info = first_page_data_dict["bill_cycle_date"]
+
+        acc_no = acc_info
+        bill_date_pdf = bill_date_info
+        print(acc_no, bill_date_pdf)
+
+        print(acc_no, self.org, self.company)
+        acc_exists  = BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org,company=self.company)
+        print(acc_exists)
+        # bill_date_exists = PdfDataTable.objects.filter(Bill_Date=bill_date_pdf)
+        if acc_exists.exists():
+            message = f'Account Number {acc_no}  already exists.'
+            print(message)
+            return {'message': message, 'error': 1}
+        # storage = FileSystemStorage(location='uploaded_contracts/')
+        # filename = storage.save(self.file.name, self.path)
+        # path = storage.path(filename)
+
+        return {
+            'message': 'Process Done',
+            'error': 0,
+        }
