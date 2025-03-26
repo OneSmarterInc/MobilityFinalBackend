@@ -83,7 +83,31 @@ class PaperBillView(APIView):
        
 
     def put(self, request, pk, *args, **kwargs):
-        pass
+        
+        try:
+            obj = BaselineDataTable.objects.filter(id=pk)
+        except BaselineDataTable.DoesNotExist:
+            return Response({"message": "Baseline Data not found"}, status=status.HTTP_404_NOT_FOUND)
+        obj = obj[0]
+        action = request.GET.get('action') or request.data.get('action')
+        if action == "update-category":
+            cat = request.data.get('category')
+            print(cat)
+            obj.category_object = cat
+        elif action == "is_draft":
+            obj.is_draft = True
+            obj.is_pending = False
+        elif action == "is_pending":
+            obj.is_draft = False
+            obj.is_pending = True
+        else:
+            return Response({"message": "Invalid action"}, status=status.HTTP_400_BAD_REQUEST)
+        obj.save()
+        saveuserlog(
+            request.user,
+            f"Baseline with account number {obj.account_number} and invoice number {obj.Wireless_number} Updated with Action: {action}"
+        )
+        return Response({"message": "Baseline updated successfully"}, status=status.HTTP_200_OK)
     def delete(self, request, pk, *args, **kwargs):
         pass
 
