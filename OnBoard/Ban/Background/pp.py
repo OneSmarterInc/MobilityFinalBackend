@@ -64,7 +64,7 @@ class ProcessPdf:
             print("Type1 : Your Statement")
             return 1
         else:
-            0
+            return 0
     def extract_data_from_pdf(self):
         print("def extract_data_from_pdf")
         logger.info(f'Extracting data from PDF: {self.pdf_path}')

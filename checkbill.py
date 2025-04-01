@@ -14,7 +14,6 @@ def prove_bill_ID(bill_path,vendor_name):
                 break
     
     for line in Lines:
-        print(line)
         if (vendor_name == "AT&T") and ('AT&T' in line):
             print(line, vendor_name)
             return True
