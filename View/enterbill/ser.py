@@ -44,3 +44,4 @@ class showOnboardedSerializer(serializers.ModelSerializer):
     class Meta:
         model = BaseDataTable
         fields = "__all__"
+

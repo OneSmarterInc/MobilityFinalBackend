@@ -282,6 +282,7 @@ class MappingObjectBan(models.Model):
 
 class PdfDataTable(models.Model):
     banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedpdf', on_delete=models.CASCADE, null=True, blank=True)
+    viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewpdf', on_delete=models.CASCADE, null=True, blank=True)
     company = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     account_number = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     wireless_number = models.CharField(max_length=255, blank=True, null=True, default="NaN")
@@ -317,6 +318,7 @@ class PdfDataTable(models.Model):
     def __str__(self):
         return self.account_number
     
+from View.models import ViewUploadBill
 class BaseDataTable(models.Model):
     banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedBase', on_delete=models.CASCADE, null=True, blank=True)
     inventory = models.ForeignKey(InventoryUpload, related_name='inventorybase', on_delete=models.CASCADE, null=True, blank=True)
@@ -370,6 +372,7 @@ class UniquePdfDataTable(models.Model):
     banOnboarded = models.ForeignKey(OnboardBan, related_name='onboardedlines', on_delete=models.CASCADE, null=True, blank=True)
     banUploaded = models.ForeignKey(UploadBAN, related_name='uploadedlines', on_delete=models.CASCADE, null=True, blank=True)
     inventory = models.ForeignKey(InventoryUpload, related_name='inventorylines', on_delete=models.CASCADE, null=True, blank=True)
+    viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewunique', on_delete=models.CASCADE, null=True, blank=True)
     account_number = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     ECPD_Profile_ID = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     wireless_number = models.CharField(max_length=255, blank=True, null=True, default="NaN")
@@ -446,6 +449,7 @@ class UniquePdfDataTable(models.Model):
 
 class BaselineDataTable(models.Model):
     banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedbaseline', on_delete=models.CASCADE, null=True, blank=True)
+    viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewbaseline', on_delete=models.CASCADE, null=True, blank=True)
     account_number = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     Wireless_number = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     user_name = models.CharField(max_length=255, blank=True, null=True, default="NaN")
@@ -466,7 +470,7 @@ class BaselineDataTable(models.Model):
     category_object = models.JSONField(default=dict)
     company = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     vendor = models.CharField(max_length=255, blank=True, null=True, default="NaN")
-
+    bill_date = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     is_pending = models.BooleanField(default=False)
     is_draft = models.BooleanField(default=False)
     class Meta:
@@ -476,7 +480,8 @@ class BaselineDataTable(models.Model):
         return self.account_number
     
 class BatchReport(models.Model):
-    banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedbatchreport', on_delete=models.CASCADE)
+    banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedbatchreport', on_delete=models.CASCADE, null=True, blank=True)
+    viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewbatch', on_delete=models.CASCADE, null=True, blank=True)
     Cust_Id = models.CharField(max_length=100, null=True, blank=True, default='NA')
     Sub_Id = models.CharField(max_length=100, null=True, blank=True, default='NA')
     Vendor_Number = models.CharField(max_length=100, null=True, blank=True, default='NA')

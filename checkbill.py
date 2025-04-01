@@ -19,7 +19,7 @@ def prove_bill_ID(bill_path,vendor_name):
             print(line, vendor_name)
             return True
         elif (vendor_name == "T_mobile") and ('T-MOBILE'.lower() in line.lower()):
-            return False
+            return True
         elif (vendor_name == "Verizon") and 'verizon' in line.lower():
             print(line, vendor_name)
             return True

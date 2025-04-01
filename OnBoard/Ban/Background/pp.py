@@ -73,9 +73,10 @@ class ProcessPdf:
 
         if 'mobile' in str(self.vendor_name).lower() and self.t_mobile_type == 1:
             base_data_df,pdf_df,temp,rox,on,dates,acc_nos = get_all_dataframes_type_1(self.pdf_path)
-            base_data_df.drop(columns=['Previous Balance','Grand Total','Monthly Recurring Charges','Other Charges', 'Taxes & Surcharges'],inplace=True)
-            base_data_df.rename(columns={'Account Number':'AccountNumber','Address':"Billing Address",'Vendor_Address':'Remidence_Address'},inplace=True)
-            base_data_df.columns = base_data_df.columns.str.replace(' ', '_')
+            if isinstance(base_data_df, pd.DataFrame):
+                base_data_df.drop(columns=['Previous Balance','Grand Total','Monthly Recurring Charges','Other Charges', 'Taxes & Surcharges'],inplace=True)
+                base_data_df.rename(columns={'Account Number':'AccountNumber','Address':"Billing Address",'Vendor_Address':'Remidence_Address'},inplace=True)
+                base_data_df.columns = base_data_df.columns.str.replace(' ', '_')
             data_dict = base_data_df.to_dict(orient='records')
             acc_info = acc_nos
             bill_date_info = dates
@@ -154,12 +155,13 @@ class ProcessPdf:
         from django.db import transaction
         from ..models import BaseDataTable
         print(data)
-        mapping = {"Date_Due":"date_due", "AccountNumber":"accountnumber","InvoiceNumber":"invoicenumber", "Website":"website","Duration":"duration","Bill_Date":"bill_date","Client_Address":"Remidence_Address","entry_type":"Entry_type"}
+        mapping = {"Date_Due":"date_due", "AccountNumber":"accountnumber","InvoiceNumber":"invoicenumber", "Website":"website","Duration":"duration","Bill_Date":"bill_date","Client_Address":"Remidence_Address","entry_type":"Entry_type","billing_address":"Billing_Address"}
         if type(data) == dict:
             updated_data = {mapping.get(k, k): v for k, v in data.items()}
             print(updated_data)
-            updated_data.pop("foundation_account") if 'foundation_account' in updated_data else None
-            BaseDataTable.objects.create(banOnboarded=self.instance, **updated_data)
+            updated_data.pop("foundation_account") if 'foundation_account' in updated_data else None;
+            filtered_data = remove_filds(BaseDataTable, updated_data)
+            BaseDataTable.objects.create(banOnboarded=self.instance, **filtered_data)
         elif type(data) == list:
             for item in data:
                 updated_data = {mapping.get(k, k): v for k, v in item.items()}
@@ -287,8 +289,10 @@ class ProcessPdf:
 
         for item in data:
             item.pop('Note') if 'Note' in item else None
+            item.pop('foundation_account') if 'foundation_account' in item else None
             updated_data = {mapping.get(k, k): v for k, v in item.items()}
-            PdfDataTable.objects.create(banOnboarded=self.instance, **updated_data)
+            filtered_data = remove_filds(PdfDataTable, updated_data)
+            PdfDataTable.objects.create(banOnboarded=self.instance, **filtered_data)
     def save_to_unique_pdf_data_table(self,data):
         print("saving to unique_pdf_data_table")
         data_df = pd.DataFrame(data)
@@ -364,7 +368,9 @@ class ProcessPdf:
             updated_data.pop('charges') if 'charges' in updated_data else None
             updated_data.pop('location') if 'location' in updated_data else None
             updated_data.pop('Note') if 'Note' in updated_data else None
-            UniquePdfDataTable.objects.create(banOnboarded=self.instance,**updated_data)
+            updated_data.pop('foundation_account') if 'foundation_account' in item else None
+            filtered_data = remove_filds(UniquePdfDataTable, updated_data)
+            UniquePdfDataTable.objects.create(banOnboarded=self.instance,**filtered_data)
     def save_to_baseline_data_table(self,data):
         print("saving to baseline_data_table")
         data_df = pd.DataFrame(data)
@@ -449,8 +455,10 @@ class ProcessPdf:
             updated_data.pop('item_category') if 'item_category' in updated_data else None
             updated_data.pop('item_description') if 'item_description' in updated_data else None
             updated_data.pop('charges') if 'charges' in updated_data else None
+            updated_data.pop('foundation_account') if 'foundation_account' in item else None
             updated_data.pop('bill_date') if 'bill_date' in updated_data else None
-            BaselineDataTable.objects.create(banOnboarded=self.instance,**updated_data)
+            filtered_data = remove_filds(BaselineDataTable, updated_data)
+            BaselineDataTable.objects.create(banOnboarded=self.instance,**filtered_data)
     def process_pdf_from_buffer(self):
         print(self.buffer_data)
         logger.info('Extracting data from PDF')
@@ -490,16 +498,21 @@ class ProcessPdf:
                         wireless_data[wireless_number][item_category][item_description] = charges
                 result_list = [dict(wireless_data)]
                 udf = pd.DataFrame(unique_pdf_data)
-                udf.rename(columns={'wireless number':'Wireless_number'},inplace=True)
+                print(udf)
+                if isinstance(udf, pd.DataFrame):
+                    
+                    udf.rename(columns={'wireless number':'Wireless_number'},inplace=True)
             else:
-                tmp_df.rename(columns={'Item Category':'Item_Category','Item Description':'Item_Description'},inplace=True)
-                for idx, row in tmp_df.iterrows():
-                    wireless_number = row['Wireless_number']
-                    item_category = row['Item_Category']
-                    item_description = row['Item_Description']
-                    charges = row['Charges']
-                    if pd.notna(item_category) and pd.notna(item_description) and pd.notna(charges):
-                        wireless_data[wireless_number][item_category][item_description] = charges
+                print(tmp_df)
+                if isinstance(tmp_df, pd.DataFrame):
+                    tmp_df.rename(columns={'Item Category':'Item_Category','Item Description':'Item_Description'},inplace=True)
+                    for idx, row in tmp_df.iterrows():
+                        wireless_number = row['Wireless_number'] if 'Wireless_number' in row else None
+                        item_category = row['Item_Category'] if 'Item_Category' in row else None
+                        item_description = row['Item_Description'] if 'Item_Description' in row else None
+                        charges = row['Charges'] if 'Charges' in row else None
+                        if pd.notna(item_category) and pd.notna(item_description) and pd.notna(charges):
+                            wireless_data[wireless_number][item_category][item_description] = charges
                 result_list = [dict(wireless_data)]
                 udf = pd.DataFrame(unique_pdf_data)
             wireless_numbers = []
@@ -512,6 +525,7 @@ class ProcessPdf:
                     charges_objects.append(json.dumps(charges))  # Convert dictionary to JSON string for storage
 
             # Create the DataFrame with two columns: Wireless_number and Charges_Object
+            
             obj_df = pd.DataFrame({
                 'Wireless_number': wireless_numbers,
                 'category_object': charges_objects
@@ -565,3 +579,10 @@ class ProcessPdf:
             print("Email notification sent successfully!")
         except Exception as e:
             print(f"Failed to send email notification. Error: {str(e)}")
+            
+def remove_filds(model, data):
+    valid_fields = {field.name for field in model._meta.get_fields()}
+
+    filtered_data = {key: value for key, value in data.items() if key in valid_fields}
+
+    return filtered_data

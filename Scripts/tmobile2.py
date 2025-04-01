@@ -250,7 +250,7 @@ def extract_text_from_t_mobile_2(filename):
     zippath = zip_folder(output_directory)
     shutil.rmtree(output_directory)
     print(zippath)
-    return unique_df,base_data_df,temp_check, zippath
+    return unique_df,base_data_df,temp_check
 
 # path = "Bills/Analysis/Scripts/T-Mobile_Bill.pdf"
 # try:

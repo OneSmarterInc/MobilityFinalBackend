@@ -555,7 +555,7 @@ def get_all_dataframes_type_1(file):
 
     shutil.rmtree(output_dir)
 
-    return summer,first_merged_df,final_merged_df,descrepancies,usage,unique_date,unique_account_number,zippath
+    return summer,first_merged_df,final_merged_df,descrepancies,usage,unique_date,unique_account_number
 
 # path = "Bills/Analysis/Scripts/oct-Tmob.pdf"
 # obj = get_all_dataframes_type_1(path)

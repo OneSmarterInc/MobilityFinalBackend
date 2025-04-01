@@ -10,9 +10,9 @@ c.execute(q)
 rows = c.fetchall()
 df = pd.DataFrame(rows)
 print(df[10:20])
-q = "SELECT * FROM UniquePdfDataTable WHERE account_number='685773812-00004'"
+q = "SELECT * FROM UniquePdfDataTable WHERE account_number='342125539-00001'"
 
 df = pd.read_sql_query(q, conn)
 print(df)
-# df.to_excel("Bills/sample.xlsx")
+df.to_excel("Bills/sample.xlsx")
 conn.close()
