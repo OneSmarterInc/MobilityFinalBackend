@@ -286,7 +286,7 @@ class UploadfileView(APIView):
                 if 'master' in found[0].Entry_type.lower():
                     return Response({
                         "message": f"ban with Entry Type is not acceptable!"
-                    })
+                    }, status=status.HTTP_400_BAD_REQUEST)
             else:
                 found = UploadBAN.objects.filter(organization=Organizations.objects.filter(Organization_name=org).first(), Vendor=Vendors.objects.filter(name=vendor).first(), account_number=ban)
                 print(found)
@@ -377,6 +377,8 @@ class UploadfileView(APIView):
                     )
                 self.processed_data = BaselineDataTable.objects.filter(viewuploaded=obj)
                 self.processed_data = BaselineDataTableShowSerializer(self.processed_data, many=True).data
+                with open('results.json', 'w') as file:
+                    json.dump(self.processed_data, file)
             else:
                 return Response({"message": "Invalid file type"}, status=status.HTTP_400_BAD_REQUEST)
             saveuserlog(

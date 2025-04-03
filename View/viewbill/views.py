@@ -5,8 +5,8 @@ from rest_framework import status
 from authenticate.views import saveuserlog
 from rest_framework.permissions import IsAuthenticated
 from OnBoard.Organization.models import Organizations
-from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable
-from .ser import showOrganizationSerializer, showBanSerializer, vendorshowSerializer, basedatahowSerializer, paytypehowSerializer, uniquepdftableSerializer
+from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, BaselineDataTable
+from .ser import showOrganizationSerializer, showBanSerializer, vendorshowSerializer, basedatahowSerializer, paytypehowSerializer, uniquepdftableSerializer, baselinedataserializer
 from Dashboard.ModelsByPage.DashAdmin import Vendors, PaymentType
 
 class ViewBill(APIView):
@@ -81,3 +81,13 @@ class ViewBill(APIView):
         saveuserlog(request.user, "Deleted Base Data with ID: " + str(pk))
         return Response({"message": "Base Data successfully deleted!"}, status=status.HTTP_200_OK)
 
+class ViewBillBaseline(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request, *args, **kwargs):
+        sub_company = request.GET.get('sub_company')
+        vendor = request.GET.get('vendor')
+        account_number = request.GET.get('account_number')
+
+        objs = BaselineDataTable.objects.filter(vendor=vendor, account_number=account_number, sub_company=sub_company)
+        ser = baselinedataserializer(objs, many=True)
+        return Response({"data": ser.data}, status=status.HTTP_200_OK)

@@ -249,8 +249,8 @@ class UploadBANView(APIView):
             return Response({"message" : "BAN not found!"}, status=status.HTTP_404_NOT_FOUND)
         
         
-from .models import OnboardBan
-from .ser import OnboardBanSerializer, EntryTypeShowSerializer, BillTypeShowSerializer, OrganizationShowOnboardSerializer
+from .models import OnboardBan, BaseDataTable
+from .ser import OnboardBanSerializer, EntryTypeShowSerializer, BillTypeShowSerializer, OrganizationShowOnboardSerializer, BaseBansSerializer
 from Dashboard.ModelsByPage.DashAdmin import EntryType, BillType
 from .models import UploadBAN, MappingObjectBan
 from OnBoard.Ban.Background.tasks import process_pdf_task, process_csv
@@ -274,7 +274,8 @@ class OnboardBanView(APIView):
             etypeserializer = EntryTypeShowSerializer(etypes, many=True)
             btypes = BillType.objects.all()
             btypeserializer = BillTypeShowSerializer(btypes, many=True)
-            return Response({"data" : serializer.data, "organizations": orgserializer.data, "entrytypes" : etypeserializer.data, "billtypes" : btypeserializer.data}, status=status.HTTP_200_OK)
+            basebans = BaseBansSerializer(BaseDataTable.objects.filter(Entry_type='Master Account'), many=True)
+            return Response({"data" : serializer.data, "organizations": orgserializer.data, "entrytypes" : etypeserializer.data, "billtypes" : btypeserializer.data, 'basebans':basebans.data}, status=status.HTTP_200_OK)
     
 
     def post(self, request):

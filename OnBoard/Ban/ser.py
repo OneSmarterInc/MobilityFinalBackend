@@ -1,7 +1,7 @@
 
 
 from rest_framework import serializers
-from .models import UploadBAN, OnboardBan, InventoryUpload, Lines
+from .models import UploadBAN, OnboardBan, InventoryUpload, Lines, BaseDataTable
 from Dashboard.ModelsByPage.DashAdmin import Vendors, EntryType, BanStatus, BanType, InvoiceMethod, PaymentType, CostCenterLevel, CostCenterType, BillType
 from ..Organization.models import Organizations
 from..Company.models import Company
@@ -205,10 +205,12 @@ class OrganizationShowOnboardSerializer(serializers.ModelSerializer):
         return [location.site_name for location in obj.locations.all()]
     
     def get_bans(self, obj):
-        return [ban.account_number for ban in UploadBAN.objects.filter(organization=obj)]
+        et = EntryType.objects.filter(name='Master Account')
+        return [ban.account_number for ban in UploadBAN.objects.filter(organization=obj,entryType=et[0] )]
     
     def get_company(self, obj):
         return obj.company.Company_name
+    
 
 class EntryTypeShowSerializer(serializers.ModelSerializer):
     class Meta:
@@ -219,3 +221,8 @@ class BillTypeShowSerializer(serializers.ModelSerializer):
     class Meta:
         model = BillType
         fields = ['name', ]
+        
+class BaseBansSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BaseDataTable
+        fields = ['sub_company', 'vendor', 'accountnumber']

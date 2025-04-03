@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from OnBoard.Organization.models import Organizations
-from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable
+from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, BaselineDataTable
 from Dashboard.ModelsByPage.DashAdmin import Vendors, PaymentType
 
 class showBanSerializer(serializers.ModelSerializer):
@@ -43,3 +43,8 @@ class uniquepdftableSerializer(serializers.ModelSerializer):
     class Meta:
         model = UniquePdfDataTable
         fields = ('id', 'inventory', 'banOnboarded', 'account_number','user_name', 'total_charges', 'wireless_number')
+        
+class baselinedataserializer(serializers.ModelSerializer):
+    class Meta:
+        model = BaselineDataTable
+        fields = '__all__'
