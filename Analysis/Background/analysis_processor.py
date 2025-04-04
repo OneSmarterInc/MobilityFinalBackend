@@ -45,7 +45,7 @@ def extract_data_from_pdf(pdf_path, vendor_nm, pdf_filename):
         print("tmobile list")
         tmobile_type = check_tmobile_type(pdf_path)
         if tmobile_type == 1:
-            base_data_df,datess,acc_nos,zpath = get_all_dataframes_type_1(pdf_path)
+            base_data_df,a,b,c,d,datess,acc_nos,zpath = get_all_dataframes_type_1(pdf_path) # extra calls (a,b,c,d) to prevent error dont remove it
             zippath = zpath
         elif tmobile_type == 2:
             print("tmobile type 2")
@@ -100,16 +100,25 @@ def extract_total_pdf_data(pdf_path, acc_info, company_nm, vendor_nm):
         print("vendor name is mobile")
         tmobile_type = check_tmobile_type(pdf_path)
         if tmobile_type == 1:
-            base_data_df,pdf_df,duplicate_df,in_valid_df,usage_df,datess,acc_nos, zippath = get_all_dataframes_type_1(pdf_path)
-            print("data got", base_data_df,pdf_df,duplicate_df,in_valid_df,usage_df,datess,acc_nos, zippath)
+            pdf_df,duplicate_df,c,d,usage_df,a,b, zippath = get_all_dataframes_type_1(pdf_path) # extra calls (a,b,c,d) to prevent error dont remove it
+            print("data got", pdf_df,duplicate_df,usage_df, zippath)
         elif tmobile_type == 2:
             print("tmobile type 2")
-            base_data_df,pdf_df,duplicate_df,in_valid_df,usage_df,datess,acc_nos,zippath = extract_text_from_t_mobile_2(pdf_path)
-            print("data got", base_data_df,pdf_df,duplicate_df,in_valid_df,usage_df,datess,acc_nos, zippath)
+            pdf_df,duplicate_df,usage_df, zippath = extract_text_from_t_mobile_2(pdf_path)
+            print("data got",pdf_df,duplicate_df,usage_df, zippath)
         else:
             return {'message': 'Invalid tmobile type', 'Error' : 1}
         total_dict = pdf_df.to_dict(orient='records')
-        dup_df = pd.merge(duplicate_df,usage_df,on='wireless number',how='inner')
+        print("duplicate df=====", duplicate_df)
+        print("usage df=====",usage_df)
+        if 'invoicenumber' in duplicate_df.to_dict():
+            duplicate_df = duplicate_df.rename(columns={'invoicenumber': 'Wireless Number'})
+        elif 'wireless number' in duplicate_df.to_dict():
+            duplicate_df = duplicate_df.rename(columns={'wireless number': 'Wireless Number'})
+        if 'wireless number' in usage_df.to_dict():
+            usage_df = usage_df.rename(columns={'wireless number': 'Wireless Number'})
+        
+        dup_df = pd.merge(duplicate_df,usage_df,on='Wireless Number',how='inner')
         result_df = dup_df
     elif 'verizon' in str(vendor_nm).lower():
         print("vendor name is ver")
@@ -1201,8 +1210,16 @@ def process_analysis_pdf_from_buffer(instance, buffer_data):
 
     # Rename columns for T-Mobile vendor
         
+    print(user_id, bill_date_info,organization, remark, first_name, last_name, store, pdf_path, pdf_filename, vendor_name)
 
+    # If bill_date_info is a list, take the first element
+    if isinstance(bill_date_info, list):
+        bill_date_info = bill_date_info[0]
+    
     # Define temporary output directory
+    obj = Analysis.objects.get(id=instance.id)
+    obj.bill_date_info = bill_date_info
+    obj.save()
     if 'mobile' not in str(vendor_name).lower():
         out_directory = 'output_test_dir'
         os.makedirs(out_directory, exist_ok=True)
@@ -1214,20 +1231,13 @@ def process_analysis_pdf_from_buffer(instance, buffer_data):
         # Ensure the file is properly closed before reading it again
         workbook_name = str(instance.uploadBill.name).replace('.pdf', '.xlsx')
 
-        print(user_id, bill_date_info, workbook_name, organization, remark, first_name, last_name, store, pdf_path, pdf_filename, vendor_name)
-
-        # If bill_date_info is a list, take the first element
-        if isinstance(bill_date_info, list):
-            bill_date_info = bill_date_info[0]
-
         # Save the Excel file to the Django model
         obj = Analysis.objects.get(id=instance.id)
         with open(file_path1, 'rb') as f:
             obj.excel.save(workbook_name, File(f))  # Using save() method ensures proper handling
-        obj.bill_date_info = bill_date_info
+        obj.is_processed = True
         obj.save()
 
-        # Remove the temporary directory after ensuring file is saved
         shutil.rmtree(out_directory)
 
         print("File saved successfully and temp directory removed.")
@@ -1247,3 +1257,10 @@ def process_analysis_pdf_from_buffer(instance, buffer_data):
         }, inplace=True)
         if zpath:
             print(zpath)
+            with open(zpath, 'rb') as  f:
+                obj.excel.save(str(zpath), File(f)) 
+            obj.is_processed = True
+            obj.save()
+            os.remove(zpath)
+
+    

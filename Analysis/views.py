@@ -9,7 +9,9 @@ from rest_framework.permissions import IsAuthenticated
 from .models import Analysis
 from .ser import AnalysisSaveSerializer, AnalysisShowSerializer, VendorsShowSerializer
 from Dashboard.ModelsByPage.DashAdmin import Vendors
-
+from .Background.task import process_analysis_task
+from authenticate.views import saveuserlog
+from checkbill import prove_bill_ID
 class AnalysisView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -32,6 +34,10 @@ class AnalysisView(APIView):
 
     def post(self, request):
         try:
+            check = prove_bill_ID(vendor_name=request.data['vendor'],bill_path=request.data['uploadBill'])
+            if not check:
+                return Response({"message":f"Uploaded file is not {request.data['vendor']} file!"},status=status.HTTP_400_BAD_REQUEST)
+            
             ser = AnalysisSaveSerializer(data=request.data)
             if ser.is_valid():
                 ser.save()
@@ -40,13 +46,17 @@ class AnalysisView(APIView):
                 return Response({"message": ser.errors}, status=status.HTTP_400_BAD_REQUEST)
             try:
                 id = ser.data['id']
-                analy = ProcessAnanalysis(Analysis.objects.get(id=int(id)))
-                
-                ana = analy.process_pdf()
-                if ana['Error'] != 0:
-                    return Response({"message": ana['message']}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                else:
-                    return Response({"message": "Analysis created successfully!", "data": ser.data}, status=status.HTTP_201_CREATED)
+                obj = Analysis.objects.filter(id=id)[0]
+                store, types = None, None
+                buffer_data = json.dumps(
+                    {'pdf_path':obj.uploadBill.path, 'vendor_name':obj.vendor.name, 'pdf_filename':obj.uploadBill.name, 'user_id':obj.created_by.id, 'organization':obj.client, 'remark':obj.remark, 'first_name':obj.created_by.first_name, 'last_name':obj.created_by.last_name, 'store':store, 'types':types}
+                )
+                saveuserlog(
+                    request.user,
+                    f"{obj.vendor.name} file of client {obj.client} is uploaded for analysis"
+                )
+                process_analysis_task.delay(buffer_data, obj.id)
+                return Response({"message":f"File Analysis is in progress,It will take some time.\n Please check inventory page later."})
             except Exception as e:
                 print(e)
                 return Response({"message": f'Data saved but error processing file!{str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -69,7 +79,14 @@ class AnalysisView(APIView):
     def delete(self, request, pk):
         try:
             analysis = Analysis.objects.get(id=pk)
+            vendor = analysis.vendor.name
+            client = analysis.client
+            file = analysis.uploadBill.name
             analysis.delete()
+            saveuserlog(
+                request.user,
+                f"{vendor} file with name {file} of client {client if client else '-'} has been deleted from Analysis!"
+            )
             return Response({"message": "Analysis deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
         except Analysis.DoesNotExist:
             return Response({"message": "Analysis not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -105,7 +122,6 @@ class ProcessAnanalysis:
             {'pdf_path':self.path, 'vendor_name':self.vendor, 'pdf_filename':self.filename, 'user_id':self.user.id, 'organization':self.client, 'remark':self.remark, 'first_name':self.user.first_name, 'last_name':self.user.last_name, 'store':self.store, 'types':self.types}
         )
         print(buffer_data)
-        from .Background.task import process_analysis_task
         try:
             process_analysis_task(self.instance, buffer_data)
             return {'message' : 'PDF processing completed successfully.', 'Error' : 0}

@@ -7,7 +7,7 @@ from Dashboard.ModelsByPage.DashAdmin import Vendors
 
 class Analysis(models.Model):
     company = models.ForeignKey(
-        Company, related_name='companyanalysis', on_delete=models.CASCADE, default=None
+        Company, related_name='companyanalysis', on_delete=models.CASCADE, default=None, null=True, blank=True
     )
     vendor = models.ForeignKey(
         Vendors, related_name='vendoranalysis', on_delete=models.CASCADE, default=None
@@ -20,6 +20,7 @@ class Analysis(models.Model):
     created_by = models.ForeignKey(PortalUser, related_name='analysisby', on_delete=models.SET_NULL, null=True, blank=True)
     bill_date_info = models.CharField(max_length=255, null=True, blank=True)
     excel = models.FileField(upload_to='BillAnalysis/', null=True, blank=True)
+    is_processed = models.BooleanField(default=False)
     class Meta:
         db_table = 'Analysis'
     

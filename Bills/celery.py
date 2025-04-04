@@ -10,7 +10,7 @@ app = Celery('Bills')  # Ensure the app name matches your project name
 app.config_from_object(settings, namespace='CELERY')
 
 # Load task modules from all registered Django app configs.
-app.autodiscover_tasks(['OnBoard','View'])  # Specify the apps explicitly if needed
+app.autodiscover_tasks(['OnBoard','View', 'Analysis'])  # Specify the apps explicitly if needed
 
 @app.task(bind=True)
 def debug_task(self):

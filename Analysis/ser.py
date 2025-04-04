@@ -19,7 +19,7 @@ class AnalysisSaveSerializer(serializers.ModelSerializer):
         try:
             company = Company.objects.get(Company_name=companyname)
         except Company.DoesNotExist:
-            raise serializers.ValidationError({"company": "Company not found"})
+            company = None
         vendorname = validated_data.pop('vendor', None)
         vendor = None
         try:
@@ -74,7 +74,7 @@ class AnalysisShowSerializer(serializers.ModelSerializer):
     created_by = serializers.CharField(max_length=255)
     class Meta:
         model = Analysis
-        fields = ('id', 'company', 'vendor', 'client', 'remark', 'uploadBill', 'created', 'created_by', 'excel')
+        fields = ('id', 'company', 'vendor', 'client', 'remark', 'uploadBill', 'created', 'created_by', 'excel', 'is_processed')
 
 class VendorsShowSerializer(serializers.ModelSerializer):
     class Meta:
