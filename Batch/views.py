@@ -10,7 +10,7 @@ from OnBoard.Company.models import Company
 from OnBoard.Ban.models import BatchReport, OnboardBan
 from .ser import BatchReportSerializer, OrganizationShowSerializer
 from openpyxl import Workbook
-
+from sendmail import send_custom_email
 # call update_or_create a django method
 import ast
 from io import BytesIO
@@ -21,7 +21,7 @@ from django.core.files.base import ContentFile
 from uuid import uuid4
 from django.conf import settings
 import os
-
+import shutil
 import pandas as pd
 # Create your views here.
 class BatchView(APIView):
@@ -70,14 +70,13 @@ class BatchView(APIView):
             from_date = data['from_date']
             to_date = data['to_date']
             ids = ast.literal_eval(data['ids'])
-            if int(ids):
+            if type(ids) == int:
                 batch = BatchReport.objects.filter(id=ids)
             else:
                 batch = BatchReport.objects.filter(id__in=ids)
                 
             if not batch:
                 return Response({"message": f"No data found!"}, status=status.HTTP_404_NOT_FOUND)
-            print(batch)
             dataframe = list(batch.values(
                 'Cust_Id',
                 'Sub_Id',
@@ -139,19 +138,37 @@ class BatchView(APIView):
                 'Invoice_Misc_1': "Invoice Misc 1"
             }, inplace=True)
             print(data)
-            if data["action"] == "download":
-                excel_buffer = self.generate_excel_file(df)
+            excel_buffer = self.generate_excel_file(df)
 
-                obj = batch[0]
-                
-                file_name = f"batch_report_{obj.id}.xlsx"
-                file_path = os.path.join(settings.MEDIA_ROOT, "batchreports", file_name)
-                
-                # Save the file to Django's MEDIA storage
-                obj.output_file.save(file_name, ContentFile(excel_buffer.getvalue()), save=True)
-                print(obj.output_file.url)
-                
+            obj = batch[0]
+            folder = str(obj.output_file.path).split("/")
+            folder.remove(folder[-1])
+            folder = "/".join(folder)
+            shutil.rmtree(folder)
+            from_to = str(ids[0]) + '->' + str(ids[-1])
+            file_name = f"batch_report_{from_to} .xlsx"
+            file_path = os.path.join(settings.MEDIA_ROOT, "batchreports", file_name)
+            
+            # Save the file to Django's MEDIA storage
+            obj.output_file.save(file_name, ContentFile(excel_buffer.getvalue()), save=True)
+            if data["action"] == "download":
                 return Response({"data": obj.output_file.url}, status=status.HTTP_200_OK)
+            elif data['action'] == "send_mail":
+                rm = data.get('to_mail')
+                print("sending mail...")
+                try:
+                    send_custom_email(
+                        receiver_mail=rm,
+                        subject='Batch Report',
+                        body='Please find the attached report.',
+                        attachment=obj.output_file
+                    )
+                    return Response({"message":f"Email sent successfully sent to {rm}"}, status=status.HTTP_200_OK)
+                except Exception as e:
+                    print(e)
+                    return Response({"message":f"Error in sending mail:{e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            else:
+                return Response({"message":"Invalid action!"}, status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request, id, *args, **kwargs):
         try:

@@ -48,3 +48,8 @@ class baselinedataserializer(serializers.ModelSerializer):
     class Meta:
         model = BaselineDataTable
         fields = '__all__'
+    
+class BaselineDataTableShowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BaselineDataTable
+        fields = '__all__'

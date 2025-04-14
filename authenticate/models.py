@@ -26,7 +26,7 @@ class PortalUser(AbstractUser):
     mobile_number = models.CharField(max_length=255, null=True, blank=True)
     phone_number = models.CharField(max_length=255, null=True, blank=True)
 
-
+    contact_type = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
         db_table = "PortalUser"

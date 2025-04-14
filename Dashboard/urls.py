@@ -145,3 +145,11 @@ vendors = [
     path("vendors-portal/<pk>/", VendorsView().as_view(), name='vendorportal-detail'),
 ]
 urlpatterns.extend(vendors)
+
+from .CRUDViews.catManagement import CategoryView
+catgories = [
+    path("categories/", CategoryView().as_view(), name='Category-list-create'),
+    path("categories/<pk>/", CategoryView().as_view(), name='Category-detail'),
+]
+urlpatterns.extend(catgories)
+

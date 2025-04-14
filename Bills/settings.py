@@ -191,3 +191,12 @@ CELERY_TASK_TRACK_STARTED = True  # Track when tasks start
 CELERY_TASK_TIME_LIMIT = 300  # Task time limit in seconds
 
 result_backend = 'django-db'
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'  
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'grddeveloper.py@gmail.com'
+SENDERS_NAME = "SimpleTek"
+EMAIL_HOST_PASSWORD = 'omfw wgid vepu cgyf'  
+DEFAULT_FROM_EMAIL = f"{SENDERS_NAME} <{EMAIL_HOST_USER}>"

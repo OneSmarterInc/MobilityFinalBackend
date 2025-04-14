@@ -545,7 +545,7 @@ class OnboardBanView(APIView):
 
                 print(buffer_data)
 
-                process_pdf_task.delay(buffer_data,obj.id)
+                # process_pdf_task.delay(buffer_data,obj.id)
                 # process_pdf_task(buffer_data,obj)
                 # AllUserLogs.objects.create(
                 #     user_email=request.user.email,
@@ -1076,7 +1076,7 @@ class ProcessZip:
                 if self.baseline:
                     self.save_to_baseline_data_table(category_data, self.vendor, self.types)
                     print("saved to baseline data table")
-                return {'message' : 'RDD uploaded successfully!', 'error' : 1}
+                return {'message' : 'RDD uploaded successfully!', 'error' : 0}
         except Exception as e:
             print(f'Error occurred while processing zip file: {str(e)}')
             return {'message' : f'Error occurred while processing zip file: {str(e)}', 'error' : -1}
