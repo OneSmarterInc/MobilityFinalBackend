@@ -11,7 +11,7 @@ from ..ModelsByPage.DashAdmin import UserRoles
 class ManageUsersView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, *args, **kwargs):
-        users = PortalUser.objects.all()
+        users = PortalUser.objects.filter(is_superuser=False)
         serializer = userSerializer(users, many=True)
         companies = Company.objects.all()
         company_serializer = showcompaniesSerializer(companies, many=True)
@@ -21,7 +21,26 @@ class ManageUsersView(APIView):
     def post(self, request, *args, **kwargs):
         pass
     def put(self, request, pk, *args, **kwargs):
-        pass
+        data = request.data
+        print(data)
+        user = PortalUser.objects.filter(id=pk)
+        if not user:
+            return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        user = user[0]
+        print(data.get('first_name'))
+        fn = data.get('first_name')
+        ln = data.get('last_name')
+        mn = data.get('mobile_number')
+        pn = data.get('phone_number')
+        role = data.get('user_role')
+        if not role or str(role).lower() not in ['undefined','null','nan']:
+            user.designation = UserRoles.objects.filter(name=role).first()
+        user.first_name = fn
+        user.last_name = ln
+        user.phone_number = pn
+        user.mobile_number = mn
+        user.save()
+        return Response({"message": "User Updated successfully"}, status=status.HTTP_200_OK)
     def delete(self, request, pk, *args, **kwargs):
         try:
             user = PortalUser.objects.get(id=pk)

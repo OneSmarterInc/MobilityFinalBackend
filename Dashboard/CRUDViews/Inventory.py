@@ -5,7 +5,7 @@ from rest_framework import status
 from authenticate.models import PortalUser
 from OnBoard.Company.models import Company
 from rest_framework.permissions import IsAuthenticated
-from OnBoard.Ban.models import UniquePdfDataTable
+from OnBoard.Ban.models import UniquePdfDataTable, BaselineDataTable
 from ..Serializers.inventory import UniqueTableShowSerializer, OrganizationsShowSerializer
 from OnBoard.Organization.models import Organizations
 
@@ -28,6 +28,17 @@ class InventoryView(APIView):
     def post(self, request, *args, **kwargs):
         return Response({"message": "Post"}, status=status.HTTP_200_OK)
     def put(self, request,pk, *args, **kwargs):
+        data = request.data
+        print(data)
+        print(pk)
+        try:
+            unique_obj = UniquePdfDataTable.objects.filter(id=pk)
+            baseline_obj = BaselineDataTable.objects.filter(account_number=unique_obj[0].account_number, Wireless_number=unique_obj[0].wireless_number)
+            print(unique_obj, baseline_obj)
+        except UniquePdfDataTable.DoesNotExist:
+            return Response({"message": "Inventory not found in unique table!"}, status=status.HTTP_404_NOT_FOUND)
+        except BaselineDataTable.DoesNotExist:
+            return Response({"message": "Inventory not found in baseline table!"}, status=status.HTTP_404_NOT_FOUND)
         return Response({"message": "Put"}, status=status.HTTP_200_OK)
     def delete(self, request, pk, *args, **kwargs):
         try:
