@@ -117,7 +117,7 @@ class OrganizationShowOnboardSerializer(serializers.ModelSerializer):
 class BanShowSerializer(serializers.ModelSerializer):
     class Meta:
         model = UploadBAN
-        fields = ['id', 'location', 'account_number', 'entryType','company', 'organization', 'Vendor', 'uploadedlines']
+        fields = ['id', 'location', 'account_number', 'entryType','company', 'organization', 'Vendor', 'uploadedlines', 'created']
 
     entryType = serializers.CharField()
     uploadedlines = serializers.StringRelatedField(many=True)

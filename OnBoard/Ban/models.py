@@ -362,6 +362,9 @@ class BaseDataTable(models.Model):
     billstatus = models.CharField(max_length=255, null=True, blank=True)
     Check = models.CharField(max_length=255, null=True, blank=True)
     summary_file = models.FileField(upload_to='view_summary_files/', null=True, blank=True)
+    
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         db_table = 'BaseDataTable'

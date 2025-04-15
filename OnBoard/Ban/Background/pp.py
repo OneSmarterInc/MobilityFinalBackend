@@ -17,7 +17,15 @@ import smtplib
 from email.mime.text import MIMEText
 import numpy as np
 import pdfplumber
- 
+from ..models import UniquePdfDataTable
+from django.db import transaction
+from ..models import BaseDataTable
+from ..models import PdfDataTable
+from django.db.models import Max
+from django.db import transaction
+from ..models import BatchReport
+from django.db import models
+from ..models import BaselineDataTable
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -151,8 +159,7 @@ class ProcessPdf:
     def save_to_base_data_table(self, data):
     
         print("def save_to_base_data_table")
-        from django.db import transaction
-        from ..models import BaseDataTable
+        
         mapping = {"Date_Due":"date_due", "AccountNumber":"accountnumber","InvoiceNumber":"invoicenumber", "Website":"website","Duration":"duration","Bill_Date":"bill_date","Client_Address":"Remidence_Address","entry_type":"Entry_type","billing_address":"Billing_Address"}
         if type(data) == dict:
             updated_data = {mapping.get(k, k): v for k, v in data.items()}
@@ -280,7 +287,7 @@ class ProcessPdf:
         data_df.columns = data_df.columns.str.replace(' ', '_')
         data_df.rename(columns={'Voice_Plan_Usage_':"Voice_Plan_Usage"},inplace=True)
         data = data_df.to_dict(orient='records')
-        from ..models import PdfDataTable
+        
         mapping = {'Wireless_number':"wireless_number", 'Monthly_Charges':"monthly_charges", 'Usage_and_Purchase_Charges':"usage_and_purchase_charges", 'Equipment_Charges':"equipment_charges", 'Surcharges_and_Other_Charges_and_Credits':"surcharges_and_other_charges_and_credits", 'Taxes_Governmental_Surcharges_and_Fees':"taxes_governmental_surcharges_and_fees", 'Third_Party_Charges_includes_Tax':"taxes_governmental_surcharges_and_fees", 'Total_Charges':"total_charges", 'Voice_Plan_Usage':"voice_plan_usage", 'Messaging_Usage':"messaging_usage", 'Data_Usage':"data_usage", 'Foundation_Account':"voice_plan_usage", 'Account_number':"account_number", 'Group_Number':"group_number", 'User_Email':"user_email", 'Status':"status", 'Cost_Center':"cost_center", 'Account_Charges_and_Credits':"account_charges_credits", 'Plans':"plans", 'Item_Category':"item_category", 'Item_Description':"item_description", 'Charges':"charges","User_name":"user_name"}
         
 
@@ -387,12 +394,8 @@ class ProcessPdf:
             temp_fig["Vendor_State"] = 'NA'
             temp_fig["Vendor_Zip"] = 'NA'
 
-        conn = sqlite3.connect('db.sqlite3')
-        cursor = conn.cursor()
         
-        from django.db.models import Max
-        from django.db import transaction
-        from OnBoard.Ban.models import BatchReport
+        
         
         key_mapping = {
             'Date_Due': 'Due_Date',
@@ -558,7 +561,6 @@ class ProcessPdf:
         data_df.columns = data_df.columns.str.replace(' ', '_')
         data_df.rename(columns={'Voice_Plan_Usage_':"Voice_Plan_Usage"},inplace=True)
         data = data_df.to_dict(orient='records')
-        from ..models import UniquePdfDataTable
         mapping = {'Wireless_number':"wireless_number", 'Monthly_charges':"monthly_charges", 'Usage_and_Purchase_Charges':"usage_and_purchase_charges", 'Equipment_Charges':"equipment_charges", 'surcharges_and_other_charges_and_credits':"surcharges_and_other_charges_credits", 'Taxes_Governmental_Surcharges_and_Fees':"taxes_governmental_surcharges_and_fees", 'Third_Party_Charges_includes_Tax':"taxes_governmental_surcharges_and_fees", 'Total_Charges':"total_charges", 'Voice_Plan_Usage':"voice_plan_usage", 'Messaging_Usage':"messaging_usage", 'Data_Usage':"data_usage", 'Foundation_Account':"voice_plan_usage", 'Account_number':"account_number", 'Group_Number':"group_number", 'User_Email':"User_email", 'Status':"User_status", 'Cost_Center':"cost_center", 'Account_Charges_and_Credits':"account_charges_and_credits", 'Plans':"plans", 'Item_Category':"item_category", 'Item_Description':"item_description", 'Charges':"charges", "User_name":"user_name", "Monthly_Charges":"monthly_charges","Surcharges_and_Other_Charges_and_Credits":'surcharges_and_other_charges_credits'}
 
         for item in data:
@@ -638,7 +640,7 @@ class ProcessPdf:
         #     values = ', '.join([f"'{value}'" for value in item.values()])
         #     cursor.execute(f'INSERT INTO myapp_baseline_data_table ({keys}) VALUES ({values})')
         # Assuming `data` is a list of dictionaries containing the records to insert
-        from ..models import BaselineDataTable
+        
         mapping = {'Monthly_charges':"monthly_charges", 'Usage_and_Purchase_Charges':"usage_and_purchase_charges", 'Equipment_Charges':"equipment_charges", 'Taxes_Governmental_Surcharges_and_Fees':"taxes_governmental_surcharges_and_fees", "Surcharges_and_Other_Charges_and_Credits":"surcharges_and_other_charges_and_credits",
         'Third_Party_Charges_includes_Tax':"taxes_governmental_surcharges_and_fees", 'Total_Charges':"total_charges", 'Voice_Plan_Usage':"voice_plan_usage", 'Messaging_Usage':"messaging_usage", 'Data_Usage':"data_usage", 'Foundation_Account':"voice_plan_usage", 'Account_number':"account_number", 'Group_Number':"group_number", 'User_Email':"User_email", 'Status':"User_status", 'Cost_Center':"cost_center", 'Account_Charges_and_Credits':"account_charges_and_credits", 'Plans':"plans", 'Item_Category':"item_category", 'Item_Description':"item_description", 'Charges':"charges", "User_name":"user_name", "Monthly_Charges":"monthly_charges"}
         for item in data:

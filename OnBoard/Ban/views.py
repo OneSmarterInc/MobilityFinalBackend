@@ -545,7 +545,8 @@ class OnboardBanView(APIView):
 
                 print(buffer_data)
 
-                # process_pdf_task.delay(buffer_data,obj.id)
+                process_pdf_task.delay(buffer_data,obj.id)
+                
                 # process_pdf_task(buffer_data,obj)
                 # AllUserLogs.objects.create(
                 #     user_email=request.user.email,
@@ -943,7 +944,7 @@ class ProcessPdf:
 
 
 
-
+from checkbill import check_tmobile_type
 
 class ProcessZip:
     def __init__(self, instance, **kwargs):
@@ -967,7 +968,6 @@ class ProcessZip:
         self.typesList = BillType.objects.all()
         self.types = None
 
-
     def startprocess(self):
         print("start process")
         try:
@@ -984,7 +984,9 @@ class ProcessZip:
                 self.vendor = self.vendor.name
             else:
                 return {'message' : 'Vendor not found', 'error' : -1}
-
+            if 'mobile' in str(self.vendor).lower():
+                self.types = check_tmobile_type(self.path)
+                
             if self.entrytype:
                 self.entrytype = self.entrytype.name
             else:
@@ -1085,7 +1087,8 @@ class ProcessZip:
     def save_to_baseline_data_table(self, data, vendor, types):
         print("save to baseline data table")
         data_df = pd.DataFrame(data)
-        if (vendor in self.vendorList and 'mobile' in str(vendor).lower()) and (types in self.typesList and 'first' in str(types).lower()):
+        if 'mobile' in str(vendor).lower() and self.types == 1:
+        # if (vendor in self.vendorList and 'mobile' in str(vendor).lower()) and (types in self.typesList and 'first' in str(types).lower()):
             column_mapping = {
                 'Wireless_number': 'wireless_number',
                 'Recurring Charges': 'monthly_charges',
@@ -1113,7 +1116,7 @@ class ProcessZip:
 
             # Rename the columns
             data_df = df_filtered.rename(columns=column_mapping)
-        elif (vendor in self.vendorList and 'mobile' in str(vendor).lower()) and (types in self.typesList and 'second' in str(types).lower()):
+        elif 'mobile' in str(vendor).lower() and self.types == 2:
             column_mapping = {
                 'Wireless Number': 'wireless_number',
                 'User Name': 'user_name',
@@ -1164,7 +1167,9 @@ class ProcessZip:
     def save_to_unique_pdf_data_table(self, data, vendor,types):
         print("save to unique_pdf_data_table")
         data_df = pd.DataFrame(data)
-        if (vendor in self.vendorList and 'mobile' in str(vendor).lower()) and (types in self.typesList and 'first' in str(types).lower()):
+        # if 'mobile' in str(vendor).lower()
+        if 'mobile' in str(vendor).lower() and self.types == 1:
+        # if (vendor in self.vendorList and 'mobile' in str(vendor).lower()) and (types in self.typesList and 'first' in str(types).lower()):
             column_mapping = {
                 'wireless number': 'wireless_number',
                 'Recurring Charges': 'monthly_charges',
@@ -1189,7 +1194,7 @@ class ProcessZip:
 
             # Rename the columns
             data_df = df_filtered.rename(columns=column_mapping)
-        elif (vendor in self.vendorList and 'mobile' in str(vendor).lower()) and (types in self.typesList and'second' in str(types).lower()):
+        elif 'mobile' in str(vendor).lower() and self.types == 2:
             column_mapping = {
                 'Wireless Number': 'wireless_number',
                 'User Name': 'user_name',
@@ -1246,8 +1251,8 @@ class ProcessZip:
             for key, value in entry.items():
                 mapped_key = KEY_MAPPING.get(key, key)  
                 mapped_entry[mapped_key] = value if pd.notna(value) else "NaN"
-
             mapped_data.append(mapped_entry)
+            mapped_entry['vendor'] = self.vendor
 
         return mapped_data
     def save_to_batch_report(self, data, vendor):
@@ -1460,7 +1465,8 @@ class ProcessZip:
         print("save to pdf data table")
         data_df = pd.DataFrame(data)
         print('in saves B')
-        if ((vendor in self.vendorList) and ('mobile' in str(vendor).lower())) and ((types in self.typesList) and ('first' in str(types).lower())):
+        if 'mobile' in str(vendor).lower() and self.types == 1:
+        # if ((vendor in self.vendorList) and ('mobile' in str(vendor).lower())) and ((types in self.typesList) and ('first' in str(types).lower())):
             column_mapping = {
                 'wireless number': 'Wireless_number',
                 'User name': 'User_name',
@@ -1480,7 +1486,7 @@ class ProcessZip:
             }
             data_df = data_df.rename(columns=column_mapping)
             data_df = data_df[[col for col in data_df.columns if col in column_mapping.values()]]
-        elif vendor in self.vendorList and 'mobile' in str(vendor).lower() and types in self.typesList and 'second' in str(types).lower():
+        elif 'mobile' in str(vendor).lower() and self.types == 1:
             column_mapping = {
                 'Wireless Number': 'Wireless_number',
                 'User Name': 'User_name',

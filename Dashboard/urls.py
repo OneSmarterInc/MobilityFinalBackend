@@ -153,3 +153,9 @@ catgories = [
 ]
 urlpatterns.extend(catgories)
 
+from .CRUDViews.forgotpassword import ForgotPassswordView
+forgot = [
+    path("forgot-password/", ForgotPassswordView().as_view(), name='forgot-list-create'),
+    path("forgot-password/<pk>/", ForgotPassswordView().as_view(), name='forgot-detail'),
+]
+urlpatterns.extend(forgot)

@@ -430,6 +430,7 @@ import re
 import os
 import zipfile
 import pandas as pd
+from checkbill import check_tmobile_type
 from io import StringIO, BytesIO
 class ProcessPdf:
     def __init__(self, user_mail, instance, **kwargs):
@@ -584,6 +585,8 @@ class ProcessZip:
                 self.vendor = self.vendor.name
             else:
                 return {'message' : 'Vendor not found', 'error' : -1}
+            if 'mobile' in str(self.vendor).lower():
+                self.types = check_tmobile_type(self.path)
 
             if self.path.endswith('.zip'):
                 data_base, data_pdf,detailed_df,required_df = self.extract_rdd_data(self.path,self.org)
@@ -676,8 +679,8 @@ class ProcessZip:
     def save_to_baseline_data_table(self, data, vendor, types):
         print("save to baseline data table")
         data_df = pd.DataFrame(data)
-
-        if ('mobile' in str(vendor).lower()) and (str(types).lower().startswith('f')):
+        if 'mobile' in str(vendor).lower() and self.types == 1:
+        # if ('mobile' in str(vendor).lower()) and (str(types).lower().startswith('f')):
             column_mapping = {
                 'Wireless_number': 'wireless_number',
                 'Recurring Charges': 'monthly_charges',
@@ -705,7 +708,7 @@ class ProcessZip:
 
             # Rename the columns
             data_df = df_filtered.rename(columns=column_mapping)
-        elif ('mobile' in str(vendor).lower()) and (str(types).lower().startswith('s')):
+        elif 'mobile' in str(vendor).lower() and self.types == 2:
             column_mapping = {
                 'Wireless Number': 'wireless_number',
                 'User Name': 'user_name',
@@ -756,7 +759,8 @@ class ProcessZip:
     def save_to_unique_pdf_data_table(self, data, vendor,types):
         print("save to unique_pdf_data_table")
         data_df = pd.DataFrame(data)
-        if ('mobile' in str(vendor).lower()) and (str(types).lower().startswith('f')):
+        if 'mobile' in str(vendor).lower() and self.types == 1:
+        # if ('mobile' in str(vendor).lower()) and (str(types).lower().startswith('f')):
             column_mapping = {
                 'wireless number': 'wireless_number',
                 'Recurring Charges': 'monthly_charges',
@@ -781,7 +785,7 @@ class ProcessZip:
 
             # Rename the columns
             data_df = df_filtered.rename(columns=column_mapping)
-        elif ('mobile' in str(vendor).lower()) and (str(types).lower().startswith('s')):
+        elif 'mobile' in str(vendor).lower() and self.types == 2:
             column_mapping = {
                 'Wireless Number': 'wireless_number',
                 'User Name': 'user_name',
@@ -1051,7 +1055,8 @@ class ProcessZip:
         print("save to pdf data table")
         data_df = pd.DataFrame(data)
         print('in saves B')
-        if ('mobile' in str(vendor).lower()) and (str(types).lower().startswith('f')):
+        if 'mobile' in str(vendor).lower() and self.types == 1:
+        # if ('mobile' in str(vendor).lower()) and (str(types).lower().startswith('f')):
             column_mapping = {
                 'wireless number': 'Wireless_number',
                 'User name': 'User_name',
@@ -1071,7 +1076,7 @@ class ProcessZip:
             }
             data_df = data_df.rename(columns=column_mapping)
             data_df = data_df[[col for col in data_df.columns if col in column_mapping.values()]]
-        elif ('mobile' in str(vendor).lower()) and (str(types).lower().startswith('s')):
+        elif 'mobile' in str(vendor).lower() and self.types == 2:
             column_mapping = {
                 'Wireless Number': 'Wireless_number',
                 'User Name': 'User_name',
