@@ -273,6 +273,9 @@ class MappingObjectBan(models.Model):
     Location_city = models.CharField(max_length=255, null=True, blank=True)
     Location_state = models.CharField(max_length=255, null=True, blank=True)
     Location_zip = models.CharField(max_length=255, null=True, blank=True)
+    
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         db_table = 'MappingObjectBan'
@@ -311,7 +314,12 @@ class PdfDataTable(models.Model):
     item_category =  models.CharField(max_length=255, blank=True, null=True, default="NaN")
     item_description =  models.CharField(max_length=255, blank=True, null=True, default="NaN")
     
+    
+    
     vendor = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         db_table = 'PdfDataTable'
@@ -442,6 +450,9 @@ class UniquePdfDataTable(models.Model):
     item_category =  models.CharField(max_length=255, blank=True, null=True, default="NaN")
     item_description =  models.CharField(max_length=255, blank=True, null=True, default="NaN")
     
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True, null=True)
+    
     class Meta:
         
         db_table = 'UniquePdfDataTable'
@@ -474,6 +485,9 @@ class BaselineDataTable(models.Model):
     company = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     vendor = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     bill_date = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True, null=True)
     is_pending = models.BooleanField(default=False)
     is_draft = models.BooleanField(default=False)
     class Meta:
@@ -530,6 +544,9 @@ class BatchReport(models.Model):
     Total_Amount_Due = models.CharField(max_length=255, blank=True, default=None, null=True)
 
     output_file = models.FileField(upload_to='batchfiles/', null=True, blank=True, default=None)
+    
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True, null=True)
 
 
     class Meta:

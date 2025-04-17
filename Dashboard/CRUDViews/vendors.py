@@ -16,10 +16,14 @@ class VendorsView(APIView):
             orgs = Organizations.objects.all()
         else:
             orgs = Organizations.objects.filter(company=request.user.company)
-        ven = Vendors.objects.all()
-        serializer = VendorsSerializer(ven, many=True)
+        if pk:
+            ven = Vendors.objects.filter(id=pk)[0]
+            serializer = VendorsSerializer(ven)
+        else:
+            ven = Vendors.objects.all()
+            serializer = VendorsSerializer(ven, many=True)
         orgser = OrganizationListSerializer(orgs, many=True)
-        return Response({"vendors": serializer.data, "orgs": orgser.data},status=status.HTTP_200_OK)
+        return Response({"data": serializer.data, "orgs": orgser.data},status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
         pass
     def put(self, request, pk, *args, **kwargs):

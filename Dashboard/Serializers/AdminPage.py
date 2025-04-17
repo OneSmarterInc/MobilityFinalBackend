@@ -243,3 +243,8 @@ class CompanyShowSerializer(serializers.ModelSerializer):
     class Meta:
         model = ManuallyAddedCompany
         fields = ['name',]
+        
+class Vendorallserializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vendors
+        fields = '__all__'

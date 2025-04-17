@@ -16,9 +16,11 @@ class Vendors(models.Model):
     pricing = models.FloatField(default=0.0)
     user_friendly = models.FloatField(default=0.0)
     support = models.FloatField(default=0.0)
+    ratings = models.FloatField(default=0.0)
     features = models.FloatField(default=0.0)
     created = models.DateTimeField(null=False, auto_now_add=True)
     updated = models.DateTimeField(null=True, blank=True, auto_now=True)
+    
     
     class Meta:
         db_table = 'Vendors'

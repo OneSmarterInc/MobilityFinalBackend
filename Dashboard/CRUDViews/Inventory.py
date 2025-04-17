@@ -33,6 +33,8 @@ class InventoryView(APIView):
         print(pk)
         try:
             unique_obj = UniquePdfDataTable.objects.filter(id=pk)
+            
+            print(unique_obj[0].wireless_number)
             baseline_obj = BaselineDataTable.objects.filter(account_number=unique_obj[0].account_number, Wireless_number=unique_obj[0].wireless_number)
             print(unique_obj, baseline_obj)
         except UniquePdfDataTable.DoesNotExist:
