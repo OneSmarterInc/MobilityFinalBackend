@@ -11,7 +11,6 @@ from Scripts.tmobile2 import extract_text_from_t_mobile_2
 batch_count = '000'
 from datetime import datetime
 from collections import defaultdict
-import psycopg2
 import logging
 import smtplib
 from email.mime.text import MIMEText

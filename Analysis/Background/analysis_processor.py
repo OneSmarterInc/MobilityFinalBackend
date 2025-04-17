@@ -11,7 +11,6 @@ from ..Scripts.t_mobile_1 import get_all_dataframes_type_1
 from ..Scripts.t_mobile_2 import extract_text_from_t_mobile_2
 batch_count = '000'
 from datetime import datetime
-import psycopg2
 
 def check_tmobile_type(Billpath):
     print("def check_tmobile_type")

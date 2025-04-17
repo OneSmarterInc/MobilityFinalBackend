@@ -34,11 +34,10 @@ class InventoryView(APIView):
         }
     def put(self, request,pk, *args, **kwargs):
         data = request.data
-        print(data)
+        print("data=", data)
         new_data = self.data_filter(data)
-        print(pk)
         data = new_data
-        print(data)
+        print("new data=", data)
         try:
             unique_obj = UniquePdfDataTable.objects.filter(id=pk)
             print(unique_obj[0].wireless_number)
