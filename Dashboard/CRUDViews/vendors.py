@@ -17,7 +17,7 @@ class VendorsView(APIView):
         else:
             orgs = Organizations.objects.filter(company=request.user.company)
         if pk:
-            ven = Vendors.objects.filter(id=pk)[0]
+            ven = Vendors.objects.filter(name=pk)[0]
             serializer = VendorsSerializer(ven)
         else:
             ven = Vendors.objects.all()
@@ -27,16 +27,16 @@ class VendorsView(APIView):
     def post(self, request, *args, **kwargs):
         pass
     def put(self, request, pk, *args, **kwargs):
-        print(pk)
         vendor = Vendors.objects.filter(id=pk)
         org = request.data.pop('organization_name', None)
-        print(request.data)
+        org = Organizations.objects.get(Organization_name=org)
         if request.data['action'] == 'add-favorite':
-            org = Organizations.objects.get(Organization_name=org)
-            org.favorite_vendors.set(vendor)
+            org.favorite_vendors.add(vendor.first())
             org.save()
         elif request.data['action'] == 'remove-favorite':
-            pass
+            print(vendor)
+            org.favorite_vendors.remove(vendor.first())
+            org.save()
         return Response({"message":"vendor updated successfully!"})
     def delete(self, request, pk, *args, **kwargs):
         pass

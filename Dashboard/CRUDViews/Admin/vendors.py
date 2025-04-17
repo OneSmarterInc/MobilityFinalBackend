@@ -13,7 +13,7 @@ class VendorView(APIView):
 
     def get(self, request, pk=None):
         if pk:
-            vendor = Vendors.objects.get(id=pk)
+            vendor = Vendors.objects.get(name=pk)
             ser = Vendorallserializer(vendor)
             return Response({"data":ser.data}, status=status.HTTP_200_OK)
         else:
@@ -32,10 +32,13 @@ class VendorView(APIView):
     
     def put(self, request, pk):
         try:
-            vendor = Vendors.objects.get(id=pk)
+            vendor = Vendors.objects.get(name=pk)
         except Vendors.DoesNotExist:
             return Response({"message": 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
-        ser = VendorsOperationSerializer(vendor, data=request.data, partial=True)
+        data = request.data
+            
+        ser = VendorsOperationSerializer(vendor, data=data, partial=True)
+        
         if ser.is_valid():
             ser.save()
             saveuserlog(request.user, description=f'vendor updated: {ser.data["name"]}')  # save log here  # todo: add logging functionality  # todo: add logging functionality
@@ -46,7 +49,7 @@ class VendorView(APIView):
     
     def delete(self, request, pk):
         try:
-            vendor = Vendors.objects.get(name=pk)
+            vendor = Vendors.objects.get(id=pk)
             vendor.delete()
             saveuserlog(request.user, description=f'vendor deleted: {pk}')  # sav
             return Response({'message': "Vendor Deleted Successfully!"}, status=status.HTTP_200_OK)
