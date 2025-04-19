@@ -188,7 +188,7 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 # Additional Celery settings
 CELERY_TASK_TRACK_STARTED = True  # Track when tasks start
-CELERY_TASK_TIME_LIMIT = 300  # Task time limit in seconds
+# CELERY_TASK_TIME_LIMIT = 300  # Task time limit in seconds
 
 result_backend = 'django-db'
 
