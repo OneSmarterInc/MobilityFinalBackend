@@ -23,7 +23,7 @@ class RegisterView(APIView):
         data = request.data
         email = request.data['email']
         if PortalUser.objects.filter(email=email).exists():
-            return Response({"message": "Email already registered"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "User with this Email ID already registered"}, status=status.HTTP_400_BAD_REQUEST)
         serializer = RegisterSerializer(data=data)
         try:
             if serializer.is_valid():

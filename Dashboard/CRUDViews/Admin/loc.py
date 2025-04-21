@@ -21,6 +21,8 @@ class LocView(APIView):
             return Response({"data" : ser.data}, status=status.HTTP_200_OK)
         
     def post(self, request):
+        if ManuallyAddedLocation.objects.filter(name=request.data["name"]).exists():
+            return Response({"message": "Location with this name already exists!"}, status=status.HTTP_400_BAD_REQUEST)
         ser = LocOperationSerializer(data=request.data)
         if ser.is_valid():
             ser.save()

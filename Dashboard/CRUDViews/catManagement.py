@@ -23,6 +23,8 @@ class CategoryView(APIView):
     def post(self, request, *args, **kwargs):
         data = request.data
         print(data)
+        if BaselineCategories.objects.filter(name=request.data["category"]).exists():
+            return Response({"message": "Baseline category with this name already exists!"}, status=status.HTTP_400_BAD_REQUEST)
         try:
             ser = catserializer(data=data)
             if ser.is_valid():

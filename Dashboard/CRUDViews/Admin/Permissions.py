@@ -24,6 +24,8 @@ class PermissionView(APIView):
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     def post(self, request):
+        if Permission.objects.filter(name=request.data["name"]).exists():
+            return Response({"message": "permission with this name already exists!"}, status=status.HTTP_400_BAD_REQUEST)
         ser = PermissionOperationSerializer(data=request.data)
         if ser.is_valid():
             ser.save()

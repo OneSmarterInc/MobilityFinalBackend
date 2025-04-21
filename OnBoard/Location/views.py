@@ -37,11 +37,16 @@ class LocationView(APIView):
                 
             else:
                 division = None
+            if Location.objects.filter(organization=organization, site_name=request.data["site_name"]).exists():
+                print("already exists")
+                return Response({"message": "Location with this site_name already exists!"}, status=status.HTTP_400_BAD_REQUEST)
             print("div=",division)
-            request.data.pop('division', None)
-            request.data.pop('organization', None)
-            data = {"organization": organization, 'company' : organization.company, 'division': division, **request.data}
+            data = request.data.copy()
+            data.pop('division', None)
+            data.pop('organization', None)
+            data = {"organization": organization, 'company' : organization.company, 'division': division, **data}
             cleaned_data = {key: value[0] if isinstance(value, list) else value for key, value in data.items()}
+            print(cleaned_data)
             loc = Location.objects.create(
                 **cleaned_data,
             )
@@ -102,7 +107,7 @@ class LocationView(APIView):
         else:
             org = Organizations.objects.get(id=org)
         try:
-            loc = Location.objects.get(organization=org, id=pk)
+            loc = Location.objects.get(id=pk)
         except Location.DoesNotExist:
             return Response({"message" : "Location not found!"}, status=status.HTTP_404_NOT_FOUND)
         loc.delete()

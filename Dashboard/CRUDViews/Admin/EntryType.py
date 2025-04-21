@@ -22,6 +22,8 @@ class EntryTypeView(APIView):
             return Response({"data" : ser.data}, status=status.HTTP_200_OK)
         
     def post(self, request):
+        if EntryType.objects.filter(name=request.data["name"]).exists():
+            return Response({"message": "Entry type with this name already exists!"}, status=status.HTTP_400_BAD_REQUEST)
         ser = EntryTypeOperationSerializer(data=request.data)
         if ser.is_valid():
             ser.save()

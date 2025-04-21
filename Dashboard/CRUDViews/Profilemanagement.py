@@ -23,7 +23,6 @@ class ProfileManageView(APIView):
         action = request.GET.get('action')
         org = request.GET.get('org')
         if action == 'get-all-users-by-org' and org :
-            
             all_users = PortalUser.objects.filter(company=org)
             orgser = showusers(all_users, many=True)
             self.users = orgser.data

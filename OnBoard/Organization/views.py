@@ -15,7 +15,10 @@ class OnboardOrganizationView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-
+        company = Company.objects.get(Company_name=request.data["company"])
+        if Organizations.objects.filter(Organization_name=request.data["Organization_name"], company=company).exists():
+            print("already exists")
+            return Response({"message": "Location with this site_name already exists!"}, status=status.HTTP_400_BAD_REQUEST)
         serializer = OrganizationSaveSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
