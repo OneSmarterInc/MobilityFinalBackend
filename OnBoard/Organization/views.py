@@ -16,10 +16,17 @@ class OnboardOrganizationView(APIView):
 
     def post(self, request):
         company = Company.objects.get(Company_name=request.data["company"])
-        if Organizations.objects.filter(Organization_name=request.data["Organization_name"], company=company).exists():
+        data = request.data.copy()
+        st = type(data.get('status'))
+        if st == 'false':
+            data['status'] = 0
+        else:
+            data['status'] = 1
+        
+        if Organizations.objects.filter(Organization_name=data["Organization_name"], company=company).exists():
             print("already exists")
             return Response({"message": "Location with this site_name already exists!"}, status=status.HTTP_400_BAD_REQUEST)
-        serializer = OrganizationSaveSerializer(data=request.data)
+        serializer = OrganizationSaveSerializer(data=data)
         if serializer.is_valid():
             serializer.save()
             orgobj = Organizations.objects.get(Organization_name=serializer.data['Organization_name'])

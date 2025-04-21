@@ -12,6 +12,7 @@ import datetime
 
 class Organizations(models.Model):
     Organization_name = models.CharField(max_length=255, unique=True)
+    logo = models.FileField(upload_to="Organization_logo", null=True, blank=True)
     company = models.ForeignKey(
         Company, related_name='company_organizations', on_delete=models.CASCADE, default=None
     )
@@ -39,6 +40,7 @@ class Organizations(models.Model):
     notes = models.TextField(blank=True, null=True)
     contract_file = models.FileField(upload_to='contracts/', null=False)
     contract_name = models.CharField(max_length=255, null=False)
+    state = models.TextField(max_length=255, null=True, blank=True)
     status = models.IntegerField(null=False, blank=True, default=1)
     end_user_admin = models.CharField(max_length=255, null=True, blank=True)
     end_users = models.TextField(max_length=255, null=True, blank=True)
