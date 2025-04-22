@@ -113,7 +113,8 @@ class ProcessExcel:
 
         # Connect to the database
         import time
-        from Location.models import Location as AddLocation
+
+        from OnBoard.Location.models import Location as AddLocation
 
         def fetch_latest_entry():
             return AddLocation.objects.order_by('-id').first()

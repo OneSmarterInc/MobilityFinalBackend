@@ -89,8 +89,8 @@ class ViewBillBaseline(APIView):
         sub_company = request.GET.get('sub_company')
         vendor = request.GET.get('vendor')
         account_number = request.GET.get('account_number')
-
-        objs = BaselineDataTable.objects.filter(vendor=vendor, account_number=account_number, sub_company=sub_company)
+        date = request.GET.get('bill_date')
+        objs = BaselineDataTable.objects.filter(vendor=vendor, account_number=account_number, sub_company=sub_company, bill_date=date)
         ser = baselinedataserializer(objs, many=True)
         return Response({"data": ser.data}, status=status.HTTP_200_OK)
     def put(self, request, pk, *args, **kwargs):
@@ -120,3 +120,13 @@ class ViewBillBaseline(APIView):
             f"Baseline with account number {obj.account_number} and invoice number {obj.Wireless_number} Updated with Action: {action}"
         )
         return Response({"message": "Baseline updated successfully", "baseline":allobjs.data}, status=status.HTTP_200_OK)
+    
+def reflect(id):
+    all_objs = UniquePdfDataTable.objects.filter(viewuploaded=id)
+    print(all_objs[0].bill_date)
+    bill_date = all_objs[0].bill_date
+    all_baseline = BaselineDataTable.objects.filter(viewuploaded=id)
+    print(all_baseline)
+    for base in all_baseline:
+        base.bill_date = bill_date
+        base.save()

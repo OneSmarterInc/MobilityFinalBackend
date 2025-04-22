@@ -69,3 +69,15 @@ class LocationShowSerializer(serializers.ModelSerializer):
         model = Location
         fields = "__all__"
     
+class showDivisions(serializers.ModelSerializer):
+    company = serializers.CharField()
+    organization = serializers.CharField()
+
+    class Meta:
+        model = Division
+        fields = '__all__'
+
+class showOrgs(serializers.ModelSerializer):
+    class Meta:
+        model = Organizations
+        fields = ('Organization_name', 'divisions')

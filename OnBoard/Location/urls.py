@@ -3,6 +3,7 @@ from .views import LocationView
 from .views import LocationBulkUpload
 
 locationurls = [
+    path('locations/', LocationView.as_view(), name='all-location-list-create'),
     path('<str:org>/location/', LocationView.as_view(), name='location-list-create'),
     path('<str:org>/location/<str:pk>/', LocationView.as_view(), name='location-detail')
 

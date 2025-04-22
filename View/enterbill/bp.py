@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 class ProcessBills:
     def __init__(self, buffer_data,instance):
+        print(buffer_data)
         self.buffer_data = buffer_data
         self.pdf_path = self.buffer_data['pdf_path'] if 'pdf_path' in self.buffer_data else None
         self.company_name = self.buffer_data['company_name'] if 'company_name' in self.buffer_data else None
@@ -37,7 +38,7 @@ class ProcessBills:
         self.year = self.buffer_data['year'] if 'year' in self.buffer_data else None
         self.types = self.buffer_data['types'] if 'types' in self.buffer_data else None
         # self.email = self.buffer_data['email'] if 'email' in self.buffer_data else None
-        self.sub_company = self.buffer_data['sub_company'] if 'sub_company' in self.buffer_data else None
+        self.sub_company = self.buffer_data['sub_company_name'] if 'sub_company_name' in self.buffer_data else None
         self.t_mobile_type = self.check_tmobile_type() if 'mobile' in str(self.vendor_name).lower() else 0
         logger.info(f'Processing PDF from buffer: {self.pdf_path}, {self.company_name}, {self.vendor_name}, {self.pdf_filename}')
 
@@ -161,15 +162,21 @@ class ProcessBills:
             "Client_Address":"Remidence_Address",
             "entry_type":"Entry_type",
         }
+        print(data)
+        print(self.sub_company)
+        print(data)
+
         if type(data) == dict:
             updated_data = {mapping.get(k, k): v for k, v in data.items()}
             updated_data.pop("foundation_account") if 'foundation_account' in updated_data else None
             filtered_data = remove_filds(BaseDataTable, updated_data)
+            print("filtered=", filtered_data)
             BaseDataTable.objects.create(viewuploaded=self.instance, **filtered_data)
         elif type(data) == list:
             for item in data:
                 updated_data = {mapping.get(k, k): v for k, v in item.items()}
                 filtered_data = filtered_data = remove_filds(BaseDataTable, updated_data)
+                print("filtered=", filtered_data)
                 BaseDataTable.objects.create(viewuploaded=self.instance, **filtered_data)
 
     def extract_total_pdf_data(self,acc_info,bill_date):
@@ -370,7 +377,7 @@ class ProcessBills:
             updated_data.pop('location') if 'location' in updated_data else None
             updated_data.pop('Note') if 'Note' in updated_data else None
             filtered_data = remove_filds(UniquePdfDataTable, updated_data)
-            UniquePdfDataTable.objects.create(viewuploaded=self.instance,**updated_data)
+            UniquePdfDataTable.objects.create(viewuploaded=self.instance,**filtered_data)
     def save_to_baseline_data_table(self,data):
         print("saving to baseline_data_table")
         data_df = pd.DataFrame(data)
@@ -454,7 +461,6 @@ class ProcessBills:
             updated_data.pop('item_category') if 'item_category' in updated_data else None
             updated_data.pop('item_description') if 'item_description' in updated_data else None
             updated_data.pop('charges') if 'charges' in updated_data else None
-            updated_data.pop('bill_date') if 'bill_date' in updated_data else None
             filtered_data = remove_filds(BaselineDataTable, updated_data)
             BaselineDataTable.objects.create(viewuploaded=self.instance,**filtered_data)
     def process(self):

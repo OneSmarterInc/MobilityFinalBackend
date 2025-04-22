@@ -34,7 +34,9 @@ class PaperBillView(APIView):
             billdate = request.GET.get('billdate')
             duedate = request.GET.get('duedate')
             print(org, vendor, ban, invoice_number, billdate, duedate)
-            base = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban, invoicenumber=invoice_number)
+            base = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban)
+            if invoice_number:
+                base = base.filter(invoicenumber=invoice_number)
             if not base.exists():
                 return Response({"message": f"No data found for invoice {invoice_number}"}, status=status.HTTP_404_NOT_FOUND)
             baseline = BaselineDataTable.objects.filter(banOnboarded=base[0].banOnboarded).filter(is_draft=False, is_pending=False)
@@ -124,6 +126,7 @@ class PendingView(APIView):
         return Response(
             {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "baseline":baselineData.data, "onborded":onboarded.data},
             status=status.HTTP_200_OK,
+            
         )
     def post(self, request, *args, **kwargs):
         pass
@@ -330,6 +333,7 @@ class UploadfileView(APIView):
                     )
                 
                 buffer_data = json.dumps({'pdf_path': obj.file.path,'vendor_name': obj.vendor.name if obj.vendor else None,'pdf_filename':obj.file.name,'company_name':obj.company.Company_name if obj.company else None,'sub_company_name':obj.organization.Organization_name if obj.organization else None,'types':obj.types})
+                print(buffer_data)
                 process_view_bills.delay(buffer_data, obj.id)
             elif (str(file.name).endswith('.xls') or str(file.name).endswith('.xlsx')):
                 map = request.data.pop('mappingobj', None)[0]
@@ -547,7 +551,7 @@ class ProcessPdf:
         if self.month != str(bill_date_pdf).split(' ')[0] and self.year != str(bill_date_pdf).split(' ')[2]:
             self.instance.delete()
             return {'message' : f'Bill date from the Pdf file did not matched with input month and year', 'error' : -1}
-        if BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org, bill_date=bill_date_pdf):
+        if BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org, bill_date=bill_date_pdf): 
             self.instance.delete()
             return {'message' : f'The bill with account number {acc_no} and bill date {bill_date_pdf} already exists', 'error' : -1}
         return {
@@ -1122,7 +1126,7 @@ class ProcessZip:
     
     def save_to_base_data_table(self, data):
         print("save to base data table")
-        from .models import BaseDataTable
+        from OnBoard.Ban.models import BaseDataTable
         objects_to_create = [BaseDataTable(viewuploaded=self.instance, **item) for item in data]
 
         BaseDataTable.objects.bulk_create(objects_to_create, ignore_conflicts=True)

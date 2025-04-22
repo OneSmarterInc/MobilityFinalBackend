@@ -63,7 +63,7 @@ class OnboardOrganizationView(APIView):
         serializer = OrganizationSaveSerializer(organization, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            saveuserlog(request.user, f'Organization with name {pk} updated successfully!')  
+            saveuserlog(request.user, f'Organization with name {organization.Organization_name} updated successfully!')  
             return Response({"message" : "Organization updated successfully!", "data": serializer.data}, status=status.HTTP_200_OK)
         return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
     

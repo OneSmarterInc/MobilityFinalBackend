@@ -5,22 +5,24 @@ from rest_framework import status
 from  .models import Location, BulkLocation
 from ..Organization.models import Organizations, Division
 from ..Company.models import Company
-from .ser import LocationSaveSerializer, LocationShowSerializer, LocationSerializer
+from .ser import LocationSaveSerializer, LocationShowSerializer, LocationSerializer, showDivisions, showOrgs
 import pandas as pd
 from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
 class LocationView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, org, pk=None):
+    def get(self, request, org=None, pk=None):
         if pk:
             location = Location.objects.get(organization=org, site_name=pk)
             serializer = LocationShowSerializer(location)
-            return Response({"data" : serializer.data}, status=status.HTTP_200_OK)
         else:
             locations = Location.objects.filter(organization=org)
             serializer = LocationShowSerializer(locations, many=True)
-            return Response({"data" : serializer.data}, status=status.HTTP_200_OK)
+        divisions = showDivisions(Division.objects.all(), many=True)
+        orgs = showOrgs(Organizations.objects.filter(company=request.user.company), many=True)
+        print(divisions.data, orgs.data)
+        return Response({"data" : serializer.data, "organizations":orgs.data, "divisions":divisions.data}, status=status.HTTP_200_OK)
         
     def post(self, request, org, *args, **kwargs):
         print(request.data)
