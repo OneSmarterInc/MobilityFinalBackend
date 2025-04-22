@@ -329,6 +329,7 @@ class PdfDataTable(models.Model):
 from View.models import ViewUploadBill
 class BaseDataTable(models.Model):
     banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedBase', on_delete=models.CASCADE, null=True, blank=True)
+    viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewbase', on_delete=models.CASCADE, null=True, blank=True)
     inventory = models.ForeignKey(InventoryUpload, related_name='inventorybase', on_delete=models.CASCADE, null=True, blank=True)
     bill_date = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     date_due = models.CharField(max_length=255, blank=True, null=True, default="NaN")
@@ -551,3 +552,21 @@ class BatchReport(models.Model):
 
     class Meta:
         db_table = 'BatchReport'
+
+class PortalInformation(models.Model):
+    banUploaded = models.ForeignKey(UploadBAN, related_name='uploadedportalinfo', on_delete=models.CASCADE, null=True, blank=True)
+    banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedportalinfo', on_delete=models.CASCADE, null=True, blank=True)
+    URL = models.CharField(max_length=1000)
+    Username = models.CharField(max_length=250)
+    Password = models.CharField(max_length=250)
+    Customer_Name = models.CharField(max_length=250)
+    Vendor = models.CharField(max_length=250)
+    Account_number = models.CharField(max_length=250)
+    User_email_id = models.CharField(max_length=250)
+    Automated = models.CharField(max_length=250)
+    On_Email = models.CharField(max_length=250)
+    
+    class Meta:
+        db_table = 'PortalInformation'
+    
+    

@@ -15,7 +15,7 @@ import logging
 import smtplib
 from email.mime.text import MIMEText
 import numpy as np
-from OnBoard.Ban.models import PdfDataTable, UniquePdfDataTable, BaselineDataTable
+from OnBoard.Ban.models import PdfDataTable, UniquePdfDataTable, BaselineDataTable, BaseDataTable
 import pdfplumber
  
 logging.basicConfig(level=logging.INFO)
@@ -99,7 +99,6 @@ class ProcessBills:
             acc_info = '12345678'
             bill_date_info = 'jan1'
             data_dict = data_dict[0]
-            print(data_dict)
             data_dict['company'] = self.company_name
             data_dict['vendor'] = self.vendor_name
             data_dict['pdf_path'] = self.pdf_path
@@ -151,8 +150,6 @@ class ProcessBills:
     
         print("def save_to_base_data_table")
         from django.db import transaction
-        from ..models import BaseDataTable
-        print(data)
         mapping = {
             "Date_Due":"date_due", 
             "AccountNumber":"accountnumber",
@@ -166,7 +163,6 @@ class ProcessBills:
         }
         if type(data) == dict:
             updated_data = {mapping.get(k, k): v for k, v in data.items()}
-            print(updated_data)
             updated_data.pop("foundation_account") if 'foundation_account' in updated_data else None
             filtered_data = remove_filds(BaseDataTable, updated_data)
             BaseDataTable.objects.create(viewuploaded=self.instance, **filtered_data)
@@ -236,7 +232,6 @@ class ProcessBills:
         print('saving to pdf data table')
         data_df = pd.DataFrame(data)
         print('in saves B')
-        print(data_df.columns)
         if 'mobile' in str(self.vendor_name).lower() and self.t_mobile_type == 1:
             column_mapping = {
                 'wireless number': 'Wireless_number',
@@ -370,13 +365,12 @@ class ProcessBills:
         mapping = {'Wireless_number':"wireless_number", 'Monthly_charges':"monthly_charges", 'Usage_and_Purchase_Charges':"usage_and_purchase_charges", 'Equipment_Charges':"equipment_charges", 'surcharges_and_other_charges_and_credits':"surcharges_and_other_charges_credits", 'Taxes_Governmental_Surcharges_and_Fees':"taxes_governmental_surcharges_and_fees", 'Third_Party_Charges_includes_Tax':"taxes_governmental_surcharges_and_fees", 'Total_Charges':"total_charges", 'Voice_Plan_Usage':"voice_plan_usage", 'Messaging_Usage':"messaging_usage", 'Data_Usage':"data_usage", 'Foundation_Account':"voice_plan_usage", 'Account_number':"account_number", 'Group_Number':"group_number", 'User_Email':"User_email", 'Status':"User_status", 'Cost_Center':"cost_center", 'Account_Charges_and_Credits':"account_charges_and_credits", 'Plans':"plans", 'Item_Category':"item_category", 'Item_Description':"item_description", 'Charges':"charges", "User_name":"user_name", "Monthly_Charges":"monthly_charges","Surcharges_and_Other_Charges_and_Credits":'surcharges_and_other_charges_credits'}
 
         for item in data:
-            print(item)
             updated_data = {mapping.get(k, k): v for k, v in item.items()}
             updated_data.pop('charges') if 'charges' in updated_data else None
             updated_data.pop('location') if 'location' in updated_data else None
             updated_data.pop('Note') if 'Note' in updated_data else None
             filtered_data = remove_filds(UniquePdfDataTable, updated_data)
-            UniquePdfDataTable.objects.create(viewuploaded=self.instance,**filtered_data)
+            UniquePdfDataTable.objects.create(viewuploaded=self.instance,**updated_data)
     def save_to_baseline_data_table(self,data):
         print("saving to baseline_data_table")
         data_df = pd.DataFrame(data)
@@ -464,13 +458,11 @@ class ProcessBills:
             filtered_data = remove_filds(BaselineDataTable, updated_data)
             BaselineDataTable.objects.create(viewuploaded=self.instance,**filtered_data)
     def process(self):
-        print(self.buffer_data)
         logger.info('Extracting data from PDF')
         try:    
             data, acc_info, bill_date_info = self.extract_data_from_pdf()
-            
-
-            # self.save_to_base_data_table(data)
+                            
+            self.save_to_base_data_table(data)
             temp_data = data
             temp_df = pd.DataFrame([temp_data])
             if 'Net_Amount' not in temp_df.columns:

@@ -23,7 +23,7 @@ class InventorySubjectView(APIView):
         if request.user.designation.name == "Superadmin":
             objs = Company.objects.all()
             banobjs = UploadBAN.objects.all()
-            onboardbanObjs = BaseDataTable.objects.all()
+            onboardbanObjs = BaseDataTable.objects.filter(viewuploaded=None)
             onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
             ban_serializer = BanShowSerializer(banobjs, many=True)
             serializer = CompanyShowOnboardSerializer(objs, many=True)
@@ -37,7 +37,7 @@ class InventorySubjectView(APIView):
             ban_serializer = BanShowSerializer(banobjs, many=True)
             allobjs = OnboardBan.objects.all()
             serializer = OrganizationShowOnboardSerializer(objs, many=True)
-            onboardbanObjs = BaseDataTable.objects.filter(company=request.user.company)
+            onboardbanObjs = BaseDataTable.objects.filter(company=request.user.company).filter(viewuploaded=None)
             onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
             all_lines = UniquePdfDataTable.objects.all()
             lines_Ser = UniqueTableShowSerializer(all_lines, many=True)

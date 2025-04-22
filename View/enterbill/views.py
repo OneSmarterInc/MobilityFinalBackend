@@ -509,28 +509,31 @@ class ProcessPdf:
             bill_date_info = bill_date1[0]
         else:
             pages_data = []
+            print()
             with pdfplumber.open(self.path) as pdf:
-                num_of_pages = len(pdf.pages)
-            if num_of_pages < 999:
-                with pdfplumber.open(self.path) as pdf:
-                    pages_data = [page.extract_text() for page in pdf.pages[:2]]
-
-                for page_data in pages_data:
-                    first_page_data = page_data
-                    break
-
-                first_page_data_dict = {
+                for i, page in enumerate(pdf.pages):
+                    if i == 0:
+                        page_text = page.extract_text()
+                        lines = page_text.split('\n')
+                        pages_data.extend(lines)
+                    else:
+                        break
+            
+            first_page_data_dict = {
                     "bill_cycle_date": None,
                     "account_number": None
                 }
 
-                for line in first_page_data.splitlines():
-                    if line.startswith("Issue Date:"):
-                        first_page_data_dict["bill_cycle_date"] = line.split(": ")[-1]
-                    elif "Account number:" in line:
-                        first_page_data_dict["account_number"] = line.split(": ")[-1]
-                acc_info = first_page_data_dict["account_number"]
-                bill_date_info = first_page_data_dict["bill_cycle_date"]
+            for line in pages_data:
+                if line.startswith("Issue Date:"):
+                    first_page_data_dict["bill_cycle_date"] = line.split(": ")[-1]
+                elif "Account number:" in line:
+                    first_page_data_dict["account_number"] = line.split(": ")[-1]
+            print(first_page_data_dict)
+            acc_info = first_page_data_dict["account_number"]
+            bill_date_info = first_page_data_dict["bill_cycle_date"]
+
+                
 
         acc_no = acc_info
         bill_date_pdf = bill_date_info
@@ -544,7 +547,9 @@ class ProcessPdf:
         if self.month != str(bill_date_pdf).split(' ')[0] and self.year != str(bill_date_pdf).split(' ')[2]:
             self.instance.delete()
             return {'message' : f'Bill date from the Pdf file did not matched with input month and year', 'error' : -1}
-        
+        if BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org, bill_date=bill_date_pdf):
+            self.instance.delete()
+            return {'message' : f'The bill with account number {acc_no} and bill date {bill_date_pdf} already exists', 'error' : -1}
         return {
             'message': 'Process Done',
             'error': 0,
@@ -615,21 +620,21 @@ class ProcessZip:
                 bill_date = data_base['bill_date']
 
                 print(acc_no, bill_date)
-                # from OnBoard.Ban.models import BaseDataTable
-                # if BaseDataTable.objects.filter(accountnumber=acc_no, company=self.company, sub_company=self.org).exists():
-                #     return {'message' : f'Bill already exists for account number {acc_no}', 'error' : -1}
-                # else:
-                #     obj = BaseDataTable.objects.create(viewuploaded=self.instance, **data_base)
-                #     print("saved to base data table")
-                #     obj.save()
-                # print('done')
+                
                 if acc_no != self.ban:
                     self.instance.delete()
                     return {'message' : f'Account number from the RDD file did not matched with input ban', 'error' : -1}
                 if self.month != str(bill_date).split(' ')[0] and self.year != str(bill_date).split(' ')[2]:
                     self.instance.delete()
                     return {'message' : f'Bill date from the RDD file did not matched with input month and year', 'error' : -1}
-
+                from OnBoard.Ban.models import BaseDataTable
+                if BaseDataTable.objects.filter(accountnumber=acc_no, company=self.company, sub_company=self.org, bill_date=bill_date).exists():
+                    return {'message' : f'Bill already exists for account number {acc_no}', 'error' : -1}
+                else:
+                    obj = BaseDataTable.objects.create(viewuploaded=self.instance, **data_base)
+                    print("saved to base data table")
+                    obj.save()
+                print('done')
                 self.save_to_batch_report(data_base, self.vendor)
                 print('saved to batch report')
                 self.save_to_unique_pdf_data_table(detailed_df, v, t)

@@ -47,11 +47,24 @@ class OrganizationSaveSerializer(serializers.ModelSerializer):
         validated_data.pop('company', None)
         validated_data.pop('organization_name', None)
 
+        # Handle vendors separately
+        vendors_data = validated_data.pop('vendors', None)
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
         instance.save()
+
+        if vendors_data is not None:
+            # Convert string list if needed
+            if isinstance(vendors_data, str):
+                vendors_data = vendors_data.removeprefix("['").removesuffix("']").split(",")
+            vendors_data = [v.strip() for v in vendors_data if v.strip()]
+            vendors = Vendors.objects.filter(name__in=vendors_data)
+            instance.vendors.set(vendors)
+
         return instance
+
 
 
 

@@ -59,6 +59,7 @@ class OnboardOrganizationView(APIView):
             organization = Organizations.objects.get(id=pk)
         except Organizations.DoesNotExist:
             return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
+        print(request.data)
         serializer = OrganizationSaveSerializer(organization, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()

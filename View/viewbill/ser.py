@@ -53,3 +53,8 @@ class BaselineDataTableShowSerializer(serializers.ModelSerializer):
     class Meta:
         model = BaselineDataTable
         fields = '__all__'
+        
+class showaccountbasetable(serializers.ModelSerializer):
+    class Meta:
+        model = BaseDataTable
+        fields = ('accountnumber', 'vendor', 'sub_company')

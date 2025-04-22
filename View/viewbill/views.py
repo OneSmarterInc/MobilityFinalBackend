@@ -6,7 +6,7 @@ from authenticate.views import saveuserlog
 from rest_framework.permissions import IsAuthenticated
 from OnBoard.Organization.models import Organizations
 from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, BaselineDataTable
-from .ser import showOrganizationSerializer, showBanSerializer, vendorshowSerializer, basedatahowSerializer, paytypehowSerializer, uniquepdftableSerializer, baselinedataserializer, BaselineDataTableShowSerializer
+from .ser import showOrganizationSerializer, showBanSerializer, vendorshowSerializer, basedatahowSerializer, paytypehowSerializer, uniquepdftableSerializer, baselinedataserializer, BaselineDataTableShowSerializer, showaccountbasetable
 from Dashboard.ModelsByPage.DashAdmin import Vendors, PaymentType
 
 class ViewBill(APIView):
@@ -18,7 +18,8 @@ class ViewBill(APIView):
         uniquedata = uniquepdftableSerializer(UniquePdfDataTable.objects.all(), many=True)
         bans = showBanSerializer(UploadBAN.objects.all(), many=True)
         vendors = vendorshowSerializer(Vendors.objects.all(), many=True)
-        basedata = basedatahowSerializer(BaseDataTable.objects.all(), many=True)
+        baseaccounts = showaccountbasetable(BaseDataTable.objects.filter(viewuploaded=None), many=True)
+        basedata = basedatahowSerializer(BaseDataTable.objects.filter(banOnboarded=None), many=True)
         paytypes = paytypehowSerializer(PaymentType.objects.all(), many=True)
         return Response({
             "data" : ser.data,
@@ -27,6 +28,7 @@ class ViewBill(APIView):
             "basedata" : basedata.data,
             "paytypes" : paytypes.data,
             "uniquedata" : uniquedata.data,
+            "baseaccounts": baseaccounts.data
 
         }, status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
