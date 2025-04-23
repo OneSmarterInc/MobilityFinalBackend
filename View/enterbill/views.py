@@ -24,7 +24,7 @@ class PaperBillView(APIView):
         orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
         vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
         bans = showBanSerializer(UploadBAN.objects.all(), many=True)
-        onboarded = showOnboardedSerializer(BaseDataTable.objects.all(), many=True)
+        onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None), many=True)
         paperbills = viewPaperBillserializer(viewPaperBill.objects.filter(company=request.user.company), many=True) if request.user.company else viewPaperBillserializer(viewPaperBill.objects.all(), many=True)
         if request.GET:
             org = request.GET.get('org')
@@ -33,13 +33,13 @@ class PaperBillView(APIView):
             invoice_number = request.GET.get('invoicenumber')
             billdate = request.GET.get('billdate')
             duedate = request.GET.get('duedate')
-            print(org, vendor, ban, invoice_number, billdate, duedate)
-            base = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban)
+            base = BaseDataTable.objects.filter(banOnboarded=None).filter(sub_company=org, vendor=vendor, accountnumber=ban)
+            print(base)
             if invoice_number:
                 base = base.filter(invoicenumber=invoice_number)
             if not base.exists():
                 return Response({"message": f"No data found for invoice {invoice_number}"}, status=status.HTTP_404_NOT_FOUND)
-            baseline = BaselineDataTable.objects.filter(banOnboarded=base[0].banOnboarded).filter(is_draft=False, is_pending=False)
+            baseline = BaselineDataTable.objects.filter(viewuploaded=base[0].viewuploaded, account_number=base[0].accountnumber).filter(is_draft=False, is_pending=False)
             self.filtered_baseline = BaselineDataTableShowSerializer(baseline, many=True).data
         return Response(
             {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "data":paperbills.data, "onborded": onboarded.data, "filtered_baseline": self.filtered_baseline},
@@ -120,9 +120,9 @@ class PendingView(APIView):
         orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
         vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
         bans = showBanSerializer(UploadBAN.objects.all(), many=True)
-        onboarded = showOnboardedSerializer(BaseDataTable.objects.all(), many=True)
+        onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None), many=True)
 
-        baselineData = BaselineDataTableShowSerializer(BaselineDataTable.objects.all(), many=True)
+        baselineData = BaselineDataTableShowSerializer(BaselineDataTable.objects.filter(banOnboarded=None), many=True)
         return Response(
             {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "baseline":baselineData.data, "onborded":onboarded.data},
             status=status.HTTP_200_OK,
@@ -166,8 +166,8 @@ class DraftView(APIView):
         orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
         vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
         bans = showBanSerializer(UploadBAN.objects.all(), many=True)
-        onboarded = showOnboardedSerializer(BaseDataTable.objects.all(), many=True)
-        baselineData = BaselineDataTableShowSerializer(BaselineDataTable.objects.all(), many=True)
+        onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None), many=True)
+        baselineData = BaselineDataTableShowSerializer(BaselineDataTable.objects.filter(banOnboarded=None), many=True)
         return Response(
             {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "baseline":baselineData.data, "onborded":onboarded.data},
             status=status.HTTP_200_OK,
@@ -240,7 +240,7 @@ class UploadfileView(APIView):
         orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
         vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
         bans = showBanSerializer(UploadBAN.objects.all(), many=True)
-        onboarded = showOnboardedSerializer(BaseDataTable.objects.all(), many=True)
+        onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None), many=True)
 
         baselineData = BaselineDataTableShowSerializer(BaselineDataTable.objects.all(), many=True)
 
