@@ -156,7 +156,7 @@ class BanInfoView(APIView):
 
         divisions = DivisionNameSerializer(Division.objects.filter(organization=orgobject), many=True)
 
-        allonboards = BaseDataTable.objects.filter(sub_company=org)
+        allonboards = BaseDataTable.objects.filter(viewuploaded=None).filter(sub_company=org)
 
 
         allonboards = BaseDataTableShowSerializer(allonboards, many=True)
@@ -185,7 +185,7 @@ class BanInfoView(APIView):
             obj = UploadBAN.objects.get(company=comobj,organization=orgobj, account_number=request.data['AccountNumber'])
         except UploadBAN.DoesNotExist:
             try:
-                obj = BaseDataTable.objects.get()
+                obj = BaseDataTable.objects.get(company=comobj.Company_name,organization=orgobj.Organization_name, accountnumber=request.data['AccountNumber'])
             except BaseDataTable.DoesNotExist:
                 return Response(
                     {"message": "Ban not found"},

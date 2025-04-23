@@ -24,19 +24,26 @@ class LocationView(APIView):
         print(divisions.data, orgs.data)
         return Response({"data" : serializer.data, "organizations":orgs.data, "divisions":divisions.data}, status=status.HTTP_200_OK)
         
-    def post(self, request, org, *args, **kwargs):
+    def post(self, request, org=None, *args, **kwargs):
         print(request.data)
-        try:
-            organization = Organizations.objects.get(id=org)
-            company_name = organization.company.Company_name
-        except Organizations.DoesNotExist:
-            return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
+        if org==None:
+            data = request.data
+            org = data['organization']
+            organization = Organizations.objects.filter(Organization_name=org)
+            if not organization.exists():
+                return Response({"message": f"Organization with name {org} not found"}, status=status.HTTP_404_NOT_FOUND)
+            organization = organization[0]
+        else:
+            try:
+                organization = Organizations.objects.get(id=org)
+                company_name = organization.company.Company_name
+            except Organizations.DoesNotExist:
+                return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
         try:
             print("organ=", organization)
             if 'division' in request.data and request.data['division']:
                 print(request.data['division'])
                 division = Division.objects.get(name=request.data['division'], organization=organization)
-                
             else:
                 division = None
             if Location.objects.filter(organization=organization, site_name=request.data["site_name"]).exists():
@@ -53,7 +60,7 @@ class LocationView(APIView):
                 **cleaned_data,
             )
             loc.save()
-            saveuserlog(request.user, f"new location with site name {data['site_name']} created successfully!")
+            saveuserlog(request.user, f"new location with site name {data['site_name']} for organization f{organization.Organization_name} created successfully!")
             return Response({"message": "Location created successfully!", "data": loc.site_name}, status=status.HTTP_201_CREATED)
         except Exception as e:
             print(e)
