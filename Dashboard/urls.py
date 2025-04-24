@@ -139,6 +139,13 @@ inventory = [
 ]
 urlpatterns.extend(inventory)
 
+from .CRUDViews.Inventory import AddNewInventoryView
+
+addnew = [
+    path("add-new-inventory/<org>/", AddNewInventoryView().as_view(), name='new-inventory-list-create'),
+]
+urlpatterns.extend(addnew)
+
 from .CRUDViews.vendors import VendorsView
 vendors = [
     path("vendors-portal/", VendorsView().as_view(), name='vendorportal-list-create'),
@@ -159,3 +166,4 @@ forgot = [
     path("forgot-password/<pk>/", ForgotPassswordView().as_view(), name='forgot-detail'),
 ]
 urlpatterns.extend(forgot)
+

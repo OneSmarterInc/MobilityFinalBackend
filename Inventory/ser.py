@@ -116,24 +116,18 @@ class OrganizationShowOnboardSerializer(serializers.ModelSerializer):
 
 class BanShowSerializer(serializers.ModelSerializer):
     class Meta:
-        model = UploadBAN
-        fields = ['id', 'location', 'account_number', 'entryType','company', 'organization', 'Vendor', 'uploadedlines', 'created']
+        model = BaseDataTable
+        fields = ['id', 'location', 'accountnumber', 'Entry_type','company', 'sub_company', 'vendor', 'created']
 
-    entryType = serializers.CharField()
-    uploadedlines = serializers.StringRelatedField(many=True)
-    location = serializers.CharField()
-    company = serializers.CharField()
-    organization = serializers.CharField()
-    Vendor = serializers.CharField()
-    
+    # uploadedlines = serializers.StringRelatedField(many=True)
 
-    def get_bans(self, obj):
-        grouped_bans = defaultdict(list)
-        for ban in obj.bans.all():
-            location_name = ban.location.site_name if ban.location else "Unknown"
-            grouped_bans[location_name].append(UploadBANSerializer(ban).data)
+    # def get_bans(self, obj):
+    #     grouped_bans = defaultdict(list)
+    #     for ban in obj.bans.all():
+    #         location_name = ban.location.site_name if ban.location else "Unknown"
+    #         grouped_bans[location_name].append(UploadBANSerializer(ban).data)
 
-        return [{'site_name': location, 'bans': bans} for location, bans in grouped_bans.items()]
+    #     return [{'site_name': location, 'bans': bans} for location, bans in grouped_bans.items()]
 
 
 class CompanyShowOnboardSerializer(serializers.ModelSerializer):

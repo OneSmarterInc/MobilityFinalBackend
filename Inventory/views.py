@@ -22,26 +22,22 @@ class InventorySubjectView(APIView):
     def get(self, request):
         if request.user.designation.name == "Superadmin":
             objs = Company.objects.all()
-            banobjs = UploadBAN.objects.all()
             onboardbanObjs = BaseDataTable.objects.filter(viewuploaded=None)
             onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
-            ban_serializer = BanShowSerializer(banobjs, many=True)
             serializer = CompanyShowOnboardSerializer(objs, many=True)
-            all_lines = UniquePdfDataTable.objects.all()
+            all_lines = UniquePdfDataTable.objects.filter(viewuploaded=None)
             lines_Ser = UniqueTableShowSerializer(all_lines, many=True)
-            return Response({"data": serializer.data, "bans" : ban_serializer.data, 'banonboarded':onbanser.data, "lines":lines_Ser.data}, status=status.HTTP_200_OK)
+            return Response({"data": serializer.data, 'banonboarded':onbanser.data, "lines":lines_Ser.data}, status=status.HTTP_200_OK)
         elif request.user.designation.name == "Admin":
             com = Company.objects.get(Company_name=request.user.company)
             objs = Organizations.objects.filter(company=com)
-            banobjs = UploadBAN.objects.filter(company=com)
-            ban_serializer = BanShowSerializer(banobjs, many=True)
             allobjs = OnboardBan.objects.all()
             serializer = OrganizationShowOnboardSerializer(objs, many=True)
             onboardbanObjs = BaseDataTable.objects.filter(company=request.user.company).filter(viewuploaded=None)
             onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
-            all_lines = UniquePdfDataTable.objects.all()
+            all_lines = UniquePdfDataTable.objects.filter(viewuploaded=None)
             lines_Ser = UniqueTableShowSerializer(all_lines, many=True)
-            return Response({"data": serializer.data, "bans" : ban_serializer.data, 'banonboarded':onbanser.data, "lines":lines_Ser.data}, status=status.HTTP_200_OK)
+            return Response({"data": serializer.data, 'banonboarded':onbanser.data, "lines":lines_Ser.data}, status=status.HTTP_200_OK)
         try:
             if request.user.designation.name == "Superadmin":
                 objs = Company.objects.all()
@@ -133,23 +129,18 @@ class BanInfoView(APIView):
     def get(self, request, org, vendor, ban, *args, **kwargs):
         try:
             orgobject = Organizations.objects.get(Organization_name=org)
-            allbans = UploadBAN.objects.filter(organization=orgobject)
             locobj = Location.objects.filter(organization=orgobject)
             vendorobject = Vendors.objects.get(name=vendor)
-            banobject = UploadBAN.objects.get(account_number=ban)
+            banobject = BaseDataTable.objects.filter(viewuploaded=None).get(accountnumber=ban)
             banser = BanShowSerializer(banobject)
         except Organizations.DoesNotExist:
             return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
         except Vendors.DoesNotExist:
             return Response({"message": "Vendor not found"}, status=status.HTTP_404_NOT_FOUND)
-        except UploadBAN.DoesNotExist:
-            try:
-                banobject = BaseDataTable.objects.filter(accountnumber=ban)[0]
-                banser = BaseDataTableShowSerializer(banobject)
-            except BaseDataTable.DoesNotExist:
-                return Response({"message": "Ban not found"}, status=status.HTTP_404_NOT_FOUND)
-        banlines = UniquePdfDataTable.objects.all()
-        allbanser = UploadBANSerializer(allbans, many=True)
+        except BaseDataTable.DoesNotExist:
+            return Response({"message": "Ban not found"}, status=status.HTTP_404_NOT_FOUND)
+                
+        banlines = UniquePdfDataTable.objects.filter(viewuploaded=None)
         vendorser = VendorGetAllDataSerializer(vendorobject)
         orgser = OrganizationGetAllDataSerializer(orgobject)
         locser = LocationGetAllDataSerializer(locobj, many=True)
@@ -167,7 +158,6 @@ class BanInfoView(APIView):
             "vendor": vendorser.data,
             "ban": banser.data,
             "locations": locser.data,
-            "allbans": allbanser.data,
             "onboarded": allonboards.data,
             "divisions" : divisions.data,
             "linesall" : UniqueTableShowSerializer(banlines,many=True).data
@@ -268,7 +258,7 @@ class Mobiles(APIView):
     permission_classes = [permissions.IsAuthenticated]
     def get(self,request, account, *args, **kwargs):
 
-        mobiles = UniquePdfDataTable.objects.filter(account_number=account)
+        mobiles = UniquePdfDataTable.objects.filter(viewuploaded=None).filter(account_number=account)
         mobiles = UniqueTableShowSerializer(mobiles, many=True)
 
         acc = UploadBAN.objects.filter(account_number=account)[0]
@@ -286,7 +276,7 @@ class MobileView(APIView):
     def get(self, request,account_number, wireless_number=None, *args, **kwargs):
         com = request.GET.get('company')
         sub_com = request.GET.get('sub_company')
-        lines = UniquePdfDataTable.objects.filter(account_number=account_number)
+        lines = UniquePdfDataTable.objects.filter(viewuploaded=None).filter(account_number=account_number)
         if not wireless_number:
             lines = lines
         else:
@@ -305,7 +295,7 @@ class MobileView(APIView):
         com = data.get('company', None)
         sub_com = data.get('sub_company', None)
         print(com, sub_com, account_number, wireless_number)
-        if UniquePdfDataTable.objects.filter(company=com, sub_company=sub_com, account_number=account_number, wireless_number=wireless_number).exists():
+        if UniquePdfDataTable.objects.filter(viewuploaded=None).filter(company=com, sub_company=sub_com, account_number=account_number, wireless_number=wireless_number).exists():
             return Response({
                 "message": f"Mobile data with line {wireless_number} already exists"
             },status=status.HTTP_400_BAD_REQUEST)
@@ -330,7 +320,7 @@ class MobileView(APIView):
         },status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request,account_number,wireless_number, *args, **kwargs):
-        obj = UniquePdfDataTable.objects.filter(account_number=account_number, wireless_number=wireless_number)
+        obj = UniquePdfDataTable.objects.filter(viewuploaded=None).filter(account_number=account_number, wireless_number=wireless_number)
         if obj:
             obj = obj[0]
         else:
@@ -358,7 +348,7 @@ class MobileView(APIView):
         },status=status.HTTP_400_BAD_REQUEST)
     def delete(self, request,account_number,wireless_number, *args, **kwargs):
         try:
-            obj = UniquePdfDataTable.objects.filter(account_number=account_number, wireless_number=wireless_number)
+            obj = UniquePdfDataTable.objects.filter(viewuploaded=None).filter(account_number=account_number, wireless_number=wireless_number)
             if obj:
                 obj = obj[0]
             else:

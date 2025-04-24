@@ -54,7 +54,8 @@ class UploadBANView(APIView):
             costcentertypes = CostCenterType.objects.all()
             costcentertypesserializer = CostCenterTypeShowSerializer(costcentertypes, many=True)
 
-            bans = UploadBAN.objects.filter(entryType=EntryType.objects.get(name="Master Account"))
+            # bans = UploadBAN.objects.filter(entryType=EntryType.objects.get(name="Master Account"))
+            bans = BaseDataTable.objects.filter(viewuploaded=None).filter(Entry_type="Master Account")
             banserializer = BanshowSerializer(bans, many=True)
             return Response({
                 "data" : serializer.data, 
@@ -142,7 +143,22 @@ class UploadBANView(APIView):
                 masteraccount=mutable_data.pop('masteraccount', None),
                 **mutable_data
             )
-
+            upload_ban.save()
+            obj = BaseDataTable.objects.create(
+                banUploaded = upload_ban,
+                company = upload_ban.company.Company_name if upload_ban.company else None,
+                sub_company = upload_ban.organization.Organization_name,
+                accountnumber = upload_ban.account_number,
+                Entry_type = upload_ban.entryType.name,
+                vendor = upload_ban.Vendor.name,
+                location = upload_ban.location.site_name if upload_ban.location else None,
+                paymentType = upload_ban.paymenttype,
+                master_account = upload_ban.masteraccount,
+                Billing_Name = upload_ban.BillingName,
+                Billing_Address = upload_ban.BillingAdd,
+                Remidence_Address = upload_ban.RemittanceAdd
+            )
+            obj.save()
             saveuserlog(request.user, f"BAN with account number {upload_ban.account_number} created successfully!")
 
         except Exception as e:
@@ -157,10 +173,14 @@ class UploadBANView(APIView):
                     if isinstance(line, dict): 
                         lineobj = UniquePdfDataTable.objects.create(banUploaded=upload_ban, company=upload_ban.company.Company_name, sub_company=upload_ban.organization.Organization_name, **line)
                         lineobj.save()
+                        updated = self.remove_filds(BaselineDataTable, line)
+                        baselineobj = BaselineDataTable.objects.create(banUploaded=upload_ban, company=upload_ban.company.Company_name, sub_company=upload_ban.organization.Organization_name, **updated)
+                        baselineobj.save()
                         saveuserlog(
                             request.user, 
                             f"Line with account number {upload_ban.account_number} and wireless number {lineobj.wireless_number} created successfully!"
                         )
+                        
                     else:
                         print("Skipping invalid line entry:", line)
 
@@ -169,6 +189,12 @@ class UploadBANView(APIView):
                 return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({"message": "BAN created successfully!"}, status=status.HTTP_201_CREATED)
+    def remove_filds(self, model, data):
+        valid_fields = {field.name for field in model._meta.get_fields()}
+
+        filtered_data = {key: value for key, value in data.items() if key in valid_fields}
+
+        return filtered_data
     
     def str_to_bool(self, value):
         return str(value).strip().lower() in ['true','yes']
@@ -606,21 +632,17 @@ class InventoryUploadView(APIView):
             orgserializer = OrganizationShowSerializer(orgs, many=True)
             inventories = InventoryUpload.objects.all()
             serializer = InventoryUploadSerializer(inventories, many=True)
-            base_data = BaseDataTable.objects.all()
+            base_data = BaseDataTable.objects.filter(viewuploaded=None)
             vendors = Vendors.objects.all()
 
             if request.user.designation.name == "Admin":
                 com = request.user.company
                 objs = Organizations.objects.filter(company=com)
-                banobjs = UploadBAN.objects.filter(company=com)
             else:
                 objs = Organizations.objects.all()
-                banobjs = UploadBAN.objects.all()
-            ban_serializer = BanShowSerializer(banobjs, many=True)
             return Response({"data" : serializer.data,
                              "orgs" : orgserializer.data,
                              "base_data" : showBaseDataSerializer(base_data, many=True).data,
-                             "bans":ban_serializer.data,
                              "vendors" : VendorShowSerializer(vendors, many=True).data
                              }
                              , status=status.HTTP_200_OK)
@@ -711,7 +733,7 @@ class InventoryUploadView(APIView):
             return Response({"message" : "Inventory upload not found!"}, status=status.HTTP_404_NOT_FOUND)
 
 import tempfile
-from .models import UniquePdfDataTable
+from .models import UniquePdfDataTable, BaselineDataTable
 from django.forms.models import model_to_dict
 class InventoryProcess:
     def __init__(self, instance):

@@ -328,6 +328,7 @@ class PdfDataTable(models.Model):
     
 from View.models import ViewUploadBill
 class BaseDataTable(models.Model):
+    banUploaded = models.ForeignKey(UploadBAN, related_name='banUploadedBase', on_delete=models.CASCADE, null=True, blank=True)
     banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedBase', on_delete=models.CASCADE, null=True, blank=True)
     viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewbase', on_delete=models.CASCADE, null=True, blank=True)
     inventory = models.ForeignKey(InventoryUpload, related_name='inventorybase', on_delete=models.CASCADE, null=True, blank=True)
@@ -463,6 +464,7 @@ class UniquePdfDataTable(models.Model):
     
 
 class BaselineDataTable(models.Model):
+    banUploaded = models.ForeignKey(UploadBAN, related_name='banUploadedbaseline', on_delete=models.CASCADE, null=True, blank=True)
     banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedbaseline', on_delete=models.CASCADE, null=True, blank=True)
     viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewbaseline', on_delete=models.CASCADE, null=True, blank=True)
     account_number = models.CharField(max_length=255, blank=True, null=True, default="NaN")
