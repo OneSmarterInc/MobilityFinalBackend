@@ -137,20 +137,28 @@ class BatchView(APIView):
                 'Invoice_Comments': "Invoice Comments",
                 'Invoice_Misc_1': "Invoice Misc 1"
             }, inplace=True)
-            print(data)
-            excel_buffer = self.generate_excel_file(df)
+            
+            # empty all 
+            folder_path = os.path.join(settings.MEDIA_ROOT, "batchfiles")
+            print(folder_path)
+            shutil.rmtree(folder_path)
 
+            excel_buffer = self.generate_excel_file(df)
             obj = batch[0]
-            folder = str(obj.output_file.path).split("/")
-            folder.remove(folder[-1])
-            folder = "/".join(folder)
-            shutil.rmtree(folder)
-            from_to = str(ids[0]) + '->' + str(ids[-1])
+            if type(ids) == list:
+                from_to = str(ids[0]) + '->' + str(ids[-1]) 
+                BatchReport.objects.first()
+            else:
+                from_to = str(ids)
             file_name = f"batch_report_{from_to} .xlsx"
+            obj.output_file.save(file_name, ContentFile(excel_buffer.getvalue()), save=True)
+            # folder.remove(folder[-1])
+            # shutil.rmtree(folder)
+            
             file_path = os.path.join(settings.MEDIA_ROOT, "batchreports", file_name)
             
             # Save the file to Django's MEDIA storage
-            obj.output_file.save(file_name, ContentFile(excel_buffer.getvalue()), save=True)
+            
             if data["action"] == "download":
                 return Response({"data": obj.output_file.url}, status=status.HTTP_200_OK)
             elif data['action'] == "send_mail":

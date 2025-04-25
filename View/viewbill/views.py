@@ -15,15 +15,13 @@ class ViewBill(APIView):
     def get(self, request, *args, **kwargs):
         objs = Organizations.objects.all()
         ser = showOrganizationSerializer(objs, many=True)
-        uniquedata = uniquepdftableSerializer(UniquePdfDataTable.objects.all(), many=True)
-        bans = showBanSerializer(UploadBAN.objects.all(), many=True)
+        uniquedata = uniquepdftableSerializer(UniquePdfDataTable.objects.filter(banOnboarded=None,banUploaded=None), many=True)
         vendors = vendorshowSerializer(Vendors.objects.all(), many=True)
         baseaccounts = showaccountbasetable(BaseDataTable.objects.filter(viewuploaded=None), many=True)
-        basedata = basedatahowSerializer(BaseDataTable.objects.filter(banOnboarded=None), many=True)
+        basedata = basedatahowSerializer(BaseDataTable.objects.filter(banOnboarded=None,banUploaded=None), many=True)
         paytypes = paytypehowSerializer(PaymentType.objects.all(), many=True)
         return Response({
             "data" : ser.data,
-            "bans" : bans.data,
             "vendors" : vendors.data,
             "basedata" : basedata.data,
             "paytypes" : paytypes.data,

@@ -23,7 +23,6 @@ class PaperBillView(APIView):
     def get(self, request, *args, **kwargs):
         orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
         vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
-        bans = showBanSerializer(UploadBAN.objects.all(), many=True)
         onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None), many=True)
         paperbills = viewPaperBillserializer(viewPaperBill.objects.filter(company=request.user.company), many=True) if request.user.company else viewPaperBillserializer(viewPaperBill.objects.all(), many=True)
         if request.GET:
@@ -33,7 +32,7 @@ class PaperBillView(APIView):
             invoice_number = request.GET.get('invoicenumber')
             billdate = request.GET.get('billdate')
             duedate = request.GET.get('duedate')
-            base = BaseDataTable.objects.filter(banOnboarded=None).filter(sub_company=org, vendor=vendor, accountnumber=ban)
+            base = BaseDataTable.objects.filter(banOnboarded=None,banUploaded=None).filter(sub_company=org, vendor=vendor, accountnumber=ban)
             print(base)
             if invoice_number:
                 base = base.filter(invoicenumber=invoice_number)
@@ -42,7 +41,7 @@ class PaperBillView(APIView):
             baseline = BaselineDataTable.objects.filter(viewuploaded=base[0].viewuploaded, account_number=base[0].accountnumber).filter(is_draft=False, is_pending=False)
             self.filtered_baseline = BaselineDataTableShowSerializer(baseline, many=True).data
         return Response(
-            {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "data":paperbills.data, "onborded": onboarded.data, "filtered_baseline": self.filtered_baseline},
+            {"orgs": orgs.data, "vendors": vendors.data, "data":paperbills.data, "onborded": onboarded.data, "filtered_baseline": self.filtered_baseline},
             status=status.HTTP_200_OK,
         )
     def post(self, request, *args, **kwargs):
@@ -119,12 +118,11 @@ class PendingView(APIView):
     def get(self, request, *args, **kwargs):
         orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
         vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
-        bans = showBanSerializer(UploadBAN.objects.all(), many=True)
         onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None), many=True)
 
-        baselineData = BaselineDataTableShowSerializer(BaselineDataTable.objects.filter(banOnboarded=None), many=True)
+        baselineData = BaselineDataTableShowSerializer(BaselineDataTable.objects.filter(banOnboarded=None,banUploaded=None), many=True)
         return Response(
-            {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "baseline":baselineData.data, "onborded":onboarded.data},
+            {"orgs": orgs.data, "vendors": vendors.data, "baseline":baselineData.data, "onborded":onboarded.data},
             status=status.HTTP_200_OK,
             
         )
@@ -165,11 +163,10 @@ class DraftView(APIView):
     def get(self, request, *args, **kwargs):
         orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
         vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
-        bans = showBanSerializer(UploadBAN.objects.all(), many=True)
         onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None), many=True)
-        baselineData = BaselineDataTableShowSerializer(BaselineDataTable.objects.filter(banOnboarded=None), many=True)
+        baselineData = BaselineDataTableShowSerializer(BaselineDataTable.objects.filter(banOnboarded=None,banUploaded=None), many=True)
         return Response(
-            {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "baseline":baselineData.data, "onborded":onboarded.data},
+            {"orgs": orgs.data, "vendors": vendors.data, "baseline":baselineData.data, "onborded":onboarded.data},
             status=status.HTTP_200_OK,
         )
     def post(self, request, *args, **kwargs):
@@ -239,13 +236,12 @@ class UploadfileView(APIView):
     def get(self, request, *args, **kwargs):
         orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
         vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
-        bans = showBanSerializer(UploadBAN.objects.all(), many=True)
         onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None), many=True)
 
         baselineData = BaselineDataTableShowSerializer(BaselineDataTable.objects.all(), many=True)
 
         return Response(
-            {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "baseline":baselineData.data, "onborded":onboarded.data},
+            {"orgs": orgs.data, "vendors": vendors.data, "baseline":baselineData.data, "onborded":onboarded.data},
             status=status.HTTP_200_OK,
         )
     def post(self, request, *args, **kwargs):
@@ -288,7 +284,7 @@ class UploadfileView(APIView):
                 print("Founded")
                 if 'master' in found[0].Entry_type.lower():
                     return Response({
-                        "message": f"ban with Entry Type is not acceptable!"
+                        "message": f"ban with Master Account is not acceptable!"
                     }, status=status.HTTP_400_BAD_REQUEST)
             else:
                 found = UploadBAN.objects.filter(organization=Organizations.objects.filter(Organization_name=org).first(), Vendor=Vendors.objects.filter(name=vendor).first(), account_number=ban)
@@ -297,7 +293,7 @@ class UploadfileView(APIView):
                     print("Founded")
                     if 'master' in found[0].entryType.name.lower():
                         return Response({
-                            "message": f"ban with Entry Type is not acceptable!"
+                            "message": f"ban with  Master Account is not acceptable!"
                         })
                 else:
                     return Response({"message": f"Ban not found for {org} and {vendor}"}, status=status.HTTP_400_BAD_REQUEST)

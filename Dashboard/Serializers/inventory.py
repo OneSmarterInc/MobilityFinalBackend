@@ -10,12 +10,23 @@ class UniqueTableShowSerializer(serializers.ModelSerializer):
         model = UniquePdfDataTable
         fields = '__all__' 
 
+class UniqueTableSaveSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UniquePdfDataTable
+        fields = '__all__' 
+
 class BaselineTableShowSerializer(serializers.ModelSerializer):
     banOnboarded = serializers.CharField(max_length=255)
     class Meta:
         model = BaselineDataTable
         fields = '__all__'
          
+
+class BaselineTableSaveSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BaselineDataTable
+        fields = '__all__'
+
 class OrganizationsShowSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organizations

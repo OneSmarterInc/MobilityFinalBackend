@@ -6,16 +6,16 @@ from authenticate.models import PortalUser
 from OnBoard.Company.models import Company
 from rest_framework.permissions import IsAuthenticated
 from OnBoard.Ban.models import UniquePdfDataTable, BaselineDataTable, BaseDataTable, UploadBAN
-from ..Serializers.inventory import UniqueTableShowSerializer, OrganizationsShowSerializer, BaselineTableShowSerializer, showBaseDataser, VendorsSerializer
+from ..Serializers.inventory import UniqueTableShowSerializer, OrganizationsShowSerializer, BaselineTableShowSerializer, showBaseDataser, VendorsSerializer, UniqueTableSaveSerializer, BaselineTableSaveSerializer
 from OnBoard.Organization.models import Organizations
 
 class InventoryView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request,pk=None, *args, **kwargs):
         if pk:
-            inventory = UniquePdfDataTable.objects.filter(viewuploaded=None).filter(id=pk)
+            inventory = UniquePdfDataTable.objects.filter(viewuploaded=None).filter(id=pk).order_by('-account_number').order_by('-created')
         else:
-            inventory = UniquePdfDataTable.objects.filter(viewuploaded=None)
+            inventory = UniquePdfDataTable.objects.filter(viewuploaded=None).order_by('-account_number').order_by('-created')
         if request.user.designation.name == "Superadmin":
             orgs = Organizations.objects.all()
         else:
@@ -35,14 +35,14 @@ class InventoryView(APIView):
             if str(v).lower() not in ('nan', 'null','na') and v is not None
         }
     def put(self, request,pk, *args, **kwargs):
+        print(pk)
         data = request.data
-        print("data=", data)
         new_data = self.data_filter(data)
         data = new_data
-        print("new data=", data)
         try:
             unique_obj = UniquePdfDataTable.objects.filter(id=pk)
-            print(unique_obj[0].wireless_number)
+            print("********", unique_obj[0].wireless_number, unique_obj[0].account_number)
+
             baseline_obj = BaselineDataTable.objects.filter(account_number=unique_obj[0].account_number, Wireless_number=unique_obj[0].wireless_number)
             print(unique_obj, baseline_obj)
         except UniquePdfDataTable.DoesNotExist:
@@ -88,19 +88,31 @@ class AddNewInventoryView(APIView):
         
         return Response({"accounts":all_accnts.data, "vendors":vendors.data}, status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
-        data = request.data
-        print(data)
-        base = BaseDataTable.objects.filter(accountnumber=data.get('accountnumber'), vendor=data.get('vendor'), company=data.get('company'), sub_company=data.get('sub_company'))
+        data = request.data.copy()
+        base = BaseDataTable.objects.filter(accountnumber=data.get('account_number'), vendor=data.get('vendor'), company=data.get('company'), sub_company=data.get('sub_company'))
+        if base[0].banOnboarded:
+            data['banOnboarded'] = base[0].banOnboarded.id
+        elif base[0].banUploaded:
+            data['banUploaded'] = base[0].banUploaded.id
+
         if not base:
             return Response({"message":"Account number not found!"},status=status.HTTP_400_BAD_REQUEST)
-        uniqueser = UniqueTableShowSerializer(data=data)
+        check_presence = UniquePdfDataTable.objects.filter(account_number=data.get('account_number'), vendor=data.get('vendor'), company=data.get('company'), sub_company=data.get('sub_company'), wireless_number=data.get('wireless_number'))
+        if check_presence:
+            return Response({"message":f"Wirelss number {data.get('wireless_number')} with account number {data.get('account_number')} already present!"},status=status.HTTP_400_BAD_REQUEST)
+        uniqueser = UniqueTableSaveSerializer(data=data)
         if uniqueser.is_valid():
             uniqueser.save()
         else:
+            print(uniqueser.errors)
             return Response({"message":str(uniqueser.errors)},status=status.HTTP_400_BAD_REQUEST)
-        baselineser = BaselineTableShowSerializer(data=data)
+        wn = data.get('wireless_number')
+        data['Wireless_number'] = wn
+        baselineser = BaselineTableSaveSerializer(data=data)
         if baselineser.is_valid():
             baselineser.save()
+            return Response({"message":"New inventory created successfully!"}, status=status.HTTP_200_OK)
         else:
+            print(baselineser.errors)
             return Response({"message":str(baselineser.errors)},status=status.HTTP_400_BAD_REQUEST)
-        return Response({"message":"New inventory created successfully!"}, status=status.HTTP_101_SWITCHING_PROTOCOLS)
+        
