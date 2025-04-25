@@ -68,12 +68,13 @@ class LocationView(APIView):
 
         
     def put(self, request, org, pk, *args, **kwargs):
+        print(pk)
         if type(org) is str:
             org = Organizations.objects.filter(Organization_name=org).first()
         else:
             org = Organizations.objects.get(id=org)
         try:
-            location = Location.objects.get(organization=org, id=pk)
+            location = Location.objects.get(id=pk)
         except Location.DoesNotExist:
             return Response({"message": "Location not found"}, status=status.HTTP_404_NOT_FOUND)
         try:

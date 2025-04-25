@@ -252,7 +252,7 @@ class UploadConsolidated(APIView):
 
 
 from OnBoard.Ban.models import UniquePdfDataTable, Lines
-from .ser import LineShowSerializer, UniqueTableShowSerializer
+from .ser import LineShowSerializer, UniqueTableShowSerializer, UniqueTableSaveSerializer
 
 class Mobiles(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -300,7 +300,7 @@ class MobileView(APIView):
                 "message": f"Mobile data with line {wireless_number} already exists"
             },status=status.HTTP_400_BAD_REQUEST)
         try:
-            serializer = UniqueTableShowSerializer(data=data)
+            serializer = UniqueTableSaveSerializer(data=data)
             if serializer.is_valid():
                 serializer.save()
                 saveuserlog(

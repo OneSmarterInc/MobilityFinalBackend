@@ -15,7 +15,7 @@ class OnboardOrganizationView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        company = Company.objects.get(Company_name=request.data["company"])
+        company = Company.objects.get(Company_name=request.user.company.Company_name)
         data = request.data.copy()
         st = type(data.get('status'))
         if st == 'false':
@@ -84,6 +84,7 @@ class DivisionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, org):
+        print(request.data)
         try:
             organization = Organizations.objects.get(id=org)
             org_name = organization.Organization_name

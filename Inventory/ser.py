@@ -149,7 +149,10 @@ class UniqueTableShowSerializer(serializers.ModelSerializer):
     class Meta:
         model = UniquePdfDataTable
         fields = '__all__'
-
+class UniqueTableSaveSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UniquePdfDataTable
+        fields = '__all__'
 class LineShowSerializer(serializers.ModelSerializer):
     account_number = serializers.CharField(max_length=255)
     class Meta:
