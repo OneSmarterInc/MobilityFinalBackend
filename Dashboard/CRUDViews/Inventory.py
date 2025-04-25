@@ -7,6 +7,7 @@ from OnBoard.Company.models import Company
 from rest_framework.permissions import IsAuthenticated
 from OnBoard.Ban.models import UniquePdfDataTable, BaselineDataTable, BaseDataTable, UploadBAN
 from ..Serializers.inventory import UniqueTableShowSerializer, OrganizationsShowSerializer, BaselineTableShowSerializer, showBaseDataser, VendorsSerializer, UniqueTableSaveSerializer, BaselineTableSaveSerializer
+import ast
 from OnBoard.Organization.models import Organizations
 
 class InventoryView(APIView):
@@ -34,21 +35,55 @@ class InventoryView(APIView):
             k: v for k, v in data.items()
             if str(v).lower() not in ('nan', 'null','na') and v is not None
         }
-    def put(self, request,pk, *args, **kwargs):
-        print(pk)
+    def put(self, request,pk=None, *args, **kwargs):
         data = request.data
+        if not pk:
+            try:
+                for inv in data:
+                    
+                    obj = UniquePdfDataTable.objects.get(id=inv.get('id'))
+                    if (obj.banOnboarded):
+                        inv['banOnboarded'] = obj.banOnboarded.id
+                    if (obj.banUploaded):
+                        inv['banUploaded'] = obj.banOnboarded.id
+                    
+                    ser = UniqueTableSaveSerializer(obj, data=inv, partial=True)
+                    if ser.is_valid():
+                        ser.save()
+                    else:
+                        print(ser.errors)
+                        return Response({"message":f"Unexpected error {ser.errors}"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message":"Inventories updated successfully"}, status=status.HTTP_200_OK)
+            except Exception as e:
+                print(e)
+                return Response({"message":f"Unexpected error {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+            
+
+        print(pk)
+        
         new_data = self.data_filter(data)
         data = new_data
         try:
             unique_obj = UniquePdfDataTable.objects.filter(id=pk)
             print("********", unique_obj[0].wireless_number, unique_obj[0].account_number)
-
             baseline_obj = BaselineDataTable.objects.filter(account_number=unique_obj[0].account_number, Wireless_number=unique_obj[0].wireless_number)
             print(unique_obj, baseline_obj)
         except UniquePdfDataTable.DoesNotExist:
             return Response({"message": "Inventory not found in unique table!"}, status=status.HTTP_404_NOT_FOUND)
         except BaselineDataTable.DoesNotExist:
             return Response({"message": "Inventory not found in baseline table!"}, status=status.HTTP_404_NOT_FOUND)
+        if 'action' in data:
+            if data['action'] == 'move-ban':
+                ban = data['ban']
+                obj1 = unique_obj[0]
+                prev = obj1.account_number
+                obj1.account_number = ban
+                obj1.save()
+                if baseline_obj:
+                    obj1 = baseline_obj[0]
+                    obj1.account_number = ban
+                    obj1.save()
+                return Response({"message":f"Ban successfully moved from {prev} to {ban}"},status=status.HTTP_200_OK)
         unique_ser = UniqueTableShowSerializer(unique_obj[0], data, partial=True)
         if unique_ser.is_valid():
             unique_ser.save()
