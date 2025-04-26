@@ -3,7 +3,7 @@ from OnBoard.Company.models import Company
 from OnBoard.Organization.models import Organizations
 from OnBoard.Location.models import Location
 from Dashboard.ModelsByPage.DashAdmin import Vendors, EntryType
-from OnBoard.Ban.models import UploadBAN, OnboardBan, BaseDataTable, Lines, UniquePdfDataTable
+from OnBoard.Ban.models import UploadBAN, OnboardBan, BaseDataTable, Lines, UniquePdfDataTable, BaselineDataTable
 
 class CompanygetNameSerializer(serializers.ModelSerializer):
     class Meta:
@@ -115,9 +115,15 @@ class OrganizationShowOnboardSerializer(serializers.ModelSerializer):
         fields = ['id', 'Organization_name', 'vendors', 'locations']
 
 class BanShowSerializer(serializers.ModelSerializer):
+    costcenterlevel = serializers.CharField()
+    costcentertype = serializers.CharField()
+    costcenterstatus = serializers.CharField()
+    bantype = serializers.CharField()
+    invoicemethod = serializers.CharField()
+    paymentType = serializers.CharField()
     class Meta:
         model = BaseDataTable
-        fields = ['id', 'location', 'accountnumber', 'Entry_type','company', 'sub_company', 'vendor', 'created']
+        fields = ['id', 'location', 'accountnumber', 'Entry_type','company', 'sub_company', 'vendor', 'created', 'costcenterlevel', 'costcentertype', 'costcenterstatus', 'bantype', 'invoicemethod', 'paymentType']
 
     # uploadedlines = serializers.StringRelatedField(many=True)
 
@@ -139,6 +145,12 @@ class CompanyShowOnboardSerializer(serializers.ModelSerializer):
 
 class BaseDataTableShowSerializer(serializers.ModelSerializer):
     banOnboarded = serializers.CharField(max_length=255)
+    costcenterlevel = serializers.CharField()
+    costcentertype = serializers.CharField()
+    costcenterstatus = serializers.CharField()
+    bantype = serializers.CharField()
+    invoicemethod = serializers.CharField()
+    paymentType = serializers.CharField()
     class Meta:
         model = BaseDataTable
         fields = '__all__'
@@ -153,8 +165,17 @@ class UniqueTableSaveSerializer(serializers.ModelSerializer):
     class Meta:
         model = UniquePdfDataTable
         fields = '__all__'
+class BaselineSaveSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BaselineDataTable
+        fields = '__all__'
 class LineShowSerializer(serializers.ModelSerializer):
     account_number = serializers.CharField(max_length=255)
     class Meta:
         model = Lines
+        fields = '__all__'
+
+class BanSaveSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BaseDataTable
         fields = '__all__'

@@ -35,7 +35,7 @@ class OrganizationsShowSerializer(serializers.ModelSerializer):
 class showBaseDataser(serializers.ModelSerializer):
     class Meta:
         model = BaseDataTable
-        fields = ('accountnumber', 'sub_company', 'vendor')
+        fields = ('accountnumber', 'sub_company', 'vendor', 'Entry_type')
 
 class VendorsSerializer(serializers.ModelSerializer):
     class Meta:

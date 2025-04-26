@@ -53,6 +53,15 @@ class InventoryView(APIView):
                     else:
                         print(ser.errors)
                         return Response({"message":f"Unexpected error {ser.errors}"}, status=status.HTTP_400_BAD_REQUEST)
+                    wn = data.get('wireless_number')
+                    data['wireless_number'] = wn
+                    baseline_obj = BaselineDataTable.objects.get(account_number=obj.account_number, wireless_number=obj.wireless_number, vendor=obj.vendor)
+                    baselineser = BaselineTableSaveSerializer(baseline_obj, data=data, partial=True)
+                    if baselineser.is_valid():
+                        baselineser.save()
+                    else:
+                        print(ser.errors)
+                        return Response({"message":f"Unexpected error {ser.errors}"}, status=status.HTTP_400_BAD_REQUEST)
                 return Response({"message":"Inventories updated successfully"}, status=status.HTTP_200_OK)
             except Exception as e:
                 print(e)
@@ -88,12 +97,17 @@ class InventoryView(APIView):
         if unique_ser.is_valid():
             unique_ser.save()
             print(unique_ser.data)
-            baseline_ser = BaselineTableShowSerializer(baseline_obj[0], data, partial=True)
-            if baseline_ser.is_valid():
-                baseline_ser.save()
-                return Response({"message": "inventory updated successfully!"}, status=status.HTTP_200_OK)
-            else:
-                return Response({"message": str(baseline_ser.errors)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            wn = data.get('wireless_number')
+            data['Wireless_number'] = wn
+            if baseline_obj:
+                baseline_ser = BaselineTableShowSerializer(baseline_obj[0], data, partial=True)
+                if baseline_ser.is_valid():
+                    baseline_ser.save()
+                else:
+                    print(baseline_ser.errors)
+                    return Response({"message": str(baseline_ser.errors)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"message": "inventory updated successfully!"}, status=status.HTTP_200_OK)
+            
         else:
                 return Response({"message": str(unique_ser.errors)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     def delete(self, request, pk, *args, **kwargs):

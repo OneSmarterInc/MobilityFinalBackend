@@ -221,7 +221,6 @@ class InventoryUpload(models.Model):
 
     class Meta:
         db_table = 'InventoryUpload'
-        unique_together = (('organization','vendor', 'ban'),)
     def __str__(self):
         return f'{self.organization.Organization_name} - {self.ban} - {self.uploadFile.name}'
     
@@ -352,23 +351,72 @@ class BaseDataTable(models.Model):
     
     charges = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     location = models.CharField(max_length=255, blank=True, null=True, default="NaN")
-    Remidence_Address = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    RemittanceAdd = models.CharField(max_length=255, blank=True, null=True, default="NaN")
 
-    Billing_Name = models.CharField(max_length=255, blank=True, null=True, default="NaN")
-    Billing_Address = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    BillingName = models.CharField(max_length=255, blank=True, null=True, default="NaN")
+    BillingAdd = models.CharField(max_length=255, blank=True, null=True, default="NaN")
 
     Total_Amount_Due =  models.CharField(max_length=255, blank=True, null=True, default="NaN")
+
+    current_annual_review = models.CharField(max_length=2550, null=True, blank=True)
+    previous_annual_review = models.CharField(max_length=2550, null=True, blank=True)
+
+     ### Billing Information
+
+    BillingState = models.CharField(max_length=255, null=True, blank=True, default="NaN")
+    BillingZip = models.CharField(max_length=255, null=True, blank=True, default="NaN")
+    BillingCity = models.CharField(max_length=255, null=True, blank=True, default="NaN")
+    BillingCountry = models.CharField(max_length=255, null=True, blank=True, default="NaN")
+    BillingAtn = models.CharField(max_length=255, null=True, blank=True, default="NaN")
+    BillingDate = models.CharField(max_length=255, null=True, blank=True, default="NaN")
+
+    ### Remittance Information
+    RemittanceName = models.CharField(max_length=255, null=True, blank=True, default="NaN")
+    RemittanceState = models.CharField(max_length=255, null=False, blank=False, default="NaN")
+    RemittanceZip = models.CharField(max_length=255, null=False, blank=False, default="NaN")
+    RemittanceCity = models.CharField(max_length=255, null=False, blank=False, default="NaN")
+    RemittanceCountry = models.CharField(max_length=255, null=True, blank=True, default="NaN")
+    RemittanceAtn = models.CharField(max_length=255, null=True, blank=True, default="NaN")
+    RemittanceNotes = models.CharField(max_length=255, null=True, blank=True, default="NaN")
+
+    costcenterlevel = models.CharField(max_length=255, null=True, blank=True, default="NaN")
+    costcentertype = models.CharField(max_length=255, null=True, blank=True, default="NaN")
+    costcenterstatus = models.BooleanField(default=False)
+    CostCenter = models.CharField(max_length=255, null=True, blank=True)
+    CostCenterNotes = models.TextField(null=True, blank=True)
+    PO = models.CharField(max_length=255, null=True, blank=True)
+    Displaynotesonbillprocessing = models.BooleanField(default=False)
+    POamt = models.CharField(max_length=255, null=True, blank=True)
+    FoundAcc = models.CharField(max_length=255, null=True, blank=True)
+    bantype = models.CharField(max_length=255, null=True, blank=True, default="NaN")
+    invoicemethod =models.CharField(max_length=255, null=True, blank=True, default="NaN")
+
+    vendorCS = models.CharField(max_length=255, null=True, blank=True)
     
+    vendor_alias = models.CharField(max_length=255, null=True, blank=True)
 
     month =  models.CharField(max_length=255, blank=True, null=True, default="NaN")
     year =  models.CharField(max_length=255, blank=True, null=True, default="NaN")
     pdf_filename = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     pdf_path = models.CharField(max_length=255, blank=True, null=True, default="NaN")
     remarks = models.CharField(max_length=2550, null=True, blank=True)
+
+    account_password = models.CharField(max_length=255, null=True, blank=True)
+    payor = models.CharField(max_length=255, null=True, blank=True)
+    GlCode = models.CharField(max_length=255, null=True, blank=True)
+    ContractTerms = models.CharField(max_length=255, null=True, blank=True)
+    ContractNumber = models.CharField(max_length=255, null=True, blank=True)
+    Services = models.CharField(max_length=255, null=True, blank=True)
+    Billing_cycle = models.CharField(max_length=255, null=True, blank=True)
+    BillingDay = models.CharField(max_length=255, null=True, blank=True)
+    PayTerm = models.CharField(max_length=255, null=True, blank=True)
+    AccCharge = models.CharField(max_length=255, null=True, blank=True)
+    CustomerOfRecord = models.CharField(max_length=255, null=True, blank=True)
+
     contract_name = models.CharField(max_length=255, null=True, blank=True)
     contract_file = models.FileField(upload_to='ban-contracts/', null=True)
 
-    paymentType = models.ForeignKey(PaymentType, null=True, blank=True, on_delete=models.SET_NULL)
+    paymentType = models.CharField(max_length=255, null=True, blank=True, default="NaN")
     billstatus = models.CharField(max_length=255, null=True, blank=True)
     Check = models.CharField(max_length=255, null=True, blank=True)
     summary_file = models.FileField(upload_to='view_summary_files/', null=True, blank=True)

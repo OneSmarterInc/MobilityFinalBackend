@@ -225,4 +225,4 @@ class BillTypeShowSerializer(serializers.ModelSerializer):
 class BaseBansSerializer(serializers.ModelSerializer):
     class Meta:
         model = BaseDataTable
-        fields = ['sub_company', 'vendor', 'accountnumber']
+        fields = ['sub_company', 'vendor', 'accountnumber', "Entry_type"]

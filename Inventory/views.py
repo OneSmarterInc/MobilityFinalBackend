@@ -122,7 +122,7 @@ class InventoryDataView(APIView):
             return Response({"message": "Error getting data"}, status=status.HTTP_401_UNAUTHORIZED)
 from OnBoard.Organization.ser import DivisionNameSerializer
 from OnBoard.Organization.models import Division
-from .ser import UniqueTableShowSerializer
+from .ser import UniqueTableShowSerializer, BanSaveSerializer
 class BanInfoView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -200,6 +200,20 @@ class BanInfoView(APIView):
         return Response({
             "message": "Ban information updated successfully!"
         }, status=status.HTTP_200_OK)
+    
+    def put(self, request, org, vendor, ban, *args, **kwargs):
+        obj = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban)
+        if not obj:
+            return Response({"message":f"Ban with account number {ban} not found!"},status=status.HTTP_400_BAD_REQUEST)
+        data = request.data.copy()
+        print(data)
+        ser = BanSaveSerializer(obj[0], data=data, partial=True)
+        if ser.is_valid():
+            ser.save()
+            return Response({"message":"Ban updated successfully"}, status=status.HTTP_200_OK)
+        else:
+            return Response({"message":f"{str(ser.errors)}"},status=status.HTTP_400_BAD_REQUEST)
+        
 
 from Dashboard.ModelsByPage.DashAdmin import EntryType, BillType, PaymentType, InvoiceMethod, BanType, BanStatus, CostCenterLevel, CostCenterType
 from OnBoard.Ban.uploadSer.ser import OrganizationShowuploadSerializer, CompanyShowSerializer, VendorShowSerializer, BanTypeShowSerializer, BanStatusShowSerializer, InvoiceMethodShowSerializer, PaymentTypeShowSerializer, CostCenterLevelShowSerializer, CostCenterTypeShowSerializer
@@ -252,7 +266,7 @@ class UploadConsolidated(APIView):
 
 
 from OnBoard.Ban.models import UniquePdfDataTable, Lines
-from .ser import LineShowSerializer, UniqueTableShowSerializer, UniqueTableSaveSerializer
+from .ser import LineShowSerializer, UniqueTableShowSerializer, UniqueTableSaveSerializer, BaselineSaveSerializer
 
 class Mobiles(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -303,6 +317,10 @@ class MobileView(APIView):
             serializer = UniqueTableSaveSerializer(data=data)
             if serializer.is_valid():
                 serializer.save()
+                data['Wireless_number'] = wireless_number
+                baseser = BaselineSaveSerializer(data=data)
+                if baseser.is_valid():
+                    baseser.save()
                 saveuserlog(
                     request.user,
                     f'mobile data of account number {data["account_number"]} added successfully!'

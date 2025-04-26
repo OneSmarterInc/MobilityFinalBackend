@@ -159,16 +159,20 @@ class ProcessPdf:
     
         print("def save_to_base_data_table")
         
-        mapping = {"Date_Due":"date_due", "AccountNumber":"accountnumber","InvoiceNumber":"invoicenumber", "Website":"website","Duration":"duration","Bill_Date":"bill_date","Client_Address":"Remidence_Address","entry_type":"Entry_type","billing_address":"Billing_Address"}
+        mapping = {"Date_Due":"date_due", "AccountNumber":"accountnumber","InvoiceNumber":"invoicenumber", "Website":"website","Duration":"duration","Bill_Date":"bill_date","Client_Address":"RemittanceAdd","entry_type":"Entry_type","billing_address":"BillingAdd", "Billing_Address":"Billing_Address","Billing_Name":"BillingName", "Remidence_Address":"RemittanceAdd"}
         if type(data) == dict:
             updated_data = {mapping.get(k, k): v for k, v in data.items()}
-            updated_data.pop("foundation_account") if 'foundation_account' in updated_data else None;
+            updated_data.pop("foundation_account") if 'foundation_account' in updated_data else None
             filtered_data = remove_filds(BaseDataTable, updated_data)
+            print(filtered_data)
             BaseDataTable.objects.create(banOnboarded=self.instance, **filtered_data)
         elif type(data) == list:
             for item in data:
                 updated_data = {mapping.get(k, k): v for k, v in item.items()}
-                BaseDataTable.objects.create(banOnboarded=self.instance, **updated_data)
+                updated_data.pop("foundation_account") if 'foundation_account' in updated_data else None
+                filtered_data = remove_filds(BaseDataTable, updated_data)
+                print(filtered_data)
+                BaseDataTable.objects.create(banOnboarded=self.instance, **filtered_data)
 
     def extract_total_pdf_data(self,acc_info,bill_date):
         print("def extract_total_pdf_data")

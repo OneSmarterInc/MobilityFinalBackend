@@ -147,16 +147,57 @@ class UploadBANView(APIView):
             obj = BaseDataTable.objects.create(
                 banUploaded = upload_ban,
                 company = upload_ban.company.Company_name if upload_ban.company else None,
-                sub_company = upload_ban.organization.Organization_name,
-                accountnumber = upload_ban.account_number,
-                Entry_type = upload_ban.entryType.name,
-                vendor = upload_ban.Vendor.name,
-                location = upload_ban.location.site_name if upload_ban.location else None,
-                paymentType = upload_ban.paymenttype,
-                master_account = upload_ban.masteraccount,
-                Billing_Name = upload_ban.BillingName,
-                Billing_Address = upload_ban.BillingAdd,
-                Remidence_Address = upload_ban.RemittanceAdd
+                sub_company = upload_ban.organization.Organization_name if upload_ban.organization else None,
+                accountnumber = upload_ban.account_number or None,
+                Entry_type = upload_ban.entryType.name if upload_ban.entryType else None,
+                vendor = upload_ban.Vendor.name if upload_ban.Vendor else "NaN",
+                location = upload_ban.location.site_name if upload_ban.location else "NaN",
+                paymentType = upload_ban.paymenttype.name if upload_ban.paymenttype else "NaN",
+                master_account = upload_ban.masteraccount or "NaN",
+                BillingName = upload_ban.BillingName or "NaN",
+                BillingAdd = upload_ban.BillingAdd or "NaN",
+                RemittanceAdd = upload_ban.RemittanceAdd or "NaN",
+                # Billing Info
+                BillingState = upload_ban.BillingState,
+                BillingZip = upload_ban.BillingZip,
+                BillingCity = upload_ban.BillingCity,
+                BillingCountry = upload_ban.BillingCountry,
+                BillingAtn = upload_ban.BillingAtn,
+                BillingDate = upload_ban.BillingDate,
+
+                # Remittance Info
+                RemittanceName = upload_ban.RemittanceName,
+                RemittanceState = upload_ban.RemittanceState,
+                RemittanceZip = upload_ban.RemittanceZip,
+                RemittanceCity = upload_ban.RemittanceCity,
+                RemittanceCountry = upload_ban.RemittanceCountry,
+                RemittanceAtn = upload_ban.RemittanceAtn,
+                RemittanceNotes = upload_ban.RemittanceNotes,
+                account_password = upload_ban.account_password,
+                payor = upload_ban.payor,
+                GlCode = upload_ban.GlCode,
+                ContractTerms = upload_ban.ContractTerms,
+                ContractNumber = upload_ban.ContractNumber,
+                Services = upload_ban.Services,
+                Billing_cycle = upload_ban.Billing_cycle,
+                BillingDay = upload_ban.BillingDay,
+                PayTerm = upload_ban.PayTerm,
+                AccCharge = upload_ban.AccCharge,
+                CustomerOfRecord = upload_ban.CustomerOfRecord,
+
+                costcenterlevel = upload_ban.costcenterlevel.name if upload_ban.costcenterlevel else "NaN",
+                costcentertype = upload_ban.costcentertype if upload_ban.costcentertype else "NaN",
+                costcenterstatus = upload_ban.costcenterstatus,
+                CostCenter = upload_ban.CostCenter,
+                CostCenterNotes = upload_ban.CostCenterNotes,
+                PO = upload_ban.PO,
+                Displaynotesonbillprocessing = upload_ban.Displaynotesonbillprocessing,
+                POamt = upload_ban.POamt,
+                FoundAcc = upload_ban.FoundAcc,
+                bantype = upload_ban.bantype.name if upload_ban.bantype else "NaN",
+                invoicemethod = upload_ban.invoicemethod.name if upload_ban.invoicemethod else "NaN",
+
+
             )
             obj.save()
             saveuserlog(request.user, f"BAN with account number {upload_ban.account_number} created successfully!")
@@ -188,7 +229,7 @@ class UploadBANView(APIView):
                 print(f"Error in line creation: {e}")
                 return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        return Response({"message": "BAN created successfully!"}, status=status.HTTP_201_CREATED)
+        return Response({"message": "BAN created successfully!", "data":showBaseDataSerializer(obj).data}, status=status.HTTP_201_CREATED)
     def remove_filds(self, model, data):
         valid_fields = {field.name for field in model._meta.get_fields()}
 
@@ -288,14 +329,14 @@ class OnboardBanView(APIView):
 
     def get(self, request, pk=None):
         if pk:
-            ban = OnboardBan.objects.get(account_number=pk)
-            serializer = OnboardBanSerializer(ban)
+            ban = BaseDataTable.objects.get(accountnumber=pk)
+            serializer = BaseBansSerializer(ban)
             return Response({"data" : serializer.data}, status=status.HTTP_200_OK)
         else:
             orgs = Organizations.objects.all()
             orgserializer = OrganizationShowOnboardSerializer(orgs, many=True)
-            onboardedbans = OnboardBan.objects.all()
-            serializer = OnboardBanSerializer(onboardedbans, many=True)
+            onboardedbans = BaseDataTable.objects.filter(viewuploaded=None, Entry_type="Master Account")
+            serializer = BaseBansSerializer(onboardedbans, many=True)
             etypes = EntryType.objects.all()
             etypeserializer = EntryTypeShowSerializer(etypes, many=True)
             btypes = BillType.objects.all()
@@ -632,7 +673,7 @@ class InventoryUploadView(APIView):
             orgserializer = OrganizationShowSerializer(orgs, many=True)
             inventories = InventoryUpload.objects.all()
             serializer = InventoryUploadSerializer(inventories, many=True)
-            base_data = BaseDataTable.objects.filter(viewuploaded=None)
+            base_data = BaseDataTable.objects.filter(viewuploaded=None).exclude(Entry_type="Master Account")
             vendors = Vendors.objects.all()
 
             if request.user.designation.name == "Admin":
@@ -650,12 +691,12 @@ class InventoryUploadView(APIView):
     def post(self, request):
         ban = request.data.get('Ban')
         print(request.data)
-        inv = InventoryUpload.objects.filter(organization=Organizations.objects.get(Organization_name=request.data.get('sub_company')), vendor=Vendors.objects.get(name=request.data.get('vendor_name')), ban=ban).first()
-        if inv:
-            return Response(
-                {"message": "Inventory already exists for this BAN, Vendor, and Sub-Company"},
-                status=status.HTTP_409_CONFLICT
-            )
+        # inv = InventoryUpload.objects.filter(organization=Organizations.objects.get(Organization_name=request.data.get('sub_company')), vendor=Vendors.objects.get(name=request.data.get('vendor_name')), ban=ban).first()
+        # if inv:
+        #     return Response(
+        #         {"message": "Inventory already exists for this BAN, Vendor, and Sub-Company"},
+        #         status=status.HTTP_409_CONFLICT
+        #     )
         mutable_data = request.data.copy()
         mutable_data = {key: (value if value != "" else None) for key, value in mutable_data.items()}
         try:
