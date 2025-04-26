@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import permissions
 from rest_framework import status
 
-from .models import UploadBAN, Lines
+from .models import UploadBAN, Lines, BatchReport
 from .ser import UploadBANSerializer
 from authenticate.views import saveuserlog
 from django.forms.models import model_to_dict
@@ -200,6 +200,8 @@ class UploadBANView(APIView):
 
             )
             obj.save()
+            # batch = BatchReport.objects.create()
+            # batch.save()
             saveuserlog(request.user, f"BAN with account number {upload_ban.account_number} created successfully!")
 
         except Exception as e:
@@ -698,6 +700,9 @@ class InventoryUploadView(APIView):
         #         status=status.HTTP_409_CONFLICT
         #     )
         mutable_data = request.data.copy()
+        sc = mutable_data.get('sub_company')
+        ven = mutable_data.get('vendor_name')
+        ban = mutable_data.get('Ban')
         mutable_data = {key: (value if value != "" else None) for key, value in mutable_data.items()}
         try:
             obj = InventoryUpload.objects.create(
@@ -748,7 +753,7 @@ class InventoryUploadView(APIView):
 
                 return Response({"message" : "Inventory upload is in progress.\n It will take some time. Please check inventory page later.", "data" : mutable_data}, status=status.HTTP_201_CREATED)
             else:
-                return Response({"message": f"Inventory process failed! due to {message if message else ''}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({"message": f"{message if message else ''}"}, status=status.HTTP_400_BAD_REQUEST)
         
         except Exception as e:
             print("inventory post error=", str(e))
@@ -781,6 +786,7 @@ class InventoryProcess:
         self.instance = instance
         self.file = instance.uploadFile
         self.filename = instance.uploadFile.name
+        self.vendor = instance.vendor.name
         self.org = instance.organization.Organization_name
         self.company = instance.organization.company.Company_name
         self.ban = instance.ban
@@ -839,7 +845,15 @@ class InventoryProcess:
                 else:
                     # For new wireless numbers, log the entire row in new data
                     new_data_log.append(self.clean_data_for_json(new_row.to_dict()))
-                    
+            print(previous_data_log)
+            print(new_data_log)
+            obj1 = new_data_log[0]
+            if self.org != obj1['sub_company']:
+                return False, previous_data_log, new_data_log, f"The sub_company {self.org} not matched!"
+            if self.vendor != obj1['vendor']:
+                return False, previous_data_log, new_data_log, f"The vendor {self.vendor} not matched!"
+            if self.ban != obj1['account_number']:
+                return False, previous_data_log, new_data_log, f"The ban {self.ban} not matched!"
             return True, previous_data_log, new_data_log, None
     
         except Exception as e:

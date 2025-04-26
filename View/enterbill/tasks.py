@@ -1,12 +1,14 @@
 from background_task import background
 import time
 import json
-from .billprocessor import process_bills
+from .billprocessor import ProcessBills
 # from .bp import ProcessBills
-from View.enterbill.bp import ProcessBills
+# from View.enterbill.bp import ProcessBills
 from View.enterbill.ep import ProcessExcel
 from View.models import ViewUploadBill
 from celery import shared_task
+
+
 
 # @background(schedule=3600)
 @shared_task
