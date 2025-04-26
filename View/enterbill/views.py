@@ -236,7 +236,7 @@ class UploadfileView(APIView):
     def get(self, request, *args, **kwargs):
         orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
         vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
-        onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None), many=True)
+        onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None).exclude(Entry_type="Master Account"), many=True)
 
         baselineData = BaselineDataTableShowSerializer(BaselineDataTable.objects.all(), many=True)
 

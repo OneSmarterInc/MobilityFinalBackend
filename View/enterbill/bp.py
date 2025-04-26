@@ -17,7 +17,7 @@ from email.mime.text import MIMEText
 import numpy as np
 from OnBoard.Ban.models import PdfDataTable, UniquePdfDataTable, BaselineDataTable, BaseDataTable
 import pdfplumber
- 
+import io
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -463,11 +463,22 @@ class ProcessBills:
             updated_data.pop('charges') if 'charges' in updated_data else None
             filtered_data = remove_filds(BaselineDataTable, updated_data)
             BaselineDataTable.objects.create(viewuploaded=self.instance,**filtered_data)
+
+    def dataframe_to_excel(df1, df2, df3, df4):
+        print("def dataframe_to_excel")
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df1.to_excel(writer, sheet_name='Sheet1', index=False)
+            df2.to_excel(writer, sheet_name='Sheet2', index=False)
+            df3.to_excel(writer, sheet_name='Sheet3', index=False)
+            df4.to_excel(writer, sheet_name='Sheet4', index=False)
+        output.seek(0)
+        return output
     def process(self):
         logger.info('Extracting data from PDF')
         try:    
             data, acc_info, bill_date_info = self.extract_data_from_pdf()
-                            
+            
             self.save_to_base_data_table(data)
             temp_data = data
             temp_df = pd.DataFrame([temp_data])
@@ -549,6 +560,8 @@ class ProcessBills:
         except Exception as e:
             print(f"Failed to send email notification. Error:",{e})
             message = 'file could not be processed due to invalid format or invalid content'
+
+        
         sender_email = 'avinashkalmegh93@gmail.com'
         receiver_email = 'kunalkalpande1999@gmail.com'
         subject = 'File Processing Notification'

@@ -476,7 +476,6 @@ def process_bills(buffer_data, instance):
     os.makedirs(output_dir, exist_ok=True)
     output_file_path = os.path.join(output_dir, workbook_name)
 
-    # Save the workbook to a file
     try:
         with open(output_file_path, "wb") as f:
             f.write(workbook.getvalue())
@@ -505,4 +504,195 @@ def process_bills(buffer_data, instance):
         f.close()
     except:
         pass
-    
+import pdfplumber
+from Scripts.verizon import PDFExtractor, First, Model1, Model2, Model3, Model4
+from Scripts.Att import first_page_extractor, Att, process_all
+from Scripts.tmobile1 import get_all_dataframes_type_1
+from Scripts.tmobile2 import extract_text_from_t_mobile_2
+class ProcessBills:
+    def __init__(self, buffer_data,instance):
+        print(buffer_data)
+        self.buffer_data = buffer_data
+        self.pdf_path = self.buffer_data['pdf_path'] if 'pdf_path' in self.buffer_data else None
+        self.company_name = self.buffer_data['company_name'] if 'company_name' in self.buffer_data else None
+        self.vendor_name = self.buffer_data['vendor_name'] if 'vendor_name' in self.buffer_data else None
+        self.pdf_filename = self.buffer_data['pdf_filename'] if 'pdf_filename' in self.buffer_data else None
+        self.month = self.buffer_data['month'] if 'month' in self.buffer_data else None
+        self.entry_type = self.buffer_data['entry_type'] if 'entry_type' in self.buffer_data else None
+        self.baseline_check = True
+        self.location = self.buffer_data['location'] if 'location' in self.buffer_data else None
+        self.master_account = self.buffer_data['master_account'] if 'master_account' in self.buffer_data else None
+        self.year = self.buffer_data['year'] if 'year' in self.buffer_data else None
+        self.types = self.buffer_data['types'] if 'types' in self.buffer_data else None
+        # self.email = self.buffer_data['email'] if 'email' in self.buffer_data else None
+        self.sub_company = self.buffer_data['sub_company_name'] if 'sub_company_name' in self.buffer_data else None
+        self.t_mobile_type = self.check_tmobile_type() if 'mobile' in str(self.vendor_name).lower() else 0
+        logger.info(f'Processing PDF from buffer: {self.pdf_path}, {self.company_name}, {self.vendor_name}, {self.pdf_filename}')
+
+        self.instance = instance
+        self.check = True
+    def check_tmobile_type(self):
+        print("def check_tmobile_type")
+        Lines = []
+        with pdfplumber.open(self.pdf_path) as pdf:
+            for i, page in enumerate(pdf.pages):
+                if i == 0:
+                    page_text = page.extract_text()
+                    lines = page_text.split('\n')
+                    Lines.extend(lines)
+                else:
+                    break
+
+        if 'Bill period Account Invoice Page' in Lines[0]:
+            print("Type2 : Bill period Account Invoice Page")
+            return 2
+        elif 'Your Statement' in Lines[0]:
+            print("Type1 : Your Statement")
+            return 1
+        else:
+            0
+    def extract_data_from_pdf(self):
+        print("def extract_data_from_pdf")
+        logger.info(f'Extracting data from PDF: {self.pdf_path}')
+        at_vendor_list = ['AT&T','AT n T','ATT','at&t','att','at n t']
+        t_mobile_list = ['T_Mobile','t-mobile','T-mobile','t_mobile']
+
+        if 'mobile' in str(self.vendor_name).lower() and self.t_mobile_type == 1:
+            base_data_df,pdf_df,temp,rox,on,dates,acc_nos = get_all_dataframes_type_1(self.pdf_path)
+            base_data_df.drop(columns=['Previous Balance','Grand Total','Monthly Recurring Charges','Other Charges', 'Taxes & Surcharges'],inplace=True)
+            base_data_df.rename(columns={'Account Number':'AccountNumber','Address':"Billing Address",'Vendor_Address':'Remidence_Address'},inplace=True)
+            base_data_df.columns = base_data_df.columns.str.replace(' ', '_')
+            data_dict = base_data_df.to_dict(orient='records')
+            acc_info = acc_nos
+            bill_date_info = dates
+            data_dict = data_dict[0]
+            data_dict['company'] = self.company_name
+            data_dict['vendor'] = self.vendor_name
+            data_dict['pdf_path'] = self.pdf_path
+            data_dict['pdf_filename'] = self.pdf_filename
+            data_dict['month'] = self.month
+            data_dict['year'] = self.year
+            data_dict['sub_company'] = self.sub_company
+            data_dict['Bill_Date'] = dates
+            data_dict['entry_type'] = self.entry_type
+
+            data_dict['location'] = self.location
+            data_dict['master_account'] = self.master_account
+
+        elif 'mobile' in str(self.vendor_name).lower() and self.t_mobile_type == 2:
+            unique_df,base_df,temp_check = extract_text_from_t_mobile_2(self.pdf_path)
+            base_df.rename(columns={'account.number':'AccountNumber','invoice.number':'InvoiceNumber'},inplace=True)
+            data_dict = base_df.to_dict(orient='records')
+            acc_info = '12345678'
+            bill_date_info = 'jan1'
+            data_dict = data_dict[0]
+            data_dict['company'] = self.company_name
+            data_dict['vendor'] = self.vendor_name
+            data_dict['pdf_path'] = self.pdf_path
+            data_dict['pdf_filename'] = self.pdf_filename
+            data_dict['month'] = self.month
+            data_dict['year'] = self.year
+            data_dict['sub_company'] = self.sub_company  
+        elif 'verizon' in str(self.vendor_name).lower():
+            lines_to_extract = [2, 3, 4, 5]
+            extractor = PDFExtractor(self.pdf_path)
+            extractor.extract_data()
+            extractor.process_pdf(lines_to_extract)
+            data = extractor.get_result_df()
+            acc_info = extractor.get_accounts_info()
+            bill_date_info = extractor.get_bill_date()
+            data_dict = data.to_dict(orient='toastrecords')
+            for entry in data_dict:
+                entry['company'] = self.company_name
+                entry['vendor'] = self.vendor_name
+                entry['pdf_path'] = self.pdf_path
+                entry['pdf_filename'] = self.pdf_filename
+                entry['month'] = self.month
+                entry['year'] = self.year
+                entry['sub_company'] = self.sub_company
+                entry['entry_type'] = self.entry_type
+
+                entry['location'] = self.location
+                entry['master_account'] = self.master_account
+        else:
+        # elif vendor_nm in at_vendor_list:
+            first_obj = first_page_extractor(self.pdf_path)
+            data_dict = first_obj.first_page_data_func()
+            acc_info = first_obj.get_acc_info()
+            bill_date_info = first_obj.get_bill_date_info()
+            data_dict['company'] = self.company_name
+            data_dict['vendor'] = self.vendor_name
+            data_dict['pdf_path'] = self.pdf_path
+            data_dict['pdf_filename'] = self.pdf_filename
+            data_dict['month'] = self.month
+            data_dict['year'] = self.year
+            data_dict['sub_company'] = self.sub_company
+            data_dict['entry_type'] = self.entry_type
+
+            data_dict['location'] = self.location
+            data_dict['master_account'] = self.master_account
+
+        return data_dict,acc_info,bill_date_info
+    def extract_total_pdf_data(self,acc_info,bill_date):
+        print("def extract_total_pdf_data")
+        total_dict = None
+        result_df = None
+        tmp_df = None
+        if 'mobile' in str(self.vendor_name).lower():
+            print("vendor name is mobile")
+            print(self.vendor_name)
+            if self.t_mobile_type == 1:
+                print('got first')
+                print('>>>>>>>>>>>>><<<<<<<<<<<<<<>>>>>>>>>>>>><<<<<<<<<<<>>>>>>>>>>>')
+                base_data_df,pdf_df,tmp_df,in_valid_df,usage_df,dates,acc_nos = get_all_dataframes_type_1(self.pdf_path)
+                print('>>>>>>>>>>>>>>>qwertyui<<<<<<<<<<<<')
+                pdf_df['account_number'] = acc_info
+                total_dict = pdf_df.to_dict(orient='records')
+                result_df = pdf_df
+            elif self.t_mobile_type == 2:
+                print('got second')
+                unique_df,base_data_df,detail_df = extract_text_from_t_mobile_2(self.pdf_path)
+                total_dict = unique_df.to_dict(orient='records')
+                result_df = unique_df
+            else:
+                return {'message': 'Invalid tmobile type', 'Error' : 1}
+        elif 'verizon' in str(self.vendor_name).lower():
+            extractor = Model4(self.pdf_path,acc_info)
+            result,tmp_df = extractor.process_pdf()
+            temp_result_df = result
+            df_unique = temp_result_df.drop_duplicates(subset=['Wireless_number'])
+            df_unique_dict = df_unique.to_dict(orient='records')
+            total_dict = df_unique_dict
+            result_df = result
+        else:
+            df_unique,final_df,usage_df,tmp_df = process_all(self.pdf_path)
+            df_unique['account_number'] = acc_info
+            final_df['account_number'] = acc_info
+            df_unique_dict = df_unique.to_dict(orient='records')
+            total_dict = df_unique_dict
+            result_df = final_df
+        for entry in total_dict:
+            entry['company'] = self.company_name
+            entry['vendor'] = self.vendor_name
+            entry['sub_company'] = self.sub_company
+
+            entry['location'] = self.location
+
+            if isinstance(bill_date, list):
+                entry['bill_date'] = bill_date[0]
+            else:
+                entry['bill_date'] = bill_date
+        res_data_dict = result_df.to_dict(orient='records')
+        for entry in res_data_dict:
+            entry['company'] = self.company_name
+            entry['vendor'] = self.vendor_name
+            entry['sub_company'] = self.sub_company
+            entry['location'] = self.location
+        return res_data_dict,total_dict,tmp_df
+    def process(self):
+        logger.info('Extracting data from PDF')
+        xlsx_first_dict, acc_info, bill_date_info = self.extract_data_from_pdf()
+        self.save_to_base_data_table(xlsx_first_dict)
+        if isinstance(bill_date_info, list):
+            bill_date_info = bill_date_info[0]
+        xlsx_unique, xlsx_duplicate = self.extract_total_pdf_data(acc_info, bill_date_info)

@@ -37,11 +37,14 @@ class InventoryView(APIView):
         }
     def put(self, request,pk=None, *args, **kwargs):
         data = request.data
+        
         if not pk:
             try:
                 for inv in data:
-                    
+                    print(inv)
                     obj = UniquePdfDataTable.objects.get(id=inv.get('id'))
+                    print(obj)
+                    
                     if (obj.banOnboarded):
                         inv['banOnboarded'] = obj.banOnboarded.id
                     if (obj.banUploaded):
@@ -53,15 +56,16 @@ class InventoryView(APIView):
                     else:
                         print(ser.errors)
                         return Response({"message":f"Unexpected error {ser.errors}"}, status=status.HTTP_400_BAD_REQUEST)
-                    wn = data.get('wireless_number')
-                    data['wireless_number'] = wn
-                    baseline_obj = BaselineDataTable.objects.get(account_number=obj.account_number, wireless_number=obj.wireless_number, vendor=obj.vendor)
-                    baselineser = BaselineTableSaveSerializer(baseline_obj, data=data, partial=True)
-                    if baselineser.is_valid():
-                        baselineser.save()
-                    else:
-                        print(ser.errors)
-                        return Response({"message":f"Unexpected error {ser.errors}"}, status=status.HTTP_400_BAD_REQUEST)
+                    wn = inv.get('Wireless_number')
+                    inv['Wireless_number'] = wn
+                    baseline_obj = BaselineDataTable.objects.filter(account_number=obj.account_number, Wireless_number=obj.wireless_number, vendor=obj.vendor)
+                    if baseline_obj:
+                        baselineser = BaselineTableSaveSerializer(baseline_obj[0], data=inv, partial=True)
+                        if baselineser.is_valid():
+                            baselineser.save()
+                        else:
+                            print(ser.errors)
+                            return Response({"message":f"Unexpected error {ser.errors}"}, status=status.HTTP_400_BAD_REQUEST)
                 return Response({"message":"Inventories updated successfully"}, status=status.HTTP_200_OK)
             except Exception as e:
                 print(e)
