@@ -552,6 +552,7 @@ class BaselineDataTable(models.Model):
         return self.account_number
     
 class BatchReport(models.Model):
+    banUploaded = models.ForeignKey(UploadBAN, related_name='banUploadedbatch', on_delete=models.CASCADE, null=True, blank=True)
     banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedbatchreport', on_delete=models.CASCADE, null=True, blank=True)
     viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewbatch', on_delete=models.CASCADE, null=True, blank=True)
     Cust_Id = models.CharField(max_length=100, null=True, blank=True, default='NA')

@@ -13,11 +13,10 @@ class uploadaccountser(serializers.ModelSerializer):
         fields = ['account_number', 'Vendor', 'organization']
 
 class baseaccser(serializers.ModelSerializer):
-    organization = serializers.CharField(max_length=255)
     vendor = serializers.CharField(max_length=255)
     class Meta:
         model = BaseDataTable
-        fields = ['accountnumber', 'vendor', 'organization']
+        fields = ['accountnumber', 'vendor', 'sub_company']
 
 class showContractSerializer(serializers.ModelSerializer):
     baseban = baseaccser()

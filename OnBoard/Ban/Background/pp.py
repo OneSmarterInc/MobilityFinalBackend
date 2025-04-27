@@ -165,6 +165,7 @@ class ProcessPdf:
             updated_data.pop("foundation_account") if 'foundation_account' in updated_data else None
             filtered_data = remove_filds(BaseDataTable, updated_data)
             print(filtered_data)
+            filtered_data['location'] = self.location
             BaseDataTable.objects.create(banOnboarded=self.instance, **filtered_data)
         elif type(data) == list:
             for item in data:
@@ -172,6 +173,7 @@ class ProcessPdf:
                 updated_data.pop("foundation_account") if 'foundation_account' in updated_data else None
                 filtered_data = remove_filds(BaseDataTable, updated_data)
                 print(filtered_data)
+                filtered_data['location'] = self.location
                 BaseDataTable.objects.create(banOnboarded=self.instance, **filtered_data)
 
     def extract_total_pdf_data(self,acc_info,bill_date):

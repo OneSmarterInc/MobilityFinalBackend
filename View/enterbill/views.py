@@ -33,11 +33,21 @@ class PaperBillView(APIView):
             billdate = request.GET.get('billdate')
             duedate = request.GET.get('duedate')
             base = BaseDataTable.objects.filter(banOnboarded=None,banUploaded=None).filter(sub_company=org, vendor=vendor, accountnumber=ban)
+            if not base.exists():
+                return Response({"message": f"No baseline found for account number {ban}"}, status=status.HTTP_404_NOT_FOUND)
             print(base)
             if invoice_number:
                 base = base.filter(invoicenumber=invoice_number)
-            if not base.exists():
-                return Response({"message": f"No data found for invoice {invoice_number}"}, status=status.HTTP_404_NOT_FOUND)
+                if not base.exists():
+                    return Response({"message": f"No baseline found for invoice {invoice_number}"}, status=status.HTTP_404_NOT_FOUND)
+            # if billdate:
+            #     base = base.filter(bill_date=billdate)
+            #     if not base.exists():
+            #         return Response({"message": f"No baseline found for bill date {billdate}"}, status=status.HTTP_404_NOT_FOUND)
+            if duedate:
+                base = base.filter(due_date=duedate)
+                if not base.exists():
+                    return Response({"message": f"No baseline found for bill date {duedate}"}, status=status.HTTP_404_NOT_FOUND)
             baseline = BaselineDataTable.objects.filter(viewuploaded=base[0].viewuploaded, account_number=base[0].accountnumber).filter(is_draft=False, is_pending=False)
             self.filtered_baseline = BaselineDataTableShowSerializer(baseline, many=True).data
         return Response(
@@ -547,7 +557,7 @@ class ProcessPdf:
         if self.month != str(bill_date_pdf).split(' ')[0] and self.year != str(bill_date_pdf).split(' ')[2]:
             self.instance.delete()
             return {'message' : f'Bill date from the Pdf file did not matched with input month and year', 'error' : -1}
-        if not BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org, bill_date=bill_date_pdf):  # temprory set to not
+        if BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org, bill_date=bill_date_pdf):  # temprory set to not
             self.instance.delete()
             return {'message' : f'The bill with account number {acc_no} and bill date {bill_date_pdf} already exists', 'error' : -1}
         return {

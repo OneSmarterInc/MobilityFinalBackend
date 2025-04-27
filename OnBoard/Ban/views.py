@@ -200,8 +200,26 @@ class UploadBANView(APIView):
 
             )
             obj.save()
-            # batch = BatchReport.objects.create()
-            # batch.save()
+            batch = BatchReport.objects.create(
+                banUploaded = upload_ban,
+                sub_company_name = upload_ban.organization.Organization_name if upload_ban.organization else None,
+                sub_company = upload_ban.organization.Organization_name if upload_ban.organization else None,
+                Entry_type = upload_ban.entryType.name if upload_ban.entryType else None,
+                master_account = upload_ban.masteraccount,
+                location = upload_ban.location.site_name if upload_ban.location else None,
+                Customer_Vendor_Account_Number = upload_ban.account_number,
+                Vendor_Name_1 = upload_ban.Vendor.name if upload_ban.Vendor else None,
+                Vendor_Address_1 = upload_ban.RemittanceAdd,
+                Vendor_City = upload_ban.RemittanceCity,
+                Vendor_State = upload_ban.RemittanceState,
+                Vendor_Zip = upload_ban.RemittanceZip,
+                company = upload_ban.company.Company_name if upload_ban.company else None,
+                Invoice_Number = obj.invoicenumber,
+                Invoice_Date = obj.bill_date,
+                Due_Date = obj.date_due,
+                Net_Amount = obj.Total_Amount_Due
+            )
+            batch.save()
             saveuserlog(request.user, f"BAN with account number {upload_ban.account_number} created successfully!")
 
         except Exception as e:
@@ -309,7 +327,9 @@ class UploadBANView(APIView):
     
     def delete(self, request, pk):
         try:
-            ban = UploadBAN.objects.get(id=pk)
+            print(pk)
+            base = BaseDataTable.objects.get(id=pk).banUploaded.id
+            ban = UploadBAN.objects.get(id=base)
             acc = ban.account_number
             ban.delete()
             saveuserlog(request.user, f"BAN with account number {acc} deleted successfully!")
@@ -651,12 +671,13 @@ class OnboardBanView(APIView):
     
     def delete(self, request, pk):
         try:
-            ban = OnboardBan.objects.get(account_number=pk)
+            base = BaseDataTable.objects.get(id=pk).banOnboarded.id
+            ban = OnboardBan.objects.get(account_number=base)
             ban.delete()
-            saveuserlog(request.user, f"Onboard BAN with account number {pk} deleted successfully!")
-            return Response({"message" : "Onboard BAN deleted successfully!"}, status=status.HTTP_200_OK)
+            saveuserlog(request.user, f"Onboarded BAN with account number {pk} deleted successfully!")
+            return Response({"message" : "Onboarded BAN deleted successfully!"}, status=status.HTTP_200_OK)
         except OnboardBan.DoesNotExist:
-            return Response({"message" : "Onboard BAN not found!"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message" : "Onboarded BAN not found!"}, status=status.HTTP_404_NOT_FOUND)
         
 from .models import InventoryUpload, BaseDataTable
 from .ser import InventoryUploadSerializer

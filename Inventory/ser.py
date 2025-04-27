@@ -144,16 +144,9 @@ class CompanyShowOnboardSerializer(serializers.ModelSerializer):
         fields = ['id', 'Company_name', 'company_organizations']
 
 class BaseDataTableShowSerializer(serializers.ModelSerializer):
-    banOnboarded = serializers.CharField(max_length=255)
-    costcenterlevel = serializers.CharField()
-    costcentertype = serializers.CharField()
-    costcenterstatus = serializers.CharField()
-    bantype = serializers.CharField()
-    invoicemethod = serializers.CharField()
-    paymentType = serializers.CharField()
     class Meta:
         model = BaseDataTable
-        fields = '__all__'
+        fields = ('company', 'sub_company', 'location','vendor','accountnumber','Entry_type')
 
 from OnBoard.Ban.models import UniquePdfDataTable
 class UniqueTableShowSerializer(serializers.ModelSerializer):

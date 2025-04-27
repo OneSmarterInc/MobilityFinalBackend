@@ -213,6 +213,20 @@ class BanInfoView(APIView):
             return Response({"message":"Ban updated successfully"}, status=status.HTTP_200_OK)
         else:
             return Response({"message":f"{str(ser.errors)}"},status=status.HTTP_400_BAD_REQUEST)
+    def delete(self, request, org, vendor, ban, *args, **kwargs):
+        
+        base = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban)
+        if not base:
+            return Response({"message":f"Ban with account number {ban} not found!"},status=status.HTTP_400_BAD_REQUEST)
+        print(base[0].banOnboarded, base[0].banUploaded)
+        if base[0].banOnboarded:
+            obj = OnboardBan.objects.get(id=base[0].banOnboarded.id)
+        elif base[0].banUploaded:
+            obj = UploadBAN.objects.get(id=base[0].banUploaded.id)
+        else:
+            return Response({"message":f"Ban with account number {ban} not found!"},status=status.HTTP_400_BAD_REQUEST)
+        obj.delete()
+        return Response({"message":f"Ban with account number {ban} deleted successfully!"})
         
 
 from Dashboard.ModelsByPage.DashAdmin import EntryType, BillType, PaymentType, InvoiceMethod, BanType, BanStatus, CostCenterLevel, CostCenterType
@@ -329,6 +343,7 @@ class MobileView(APIView):
                     "message": f"mobile data of number {data['wireless_number']} added successfully!"
                 },status=status.HTTP_201_CREATED)
             else:
+                print(serializer.errors)
                 return Response({
                     "message": str(serializer.errors)
                 },status=status.HTTP_400_BAD_REQUEST)
