@@ -122,7 +122,9 @@ class InventoryDataView(APIView):
             return Response({"message": "Error getting data"}, status=status.HTTP_401_UNAUTHORIZED)
 from OnBoard.Organization.ser import DivisionNameSerializer
 from OnBoard.Organization.models import Division
-from .ser import UniqueTableShowSerializer, BanSaveSerializer
+from OnBoard.Ban.models import PortalInformation
+from .ser import UniqueTableShowSerializer, BanSaveSerializer, BaseDataTableAllShowSerializer
+from OnBoard.Ban.PortalInfo.ser import showPortalInfoser
 class BanInfoView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -132,7 +134,12 @@ class BanInfoView(APIView):
             locobj = Location.objects.filter(organization=orgobject)
             vendorobject = Vendors.objects.get(name=vendor)
             banobject = BaseDataTable.objects.filter(viewuploaded=None).get(accountnumber=ban)
+            if banobject.banUploaded:
+                portalinfo = PortalInformation.objects.get(banUploaded=banobject.banUploaded.id)
+            elif banobject.banOnboarded:
+                portalinfo = PortalInformation.objects.get(banOnboarded=banobject.banOnboarded.id)
             banser = BanShowSerializer(banobject)
+            pser = showPortalInfoser(portalinfo)
         except Organizations.DoesNotExist:
             return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
         except Vendors.DoesNotExist:
@@ -150,7 +157,7 @@ class BanInfoView(APIView):
         allonboards = BaseDataTable.objects.filter(viewuploaded=None).filter(sub_company=org)
 
 
-        allonboards = BaseDataTableShowSerializer(allonboards, many=True)
+        allonboards = BaseDataTableAllShowSerializer(allonboards, many=True)
 
 
         return Response({
@@ -160,28 +167,21 @@ class BanInfoView(APIView):
             "locations": locser.data,
             "onboarded": allonboards.data,
             "divisions" : divisions.data,
-            "linesall" : UniqueTableShowSerializer(banlines,many=True).data
+            "linesall" : UniqueTableShowSerializer(banlines,many=True).data,
+            "portal":pser.data
             }, status=status.HTTP_200_OK)
     
     def post(self, request, org, vendor, ban, *args, **kwargs):
-        print(org, vendor, ban)
-
-        print(request.data)
-        orgobj = Organizations.objects.get(Organization_name=request.data['sub_company'])
-
-        comobj = Company.objects.get(Company_name=request.data['company'])
-
         try:
-            obj = UploadBAN.objects.get(company=comobj,organization=orgobj, account_number=request.data['AccountNumber'])
-        except UploadBAN.DoesNotExist:
-            try:
-                obj = BaseDataTable.objects.get(company=comobj.Company_name,organization=orgobj.Organization_name, accountnumber=request.data['AccountNumber'])
-            except BaseDataTable.DoesNotExist:
-                return Response(
-                    {"message": "Ban not found"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
+            obj = BaseDataTable.objects.filter(viewuploaded=None).filter(sub_company=org, vendor=vendor, accountnumber=ban)
+        except:
+            return Response(
+                {"message": "Ban not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
         
+        obj = obj[0] 
+        print(request.data)
 
         if request.data['type'] == 'add-remark':
             obj.remarks = request.data['remarks']

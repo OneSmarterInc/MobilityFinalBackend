@@ -12,34 +12,34 @@ from Dashboard.ModelsByPage.DashAdmin import Vendors
 class PortalInformationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request, pk=None, *args, **kwargs):
-        if pk:
-            obj = PortalInformation.objects.get(id=pk)
-            ser = showPortalInfoser(obj)
-        else:
-            all_objs = PortalInformation.objects.all()
-            ser = showPortalInfoser(all_objs, many=True)
+    def get(self, request,pk=None,*args, **kwargs):
+        
+        obj = PortalInformation.objects.filter(id=pk)
+        if not obj.exists():
+            return Response({"message":f"Portal Information not found!"},status=status.HTTP_400_BAD_REQUEST)
+        obj = obj[0]
+        
+        ser = showPortalInfoser(obj)
+        print(ser.data)
 
         return Response({"data" : ser.data,
         }, status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
-        print("post")
+        pass
+    def put(self, request, pk, *args, **kwargs):
+        
+        print("put")
         data = request.data.copy()
-        print(data)
-        acc = data.get("Account_number")
-        ven = data.get("Vendor")
-        com = data.get("company")
-        obj = BaseDataTable.objects.filter(accountnumber=acc, vendor=ven, company=com)
-        if not obj.exists():
-            obj = UploadBAN.objects.filter(company=Company.objects.get(Company_name=com), Vendor=Vendors.objects.get(name=ven), account_number=acc)
-            if not obj.exists():
-                return Response({"message": f"{acc} not found!"}, status=status.HTTP_400_BAD_REQUEST)
-            else:
-                data['banUploaded'] = obj[0].id
-        else:
-            data['banOnboarded'] = obj[0].banOnboarded.id
         try:
-            ser = showPortalInfoser(data=data)
+            obj = PortalInformation.objects.get(id=pk)
+        except PortalInformation.DoesNotExist:
+            return Response({"message":f"Portal Information not found!"},status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"message":f"{str(e)}"},status=status.HTTP_400_BAD_REQUEST)
+        print(data)
+    
+        try:
+            ser = showPortalInfoser(obj, data=data,partial=True)
             if ser.is_valid():
                 ser.save()
                 return Response({"message" : "Portal Information Added successfully"}, status=status.HTTP_201_CREATED)
@@ -47,7 +47,5 @@ class PortalInformationView(APIView):
                 return Response({"message": str(ser.errors)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    def put(self, request, pk, *args, **kwargs):
-        pass
     def delete(self, request, pk, *args, **kwargs):
         pass

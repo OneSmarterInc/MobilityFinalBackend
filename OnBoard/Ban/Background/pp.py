@@ -17,12 +17,13 @@ from email.mime.text import MIMEText
 import numpy as np
 import pdfplumber
 from ..models import UniquePdfDataTable
+import ast
 from django.db import transaction
 from ..models import BaseDataTable
 from ..models import PdfDataTable
 from django.db.models import Max
 from django.db import transaction
-from ..models import BatchReport
+from ..models import BatchReport, PortalInformation
 from django.db import models
 from ..models import BaselineDataTable
 logging.basicConfig(level=logging.INFO)
@@ -44,7 +45,7 @@ class ProcessPdf:
         self.master_account = self.buffer_data['master_account'] if 'master_account' in self.buffer_data else None
         self.year = self.buffer_data['year'] if 'year' in self.buffer_data else None
         self.types = self.buffer_data['types'] if 'types' in self.buffer_data else None
-        # self.email = self.buffer_data['email'] if 'email' in self.buffer_data else None
+        self.email = self.buffer_data['user_email'] if 'user_email' in self.buffer_data else None
         self.sub_company = self.buffer_data['sub_company'] if 'sub_company' in self.buffer_data else None
         self.t_mobile_type = self.check_tmobile_type() if 'mobile' in str(self.vendor_name).lower() else 0
         logger.info(f'Processing PDF from buffer: {self.pdf_path}, {self.company_name}, {self.vendor_name}, {self.pdf_filename}')
@@ -176,6 +177,16 @@ class ProcessPdf:
                 filtered_data['location'] = self.location
                 BaseDataTable.objects.create(banOnboarded=self.instance, **filtered_data)
 
+    def save_to_portal_info(self, data):
+        obj = PortalInformation.objects.create(
+            URL = data['Website'] if 'Website' in data else None,
+            banOnboarded = self.instance,
+            Customer_Name = self.sub_company,
+            Vendor = self.vendor_name,
+            Account_number = data['AccountNumber'],
+            User_email_id = self.email,
+        )
+        obj.save()
     def extract_total_pdf_data(self,acc_info,bill_date):
         print("def extract_total_pdf_data")
         total_dict = None
@@ -671,6 +682,10 @@ class ProcessPdf:
             
 
             self.save_to_base_data_table(data)
+            print(data)
+            
+            self.save_to_portal_info(data=data[0] if type(data) == list else data)
+            
             temp_data = data
             temp_df = pd.DataFrame([temp_data])
             if 'Net_Amount' not in temp_df.columns:

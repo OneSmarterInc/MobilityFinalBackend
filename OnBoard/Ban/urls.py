@@ -28,7 +28,7 @@ inventoryuploadurls = [
 from .PortalInfo.view import PortalInformationView
 portalinfo = [
     path("portal-information/", PortalInformationView.as_view(), name='portal-info-list-create'),
-    path("portal-information/<str:pk>/", PortalInformationView.as_view(), name='portal-info-detail'),
+    path("portal-information/<pk>/", PortalInformationView.as_view(), name='portal-info-update'),
 ]
 
 banurlpatterns.extend(uploadbanurls)

@@ -40,7 +40,7 @@ class ViewBill(APIView):
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         print(request.data)
         if request.data['type'] == 'change-payment':
-            obj.paymentType = PaymentType.objects.get(name=request.data['paymentType'])
+            obj.paymentType = request.data['paymentType']
             saveuserlog(
                 request.user, "Changed payment type to " + request.data['paymentType'] + " for Base Data with ID: " + str(pk)
             )

@@ -25,7 +25,7 @@ class BanTypeView(APIView):
     def post(self, request):
         if BanType.objects.filter(name=request.data["name"]).exists():
             return Response({"message": "Ban type with this name already exists!"}, status=status.HTTP_400_BAD_REQUEST)
-        serializer = BanStatusOperationSerializer(data=request.data)
+        serializer = BanTypeOperationSerializer(data=request.data)
         ser = BanTypeOperationSerializer(data=request.data)
         if ser.is_valid():
             ser.save()

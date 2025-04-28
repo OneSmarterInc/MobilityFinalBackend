@@ -611,15 +611,15 @@ class BatchReport(models.Model):
 class PortalInformation(models.Model):
     banUploaded = models.ForeignKey(UploadBAN, related_name='uploadedportalinfo', on_delete=models.CASCADE, null=True, blank=True)
     banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedportalinfo', on_delete=models.CASCADE, null=True, blank=True)
-    URL = models.CharField(max_length=1000)
-    Username = models.CharField(max_length=250)
-    Password = models.CharField(max_length=250)
-    Customer_Name = models.CharField(max_length=250)
-    Vendor = models.CharField(max_length=250)
-    Account_number = models.CharField(max_length=250)
-    User_email_id = models.CharField(max_length=250)
-    Automated = models.CharField(max_length=250)
-    On_Email = models.CharField(max_length=250)
+    URL = models.CharField(max_length=1000, null=True, blank=True)
+    Username = models.CharField(max_length=250, null=True, blank=True)
+    Password = models.CharField(max_length=250, null=True, blank=True)
+    Customer_Name = models.CharField(max_length=250, null=True, blank=True)
+    Vendor = models.CharField(max_length=250, null=True, blank=True)
+    Account_number = models.CharField(max_length=250, null=True, blank=True)
+    User_email_id = models.CharField(max_length=250, null=True, blank=True)
+    Automated = models.CharField(max_length=250, null=True, blank=True)
+    On_Email = models.CharField(max_length=250, null=True, blank=True)
     
     class Meta:
         db_table = 'PortalInformation'

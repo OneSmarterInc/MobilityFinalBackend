@@ -148,6 +148,10 @@ class BaseDataTableShowSerializer(serializers.ModelSerializer):
         model = BaseDataTable
         fields = ('company', 'sub_company', 'location','vendor','accountnumber','Entry_type')
 
+class BaseDataTableAllShowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BaseDataTable
+        fields = '__all__'
 from OnBoard.Ban.models import UniquePdfDataTable
 class UniqueTableShowSerializer(serializers.ModelSerializer):
     banOnboarded = serializers.CharField(max_length=255)

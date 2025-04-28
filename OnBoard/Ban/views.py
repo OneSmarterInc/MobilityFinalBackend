@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import permissions
 from rest_framework import status
 
-from .models import UploadBAN, Lines, BatchReport
+from .models import UploadBAN, Lines, BatchReport, PortalInformation
 from .ser import UploadBANSerializer
 from authenticate.views import saveuserlog
 from django.forms.models import model_to_dict
@@ -20,6 +20,7 @@ import ast
 from OnBoard.Ban.models import UniquePdfDataTable
 import os
 from checkbill import prove_bill_ID
+
 class UploadBANView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -220,6 +221,15 @@ class UploadBANView(APIView):
                 Net_Amount = obj.Total_Amount_Due
             )
             batch.save()
+            portal = PortalInformation.objects.create(
+                banUploaded = upload_ban,
+                Password = upload_ban.account_password,
+                Customer_Name = upload_ban.organization.Organization_name,
+                Vendor = upload_ban.Vendor.name,
+                Account_number = upload_ban.account_number,
+                User_email_id = request.user.email,
+            )
+            portal.save()
             saveuserlog(request.user, f"BAN with account number {upload_ban.account_number} created successfully!")
 
         except Exception as e:
