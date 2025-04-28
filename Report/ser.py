@@ -20,11 +20,9 @@ class VendorShowSerializer(serializers.ModelSerializer):
         fields = ['name',]
     
 class showBanSerializer(serializers.ModelSerializer):
-    organization = serializers.CharField(max_length=255)
-    Vendor = serializers.CharField(max_length=255)
     class Meta:
-        model = UploadBAN
-        fields = ['account_number','organization', 'Vendor']
+        model = BaseDataTable
+        fields = ['accountnumber','sub_company', 'vendor']
 
 class saveUnbilledSerializer(serializers.ModelSerializer):
     class Meta:

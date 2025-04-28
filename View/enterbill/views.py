@@ -557,7 +557,7 @@ class ProcessPdf:
         if self.month != str(bill_date_pdf).split(' ')[0] and self.year != str(bill_date_pdf).split(' ')[2]:
             self.instance.delete()
             return {'message' : f'Bill date from the Pdf file did not matched with input month and year', 'error' : -1}
-        if not BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org, bill_date=bill_date_pdf):  # temprory set to not
+        if BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org, bill_date=bill_date_pdf):  # temprory set to not
             self.instance.delete()
             return {'message' : f'The bill with account number {acc_no} and bill date {bill_date_pdf} already exists', 'error' : -1}
         return {

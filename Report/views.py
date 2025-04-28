@@ -31,11 +31,11 @@ class UploadFileView(APIView):
         if request.user.designation.name == 'Admin':
             orgs = OrganizationShowSerializer(Organizations.objects.filter(company=request.user.company), many=True)
             vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
-            bans = showBanSerializer(UploadBAN.objects.filter(company=request.user.company), many=True)
+            bans = showBanSerializer(BaseDataTable.objects.filter(company=request.user.company, viewuploaded=None), many=True)
         else:
             orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
             vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
-            bans = showBanSerializer(UploadBAN.objects.all(), many=True)
+            bans = showBanSerializer(BaseDataTable.objects.filter(company=request.user.company, viewuploaded=None), many=True)
         company = Company.objects.get(Company_name=request.user.company.Company_name) if request.user.company else None
         filter_kwargs = {}
         if company:
@@ -360,11 +360,11 @@ class ViewReportView(APIView):
         if request.user.designation.name == 'Admin':
             orgs = OrganizationShowSerializer(Organizations.objects.filter(company=request.user.company), many=True)
             vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
-            bans = showBanSerializer(UploadBAN.objects.filter(company=request.user.company), many=True)
+            bans = showBanSerializer(BaseDataTable.objects.filter(company=request.user.company, viewuploaded=None), many=True)
         else:
             orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
             vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
-            bans = showBanSerializer(UploadBAN.objects.all(), many=True)
+            bans = showBanSerializer(BaseDataTable.objects.filter(viewuploaded=None), many=True)
 
         if report_type and report_type == 'Billed_Data_Usage':
             if not sub_type:
