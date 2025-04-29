@@ -187,7 +187,7 @@ class UploadBANView(APIView):
                 CustomerOfRecord = upload_ban.CustomerOfRecord,
 
                 costcenterlevel = upload_ban.costcenterlevel.name if upload_ban.costcenterlevel else "NaN",
-                costcentertype = upload_ban.costcentertype if upload_ban.costcentertype else "NaN",
+                costcentertype = upload_ban.costcentertype.name if upload_ban.costcentertype else "NaN",
                 costcenterstatus = upload_ban.costcenterstatus,
                 CostCenter = upload_ban.CostCenter,
                 CostCenterNotes = upload_ban.CostCenterNotes,
@@ -241,7 +241,7 @@ class UploadBANView(APIView):
                 for line in lines:
                     line = {key: (value if value != "" else None) for key, value in line.items()}
 
-                    if isinstance(line, dict): 
+                    if isinstance(line, dict) and line['wireless_number']: 
                         lineobj = UniquePdfDataTable.objects.create(banUploaded=upload_ban, company=upload_ban.company.Company_name, sub_company=upload_ban.organization.Organization_name, **line)
                         lineobj.save()
                         updated = self.remove_filds(BaselineDataTable, line)
