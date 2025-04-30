@@ -2,6 +2,7 @@ from django.contrib import admin
 
 # Register your models here.
 from .Organization.models import Organizations
+from .Company.models import Company
 
 
 class OrganizationAdmin(admin.ModelAdmin):
@@ -12,7 +13,12 @@ class OrganizationAdmin(admin.ModelAdmin):
     list_per_page = 10
     ordering = ('-created',)
 
-
+class CompanyAdmin(admin.ModelAdmin):
+    list_display = ('Company_name', 'created', 'updated')
+    list_filter = ('created', 'updated')
+    readonly_fields = ('created', 'updated')
+    list_per_page = 10
+    ordering = ('-created',)
 # class ContractAdmin(admin.ModelAdmin):
 #     list_display = ('organization', 'term', 'status')
 #     search_fields = ('organization', 'term', 'status')
@@ -20,3 +26,4 @@ class OrganizationAdmin(admin.ModelAdmin):
 
 
 admin.site.register(Organizations, OrganizationAdmin)
+admin.site.register(Company, CompanyAdmin)

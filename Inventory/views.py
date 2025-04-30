@@ -316,22 +316,28 @@ class MobileView(APIView):
         }, status=status.HTTP_200_OK)
     
     def post(self, request, *args, **kwargs):
-        data = request.data
-        print(data)
+        data = request.data.copy()
         account_number = data.get('account_number', None)
         wireless_number = data.get('wireless_number', None)
         com = data.get('company', None)
         sub_com = data.get('sub_company', None)
+        vendor = data.get('vendor', None)
         print(com, sub_com, account_number, wireless_number)
-        if UniquePdfDataTable.objects.filter(viewuploaded=None).filter(company=com, sub_company=sub_com, account_number=account_number, wireless_number=wireless_number).exists():
+        mainobject = UniquePdfDataTable.objects.filter(viewuploaded=None).filter(company=com, sub_company=sub_com, account_number=account_number,vendor=vendor)
+        if mainobject.filter(wireless_number=wireless_number).exists():
             return Response({
                 "message": f"Mobile data with line {wireless_number} already exists"
             },status=status.HTTP_400_BAD_REQUEST)
         try:
+            if mainobject[0].banOnboarded:
+                data['banOnboarded'] = mainobject[0].banOnboarded.id
+            elif mainobject[0].banUploaded:
+                data['banUploaded'] = mainobject[0].banUploaded.id
             serializer = UniqueTableSaveSerializer(data=data)
             if serializer.is_valid():
                 serializer.save()
                 data['Wireless_number'] = wireless_number
+                data['User_name'] = data.pop('user_name')
                 baseser = BaselineSaveSerializer(data=data)
                 if baseser.is_valid():
                     baseser.save()

@@ -125,12 +125,17 @@ manageusers = [
 ]
 urlpatterns.extend(manageusers)
 
-from .CRUDViews.Profilemanagement import ProfileManageView
+from .CRUDViews.Profilemanagement import ProfileManageView, ProfilePermissionsView
 profilemanagement = [
     path("profile-management/", ProfileManageView().as_view(), name='profilemanagement-list-create'),
     path("profile-management/<pk>/", ProfileManageView().as_view(), name='profilemanagement-detail'),
 ]
+profilepermissions = [
+    path("profile-permissions/", ProfilePermissionsView().as_view(), name='profilepermission-list-create'),
+    path("profile-permissions/<pk>/", ProfilePermissionsView().as_view(), name='profilepermission-detail'),
+]
 urlpatterns.extend(profilemanagement)
+urlpatterns.extend(profilepermissions)
 
 from .CRUDViews.Inventory import InventoryView
 inventory = [

@@ -11,18 +11,17 @@ from ..ModelsByPage.DashAdmin import UserRoles
 class ManageUsersView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, *args, **kwargs):
-        users = PortalUser.objects.filter(is_superuser=False)
+        users = PortalUser.objects.filter(is_superuser=False).exclude(company=None)
         serializer = userSerializer(users, many=True)
         companies = Company.objects.all()
         company_serializer = showcompaniesSerializer(companies, many=True)
-        uroles = UserRoles.objects.all()
+        uroles = UserRoles.objects.all().exclude(name="Superadmin")
         ureader = UserRoleShowSerializer(uroles, many=True)
         return Response({"companies": company_serializer.data, "users": serializer.data, "roles":ureader.data}, status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
         pass
     def put(self, request, pk, *args, **kwargs):
         data = request.data
-        print(data)
         user = PortalUser.objects.filter(id=pk)
         if not user:
             return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
