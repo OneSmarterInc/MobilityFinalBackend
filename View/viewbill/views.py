@@ -5,9 +5,10 @@ from rest_framework import status
 from authenticate.views import saveuserlog
 from rest_framework.permissions import IsAuthenticated
 from OnBoard.Organization.models import Organizations
-from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, BaselineDataTable
+from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, BaselineDataTable, OnboardBan
 from .ser import showOrganizationSerializer, showBanSerializer, vendorshowSerializer, basedatahowSerializer, paytypehowSerializer, uniquepdftableSerializer, baselinedataserializer, BaselineDataTableShowSerializer, showaccountbasetable
 from Dashboard.ModelsByPage.DashAdmin import Vendors, PaymentType
+from ..models import ViewUploadBill
 
 class ViewBill(APIView):
     permission_classes = [IsAuthenticated]
@@ -77,8 +78,14 @@ class ViewBill(APIView):
             return Response({"message": "Base Data not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        obj.delete()
-        saveuserlog(request.user, "Deleted Base Data with ID: " + str(pk))
+        acc = obj.account_password
+        bd = obj.bill_date
+        if obj.viewuploaded:
+            main_obj = ViewUploadBill.objects.get(id=obj.viewuploaded.id)
+            main_obj.delete()
+        else:
+            obj.delete()
+        saveuserlog(request.user, f"Bill of account number {acc} and bill date {bd} deletec successfully!")
         return Response({"message": "Base Data successfully deleted!"}, status=status.HTTP_200_OK)
 
 class ViewBillBaseline(APIView):

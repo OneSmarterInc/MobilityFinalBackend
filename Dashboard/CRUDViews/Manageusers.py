@@ -2,54 +2,56 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions
 from rest_framework import status
-from authenticate.models import PortalUser
-from OnBoard.Company.models import Company
 from rest_framework.permissions import IsAuthenticated
-from ..Serializers.manageusers import showcompaniesSerializer, userSerializer, UserRoleShowSerializer
-from ..ModelsByPage.DashAdmin import UserRoles
+from ..Serializers.promange import ProfileShowSerializer
+from ..ModelsByPage.ProfileManage import Profile
 
+
+from OnBoard.Organization.models import Organizations
+from ..Serializers.manageusers import showOrgsSerializer, UserRoleShowSerializer
+from Dashboard.ModelsByPage.DashAdmin import UserRoles
 class ManageUsersView(APIView):
     permission_classes = [IsAuthenticated]
-    def get(self, request, *args, **kwargs):
-        users = PortalUser.objects.filter(is_superuser=False).exclude(company=None)
-        serializer = userSerializer(users, many=True)
-        companies = Company.objects.all()
-        company_serializer = showcompaniesSerializer(companies, many=True)
-        uroles = UserRoles.objects.all().exclude(name="Superadmin")
-        ureader = UserRoleShowSerializer(uroles, many=True)
-        return Response({"companies": company_serializer.data, "users": serializer.data, "roles":ureader.data}, status=status.HTTP_200_OK)
-    def post(self, request, *args, **kwargs):
-        pass
+    def get(self, request,pk=None, *args, **kwargs):
+        if pk:
+            users = Profile.objects.filter(id=pk)
+            if not users.exists():
+                return Response({"message":"user not found!"},status=status.HTTP_400_BAD_REQUEST)
+            users = users[0]
+            users_serializer = ProfileShowSerializer(users)
+        else:
+            users = Profile.objects.all()
+            users_serializer = ProfileShowSerializer(users, many=True)
+        userroles = UserRoleShowSerializer(UserRoles.objects.exclude(name="Superadmin"), many=True)
+        orgs = Organizations.objects.filter(company=request.user.company)
+        orgs_serializer = showOrgsSerializer(orgs, many=True)
+        return Response({"data":users_serializer.data, "organizations":orgs_serializer.data, "roles":userroles.data})
+    
     def put(self, request, pk, *args, **kwargs):
         data = request.data
-        user = PortalUser.objects.filter(id=pk)
+        user = Profile.objects.filter(id=pk)
+        print(data)
         if not user:
             return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-        user = user[0]
-        print(data.get('first_name'))
-        fn = data.get('first_name')
-        ln = data.get('last_name')
-        mn = data.get('mobile_number')
-        pn = data.get('phone_number')
-        role = data.get('user_role')
-        if not role or str(role).lower() not in ['undefined','null','nan']:
-            user.designation = UserRoles.objects.filter(name=role).first()
-        user.first_name = fn
-        user.last_name = ln
-        user.phone_number = pn
-        user.mobile_number = mn
-        user.save()
-        return Response({"message": "User Updated successfully"}, status=status.HTTP_200_OK)
+        role = UserRoles.objects.filter(id=data.get('role'))
+        if not role.exists():
+            return Response({"message": "Role not found"}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            user = user[0]
+            role = role[0]
+            user.role = role
+            user.save()
+            return Response({"message": "User Updated successfully"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            print(e)
+            return Response({"message":str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     def delete(self, request, pk, *args, **kwargs):
         try:
-            user = PortalUser.objects.get(id=pk)
+            user = Profile.objects.get(id=pk)
             user.delete()
             return Response({"message": "User deleted successfully"}, status=status.HTTP_200_OK)
-        except PortalUser.DoesNotExist:
+        except Profile.DoesNotExist:
             return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
-
-
-        

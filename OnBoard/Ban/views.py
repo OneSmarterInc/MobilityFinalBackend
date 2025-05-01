@@ -151,13 +151,13 @@ class UploadBANView(APIView):
                 sub_company = upload_ban.organization.Organization_name if upload_ban.organization else None,
                 accountnumber = upload_ban.account_number or None,
                 Entry_type = upload_ban.entryType.name if upload_ban.entryType else None,
-                vendor = upload_ban.Vendor.name if upload_ban.Vendor else "NaN",
-                location = upload_ban.location.site_name if upload_ban.location else "NaN",
-                paymentType = upload_ban.paymenttype.name if upload_ban.paymenttype else "NaN",
-                master_account = upload_ban.masteraccount or "NaN",
-                BillingName = upload_ban.BillingName or "NaN",
-                BillingAdd = upload_ban.BillingAdd or "NaN",
-                RemittanceAdd = upload_ban.RemittanceAdd or "NaN",
+                vendor = upload_ban.Vendor.name if upload_ban.Vendor else "",
+                location = upload_ban.location.site_name if upload_ban.location else "",
+                paymentType = upload_ban.paymenttype.name if upload_ban.paymenttype else "",
+                master_account = upload_ban.masteraccount or "",
+                BillingName = upload_ban.BillingName or "",
+                BillingAdd = upload_ban.BillingAdd or "",
+                RemittanceAdd = upload_ban.RemittanceAdd or "",
                 # Billing Info
                 BillingState = upload_ban.BillingState,
                 BillingZip = upload_ban.BillingZip,
@@ -186,8 +186,8 @@ class UploadBANView(APIView):
                 AccCharge = upload_ban.AccCharge,
                 CustomerOfRecord = upload_ban.CustomerOfRecord,
 
-                costcenterlevel = upload_ban.costcenterlevel.name if upload_ban.costcenterlevel else "NaN",
-                costcentertype = upload_ban.costcentertype.name if upload_ban.costcentertype else "NaN",
+                costcenterlevel = upload_ban.costcenterlevel.name if upload_ban.costcenterlevel else "",
+                costcentertype = upload_ban.costcentertype.name if upload_ban.costcentertype else "",
                 costcenterstatus = upload_ban.costcenterstatus,
                 CostCenter = upload_ban.CostCenter,
                 CostCenterNotes = upload_ban.CostCenterNotes,
@@ -195,8 +195,8 @@ class UploadBANView(APIView):
                 Displaynotesonbillprocessing = upload_ban.Displaynotesonbillprocessing,
                 POamt = upload_ban.POamt,
                 FoundAcc = upload_ban.FoundAcc,
-                bantype = upload_ban.bantype.name if upload_ban.bantype else "NaN",
-                invoicemethod = upload_ban.invoicemethod.name if upload_ban.invoicemethod else "NaN",
+                bantype = upload_ban.bantype.name if upload_ban.bantype else "",
+                invoicemethod = upload_ban.invoicemethod.name if upload_ban.invoicemethod else "",
 
 
             )
@@ -1358,7 +1358,7 @@ class ProcessZip:
 
             for key, value in entry.items():
                 mapped_key = KEY_MAPPING.get(key, key)  
-                mapped_entry[mapped_key] = value if pd.notna(value) else "NaN"
+                mapped_entry[mapped_key] = value if pd.notna(value) else ""
             mapped_data.append(mapped_entry)
             mapped_entry['vendor'] = self.vendor
 

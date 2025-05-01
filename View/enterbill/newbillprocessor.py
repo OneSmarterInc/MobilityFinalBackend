@@ -25,6 +25,7 @@ from ..models import ProcessedWorkbook, ViewUploadBill
 from django.core.files.base import ContentFile
 from django.conf import settings
 from django.core.files import File
+import ast
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -168,9 +169,6 @@ class ProcessBills:
             "Client_Address":"Remidence_Address",
             "entry_type":"Entry_type",
         }
-        print(data)
-        print(self.sub_company)
-        print(data)
 
         if type(data) == dict:
             updated_data = {mapping.get(k, k): v for k, v in data.items()}
@@ -538,6 +536,7 @@ class ProcessBills:
         output.seek(0)
         return output
     def extract_for_lines(self,acc_info,bill_date):
+        print("Extract lines====",acc_info)
         print("def extract_for_lines")
         total_dict = None
         result_df = None
@@ -565,6 +564,7 @@ class ProcessBills:
             result,tmp_df = extractor.process_pdf()
             temp_result_df = result
             df_unique = temp_result_df.drop_duplicates(subset=['Wireless_number'])
+            df_unique['account_number'] = acc_info
             df_unique_dict = df_unique.to_dict(orient='records')
             total_dict = df_unique_dict
             result_df = result
@@ -593,7 +593,6 @@ class ProcessBills:
             entry['sub_company'] = self.sub_company
             entry['location'] = self.location
         return res_data_dict,total_dict,tmp_df
-        pass
    
     def save_to_pdf_data_table(self, data):
         print('saving to pdf data table')
@@ -829,6 +828,8 @@ class ProcessBills:
         logger.info('Extracting data from PDF')
         xlsx_first_dict, acc_info, bill_date_info = self.extract_data_from_pdf()
         baseinstance = self.save_to_base_data_table(xlsx_first_dict)
+        
+
         if isinstance(bill_date_info, list):
             bill_date_info = bill_date_info[0]
         xlsx_unique, xlsx_duplicate = self.extract_total_pdf_data(acc_info)
@@ -837,12 +838,13 @@ class ProcessBills:
         print(xlsx_unique.columns)
         print(len(xlsx_duplicate))
         print(xlsx_duplicate.columns)
-        acc_info = str(acc_info[0]) if isinstance(acc_info, list) else str(acc_info)
-
+        print("accc=====>", acc_info, type(acc_info))
+        if isinstance(acc_info, list):
+            acc_info = acc_info[0]
+    
         cust_data_df = self.get_cust_data_from_db(acc_info)
         pdf_data, unique_pdf_data,tmp_df = self.extract_for_lines(acc_info, bill_date_info)
-
-
+        print(type(pdf_data), type(unique_pdf_data),type(tmp_df))
         wireless_data = defaultdict(lambda: defaultdict(dict))
         if 'mobile' in str(self.vendor_name).lower() and self.t_mobile_type == 1:
             for idx, row in tmp_df.iterrows():
