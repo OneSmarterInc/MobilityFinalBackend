@@ -419,7 +419,7 @@ class BaseDataTable(models.Model):
 
     paymentType = models.CharField(max_length=255, null=True, blank=True, default="")
     billstatus = models.CharField(max_length=255, null=True, blank=True)
-    banstatus = models.CharField(max_length=255, null=True, blank=True)
+    banstatus = models.CharField(max_length=255, null=True, blank=True,default="Active")
     Check = models.CharField(max_length=255, null=True, blank=True)
     summary_file = models.FileField(upload_to='view_summary_files/', null=True, blank=True)
     
@@ -545,6 +545,8 @@ class BaselineDataTable(models.Model):
     updated = models.DateTimeField(auto_now=True, null=True)
     is_pending = models.BooleanField(default=False)
     is_draft = models.BooleanField(default=False)
+
+    paymentstatus = models.CharField(max_length=255, null=True, blank=True, default="Pending")
     class Meta:
         db_table = 'BaselineDataTable'
 

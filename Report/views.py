@@ -375,7 +375,10 @@ class ViewReportView(APIView):
                 report_type = request.GET.get('report_type')
                 month = request.GET.get('month')
                 vendor = request.GET.get('vendor')
+                print("10billed",sub_company)
                 year = request.GET.get('year')
+                if not (company and sub_company and report_type and month and vendor and year):
+                    return Response({"message":"all data required!"},status=status.HTTP_400_BAD_REQUEST)
                 filter_kwargs = {}
                 if company:
                     filter_kwargs['company'] = Company.objects.filter(Company_name=company)[0]
@@ -390,21 +393,51 @@ class ViewReportView(APIView):
                 if vendor:
                     filter_kwargs['vendor'] = Vendors.objects.filter(name=vendor)[0]
                 
+
                 try:
-                    filtered_data = Report_Billed_Data.objects.filter(**filter_kwargs).annotate(
+                    filtered_data = Report_Billed_Data.objects.filter(company=filter_kwargs['company'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['company'].Company_name}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(organization=filter_kwargs['organization'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['organization'].Organization_name}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(Report_Type=filter_kwargs['Report_Type'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['Report_Type']}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(Month=filter_kwargs['Month'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['Month']}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(Year=filter_kwargs['Year'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['Year']}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(vendor=filter_kwargs['vendor'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['vendor'].name}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.annotate(
                         usage_float=Cast('Data_Usage_GB', FloatField())
                     ).order_by('-usage_float')[:10]
                     self.data = showBilledReport(filtered_data, many=True)
                 except Exception as e:
+                    print(e)
                     return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)   
             elif sub_type == "getZeroUsageReportbilledData":
                 company = request.GET.get('company')
                 sub_company = request.GET.get('sub_company')
                 report_type = request.GET.get('report_type')
                 month = request.GET.get('month')
+                
                 vendor = request.GET.get('vendor')
                 year = request.GET.get('year')
-                print(company, sub_company, report_type, vendor, year, month)
+                print(company, sub_company,report_type,month,vendor,year)
+                if not (company and sub_company and report_type and month and vendor and year):
+                    return Response({"message":"all data required!"},status=status.HTTP_400_BAD_REQUEST)
+                
                 filter_kwargs = {}
                 if company:
                     filter_kwargs['company'] = Company.objects.filter(Company_name=company)[0]
@@ -418,8 +451,30 @@ class ViewReportView(APIView):
                     filter_kwargs['Year'] = year
                 if vendor:
                     filter_kwargs['vendor'] = Vendors.objects.filter(name=vendor)[0]
-                print(filter_kwargs)
                 try:
+                    filtered_data = Report_Billed_Data.objects.filter(company=filter_kwargs['company'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['company'].Company_name}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(organization=filter_kwargs['organization'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['organization'].Organization_name}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(Report_Type=filter_kwargs['Report_Type'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['Report_Type']}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(Month=filter_kwargs['Month'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['Month']}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(Year=filter_kwargs['Year'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['Year']}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(vendor=filter_kwargs['vendor'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['vendor'].name}"},status=status.HTTP_400_BAD_REQUEST)
                     filtered_data = Report_Billed_Data.objects.filter(
                         Q(Data_Usage_GB="0") | Q(Data_Usage_GB="0.0"),
                         **filter_kwargs
@@ -475,6 +530,9 @@ class ViewReportView(APIView):
                 vendor = request.GET.get('vendor')
                 year = request.GET.get('year')
                 week = request.GET.get('week')
+                print(company, sub_company,report_type,month,vendor,year)
+                if not (company and sub_company and report_type and month and vendor and year):
+                    return Response({"message":"all data required!"},status=status.HTTP_400_BAD_REQUEST)
                 print("week", week)
                 filter_kwargs = {}
                 if company:
@@ -494,7 +552,29 @@ class ViewReportView(APIView):
                 
                 
                 try:
-                    filtered_data = Report_Unbilled_Data.objects.filter(**filter_kwargs)
+                    filtered_data = Report_Unbilled_Data.objects.filter(company=filter_kwargs['company'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['company'].Company_name}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(organization=filter_kwargs['organization'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['organization'].Organization_name}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(Report_Type=filter_kwargs['Report_Type'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['Report_Type']}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(Month=filter_kwargs['Month'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['Month']}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(Year=filter_kwargs['Year'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['Year']}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(vendor=filter_kwargs['vendor'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['vendor'].name}"},status=status.HTTP_400_BAD_REQUEST)
 
                     friday_date = None
                     thursday_date = None
@@ -516,7 +596,9 @@ class ViewReportView(APIView):
                     top_data = filtered_data.filter(Date=selected_date).annotate(
                         usage_float=Cast('Usage', FloatField())
                     ).order_by('-usage_float')[:10]
-
+                    
+                    if not top_data:
+                        return Response({"message": "No data found for unbilled top 10 users!"}, status=status.HTTP_404_NOT_FOUND)
                     self.data = showUnbilledReport(top_data, many=True)
 
                 except Exception as e:
@@ -527,6 +609,8 @@ class ViewReportView(APIView):
                 company = request.GET.get('company')
                 sub_company = request.GET.get('sub_company')
                 month = request.GET.get('month')
+                if not (company and sub_company and month):
+                    return Response({"message":"all data required!"},status=status.HTTP_400_BAD_REQUEST)
                 filter_kwargs = {}
                 if company:
                     filter_kwargs['company'] = Company.objects.filter(Company_name=company)[0]
@@ -538,7 +622,18 @@ class ViewReportView(APIView):
                     filter_kwargs['Month'] = month
 
                 try:
-                    filtered_data = Report_Unbilled_Data.objects.filter(**filter_kwargs)
+                    filtered_data = Report_Unbilled_Data.objects.filter(company=filter_kwargs['company'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['company'].Company_name}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(organization=filter_kwargs['organization'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['organization'].Organization_name}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    
+                    filtered_data = filtered_data.filter(Month=filter_kwargs['Month'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['Month']}"},status=status.HTTP_400_BAD_REQUEST)
 
                     weeks = defaultdict(set)  
                     for record in filtered_data:
@@ -546,6 +641,7 @@ class ViewReportView(APIView):
                         date = record.Date
                         weeks[week].add(date)
 
+                    print(filtered_data)
             
                     self.data = showUnbilledReport(filtered_data, many=True)
 
@@ -598,8 +694,29 @@ class ViewReportView(APIView):
         if action == 'download-excel':
             if type == 'viewReportBilledExcel':
                 try:
-                    # Filter the data
-                    filtered_data = Report_Billed_Data.objects.filter(**filter_kwargs)
+                    filtered_data = Report_Unbilled_Data.objects.filter(company=filter_kwargs['company'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['company'].Company_name}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(organization=filter_kwargs['organization'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['organization'].Organization_name}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(Report_Type=filter_kwargs['Report_Type'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['Report_Type']}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(Month=filter_kwargs['Month'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['Month']}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(Year=filter_kwargs['Year'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['Year']}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    filtered_data = filtered_data.filter(vendor=filter_kwargs['vendor'])
+                    if not filtered_data.exists():
+                        return Response({"message":f"no billed report found for {filter_kwargs['vendor'].name}"},status=status.HTTP_400_BAD_REQUEST)
                     print(filter_kwargs)
                     if not filtered_data.exists():
                         return Response({"message": "No data found for the given filters."}, status=200)

@@ -104,7 +104,6 @@ class UploadBANView(APIView):
         
         data = request.data
         mutable_data, lines = self.predatatrasform(data)
-        print(mutable_data)
         orgobj = Organizations.objects.get(Organization_name=data['organization'])
         try:
             if 'location' in mutable_data and mutable_data['location'] is not None:
@@ -274,9 +273,7 @@ class UploadBANView(APIView):
         try:
             ban = UploadBAN.objects.get(id=pk)
             data = request.data
-            print(data)
             mutable_data, lines = self.predatatrasform(data)
-            print(mutable_data)
             ban.BillingDay = mutable_data['billing_day']
             ban.BillingName = mutable_data['Billing_Name']
             ban.Billing_cycle = mutable_data['Duration']
@@ -434,7 +431,7 @@ class OnboardBanView(APIView):
                     )
                     obj.save()
                     if obj.uploadBill.name.endswith('.zip'):
-                        addon = ProcessZip(obj)
+                        addon = ProcessZip(obj,request.user.email)
                         check = addon.startprocess()
                         print(check)
                         # if check['error'] != 0:
@@ -490,7 +487,6 @@ class OnboardBanView(APIView):
                     mobj.save()
 
                     mapping_obj = model_to_dict(MappingObjectBan.objects.get(onboard=obj)) or {}
-                    print(mapping_obj)
                     if mapping_obj:
                         try:
                             mapping_json = mapping_obj
@@ -535,7 +531,6 @@ class OnboardBanView(APIView):
                                 {'message': 'File already exists in the database upload another'}, status=status.HTTP_400_BAD_REQUEST
                             )
                         else:
-                            print(obj)
 
                             ma = None
                             if obj.masteraccount:
@@ -621,7 +616,7 @@ class OnboardBanView(APIView):
             obj.save()
             print(obj.uploadBill.name.endswith('.zip'), 'verizon' in str(obj.vendor.name).lower())
             if obj.uploadBill.name.endswith('.zip'):
-                addon = ProcessZip(obj)
+                addon = ProcessZip(obj,request.user.email)
                 check = addon.startprocess()
                 print(check)
                 if check['error'] == -1:
@@ -1049,13 +1044,11 @@ class ProcessPdf:
             'error': 0,
         }
 
-
-
-
 from checkbill import check_tmobile_type
 
 class ProcessZip:
-    def __init__(self, instance, **kwargs):
+    def __init__(self, instance,usermail, **kwargs):
+        self.mail = usermail
         self.instance = instance
         self.path = instance.uploadBill
         if not self.path:
@@ -1117,8 +1110,8 @@ class ProcessZip:
                 data_base['location'] = self.loc
                 data_base['master_account'] = self.masteraccount
                 data_base['Total_Current_Charges'] = list(required_df['Total Current Charges'])[0]
-                data_base['Remidence_Address'] = list(required_df['Remittance Address'])[0]
-                data_base['Billing_Name'] = list(required_df['Bill Name'])[0]
+                data_base['RemittanceAdd'] = list(required_df['Remittance Address'])[0]
+                data_base['BillingName'] = list(required_df['Bill Name'])[0]
                 data_base['Total_Amount_Due'] = list(required_df['Total Amount Due'])[0]
 
                 v, t = None, None
@@ -1126,8 +1119,7 @@ class ProcessZip:
                 for entry in category_data:
                     entry['company'] = self.company
                     entry['vendor'] = self.vendor
-                self.save_to_pdf_data_table(data_pdf, v, t)
-                print("saved to pdf data table")
+                
 
                 for entry in data_pdf.to_dict(orient="records"):
                     entry['company'] = self.company
@@ -1144,7 +1136,13 @@ class ProcessZip:
                     print("saved to base data table")
                     obj.save()
                 print('done')
-                self.save_to_batch_report(data_base, self.vendor)
+                self.save_to_pdf_data_table(data_pdf, v, t)
+                print("saved to pdf data table")
+                print("dataforbatch",data_base)
+                dataforbatch = data_base
+                dataforbatch["Vendor_Address_1"] = dataforbatch.pop("RemittanceAdd")
+                dataforbatch.pop("BillingName")
+                self.save_to_batch_report(dataforbatch, self.vendor)
                 print('saved to batch report')
                 if self.entrytype != "Master Account":
                     self.save_to_unique_pdf_data_table(detailed_df, v, t)
@@ -1186,12 +1184,28 @@ class ProcessZip:
                 if self.baseline:
                     self.save_to_baseline_data_table(category_data, self.vendor, self.types)
                     print("saved to baseline data table")
+                
+                dataforportal = {
+                    'account_number' : acc_no,
+                    'organization' : self.org,
+                    'vendor' : self.vendor
+                }
+                self.save_to_portal(dataforportal)
                 return {'message' : 'RDD uploaded successfully!', 'error' : 0}
         except Exception as e:
             print(f'Error occurred while processing zip file: {str(e)}')
             return {'message' : f'Error occurred while processing zip file: {str(e)}', 'error' : -1}
     
-            
+    def save_to_portal(self,data):
+        portal = PortalInformation.objects.create(
+            banOnboarded = self.instance,
+            # Password = data.account_password,
+            Customer_Name = data['organization'],
+            Vendor = data['vendor'],
+            Account_number = data['account_number'],
+            User_email_id = self.mail,
+        )
+        portal.save()
     def save_to_baseline_data_table(self, data, vendor, types):
         print("save to baseline data table")
         data_df = pd.DataFrame(data)
@@ -1333,7 +1347,6 @@ class ProcessZip:
         from .models import UniquePdfDataTable
 
         data = self.map_json_to_model(data)
-        print(data)
         model_fields = {field.name for field in UniquePdfDataTable._meta.fields}
         objects_to_create = [
             UniquePdfDataTable(banOnboarded=self.instance, **{key: value for key, value in item.items() if key in model_fields})
@@ -1740,4 +1753,10 @@ class ProcessZip:
             for file in files:
                 os.remove(os.path.join(root, file))
         os.rmdir(directory)
-    
+
+def remove_filds(model, data):
+    valid_fields = {field.name for field in model._meta.get_fields()}
+
+    filtered_data = {key: value for key, value in data.items() if key in valid_fields}
+
+    return filtered_data

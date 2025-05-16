@@ -51,7 +51,7 @@ class CategoryView(APIView):
             category = BaselineCategories.objects.get(id=pk)
             category.delete()
             return Response({"message": "category deleted successfully!"}, status=status.HTTP_200_OK)
-        except UserRoles.DoesNotExist:
+        except BaselineCategories.DoesNotExist:
             return Response({"message": "category does not exist"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({"message":str(e)}, status=status.HTTP_400_BAD_REQUEST)

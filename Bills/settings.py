@@ -200,3 +200,4 @@ EMAIL_HOST_USER = 'grddeveloper.py@gmail.com'
 SENDERS_NAME = "SimpleTek"
 EMAIL_HOST_PASSWORD = 'omfw wgid vepu cgyf'  
 DEFAULT_FROM_EMAIL = f"{SENDERS_NAME} <{EMAIL_HOST_USER}>"
+

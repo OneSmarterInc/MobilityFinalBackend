@@ -172,3 +172,22 @@ forgot = [
 ]
 urlpatterns.extend(forgot)
 
+from .CRUDViews.requests import RequestsView, OnlineFormView, RequestLogsView
+
+requests = [
+    path("requests-management/", RequestsView().as_view(), name='requests-list-create'),
+    path("requests-management/<pk>/", RequestsView().as_view(), name='requests-detail'),
+]
+
+urlpatterns.extend(requests)
+
+requestsform = [
+    path("request-management/requests-form/", OnlineFormView().as_view(), name='form-create'),
+]
+urlpatterns.extend(requestsform)
+
+requestslogs = [
+    path("request-management/request-logs/", RequestLogsView().as_view(), name='request-logs-detail'),
+    # path("requests-management/<pk>/request-logs/", RequestLogsView().as_view(), name='request-logs-detail'),
+]
+urlpatterns.extend(requestslogs)

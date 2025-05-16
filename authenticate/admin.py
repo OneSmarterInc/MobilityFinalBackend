@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import PortalUser
+from .models import PortalUser, UserLogs
 from django.utils.translation import gettext_lazy as _
 
 @admin.register(PortalUser)
@@ -85,3 +85,11 @@ class PortalUserAdmin(UserAdmin):
             ),
         }),
     )
+@admin.register(UserLogs)
+class UserLogsAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'description', 'created_at', 'updated_at')
+    search_fields = ('user__email', 'user__username', 'description')
+    list_filter = ('user', 'created_at')
+    readonly_fields = ('created_at', 'updated_at')
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)

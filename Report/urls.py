@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import ViewReportView, UploadFileView
-
+from .Payment.urls import paymenturls
 urlpatterns = [
     path('view-report/', ViewReportView.as_view(), name='view-report-detail'),
     path('view-report/<report_type>/', ViewReportView.as_view(), name='view-report-detail'),
@@ -11,3 +11,4 @@ urlpatterns = [
     path('upload-report/<report_type>/', UploadFileView.as_view(), name='upload-file-report-detail'),
     path('upload-report/<report_type>/<pk>/', UploadFileView.as_view(), name='upload-file-delete-update'),
 ]
+urlpatterns.extend(paymenturls)

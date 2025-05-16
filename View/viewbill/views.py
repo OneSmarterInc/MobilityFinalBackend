@@ -6,7 +6,7 @@ from authenticate.views import saveuserlog
 from rest_framework.permissions import IsAuthenticated
 from OnBoard.Organization.models import Organizations
 from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, BaselineDataTable, OnboardBan
-from .ser import showOrganizationSerializer, showBanSerializer, vendorshowSerializer, basedatahowSerializer, paytypehowSerializer, uniquepdftableSerializer, baselinedataserializer, BaselineDataTableShowSerializer, showaccountbasetable
+from .ser import showOrganizationSerializer, showBanSerializer, vendorshowSerializer, basedatahowSerializer, paytypehowSerializer, uniquepdftableSerializer, BaselinedataSerializer, BaselineDataTableShowSerializer, showaccountbasetable, BaselineWithOnboardedCategorySerializer
 from Dashboard.ModelsByPage.DashAdmin import Vendors, PaymentType
 from ..models import ViewUploadBill
 
@@ -88,6 +88,7 @@ class ViewBill(APIView):
         saveuserlog(request.user, f"Bill of account number {acc} and bill date {bd} deletec successfully!")
         return Response({"message": "Base Data successfully deleted!"}, status=status.HTTP_200_OK)
 
+from datetime import datetime
 class ViewBillBaseline(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, *args, **kwargs):
@@ -95,9 +96,20 @@ class ViewBillBaseline(APIView):
         vendor = request.GET.get('vendor')
         account_number = request.GET.get('account_number')
         date = request.GET.get('bill_date')
-        objs = BaselineDataTable.objects.filter(vendor=vendor, account_number=account_number, sub_company=sub_company, bill_date=date)
-        ser = baselinedataserializer(objs, many=True)
-        return Response({"data": ser.data}, status=status.HTTP_200_OK)
+        # formatted_date = datetime.strptime(date, "%B %d %Y").date()
+        # print(formatted_date)
+        objs = BaselineDataTable.objects.filter(banOnboarded=None).filter(banUploaded=None).filter(vendor=vendor, account_number=account_number, sub_company=sub_company, bill_date=date)
+        wireless_numbers = objs.values_list('Wireless_number', flat=True)
+        Onboardedobjects = BaselineDataTable.objects.filter(
+            viewuploaded=None,
+            vendor=vendor,
+            account_number=account_number,
+            sub_company=sub_company,
+            Wireless_number__in=wireless_numbers
+        )
+        serializer = BaselinedataSerializer(objs, many=True, context={'onboarded_objects': Onboardedobjects})
+
+        return Response({"data": serializer.data}, status=status.HTTP_200_OK)
     def put(self, request, pk, *args, **kwargs):
         
         try:

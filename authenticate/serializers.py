@@ -70,10 +70,10 @@ class UserLogSaveSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class UserLogShowSerializer(serializers.ModelSerializer):
-    user = serializers.CharField(max_length=255)
+    user = serializers.EmailField(source='user.email', read_only=True)
     class Meta:
         model = UserLogs
-        fields = ['id', 'description', 'created_at', 'user', 'updated_at',]
+        fields = ['id', 'description', 'created_at', 'updated_at', 'user']
 
 class allDesignationsSerializer(serializers.ModelSerializer):
     class Meta:
