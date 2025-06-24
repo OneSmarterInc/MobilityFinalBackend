@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import InventorySubjectView, InventoryDataView, BanInfoView, UploadConsolidated, MobileView
+from .views import InventorySubjectView, InventoryDataView, BanInfoView, UploadConsolidated, MobileView, OnboardedBaselineView
 
 urlpatterns = [
     path('filter-inventory-subjects/', InventorySubjectView.as_view(), name='get-post'),
@@ -9,4 +9,5 @@ urlpatterns = [
     path('upload-consolidated/', UploadConsolidated.as_view(), name='upload-consolidated'),
     path('mobiles/<account_number>/', MobileView.as_view(), name='mobiles-info-get'),
     path('mobiles/<account_number>/<wireless_number>/', MobileView.as_view(), name='mobiles-put-delete'),
+    path('onboarded-baseline/<org>/<vendor>/<ban>/', OnboardedBaselineView.as_view(), name='onboarded-baseline'),
 ]

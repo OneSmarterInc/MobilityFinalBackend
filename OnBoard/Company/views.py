@@ -37,7 +37,7 @@ class CompanyView(APIView):
     
     def put(self, request, pk):
         company = Company.objects.get(Company_name=pk)
-        serializer = CompanyOperationSerializer(company, data=request.data)
+        serializer = CompanyOperationSerializer(company, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             saveuserlog(request.user, f"company named {pk} updated successfully!") 

@@ -28,7 +28,7 @@ from django.db import models
 from ..models import BaselineDataTable
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
+from sendmail import send_custom_email
 
 class ProcessPdf:
     def __init__(self, buffer_data,instance):
@@ -50,8 +50,12 @@ class ProcessPdf:
         self.t_mobile_type = self.check_tmobile_type() if 'mobile' in str(self.vendor_name).lower() else 0
         logger.info(f'Processing PDF from buffer: {self.pdf_path}, {self.company_name}, {self.vendor_name}, {self.pdf_filename}')
 
+        self.bill_date = None
+
         self.instance = instance
         self.check = True
+
+        self.account_number = None
     
     def check_tmobile_type(self):
         print("def check_tmobile_type")
@@ -165,17 +169,20 @@ class ProcessPdf:
             updated_data = {mapping.get(k, k): v for k, v in data.items()}
             updated_data.pop("foundation_account") if 'foundation_account' in updated_data else None
             filtered_data = remove_filds(BaseDataTable, updated_data)
-            print(filtered_data)
             filtered_data['location'] = self.location
-            BaseDataTable.objects.create(banOnboarded=self.instance, **filtered_data)
+            bill_date = filtered_data.pop('bill_date').replace(',','')
+            self.bill_date = bill_date
+            obj = BaseDataTable.objects.create(banOnboarded=self.instance, bill_date=bill_date, **filtered_data)
+            self.account_number = obj.accountnumber
         elif type(data) == list:
             for item in data:
                 updated_data = {mapping.get(k, k): v for k, v in item.items()}
                 updated_data.pop("foundation_account") if 'foundation_account' in updated_data else None
                 filtered_data = remove_filds(BaseDataTable, updated_data)
-                print(filtered_data)
-                filtered_data['location'] = self.location
-                BaseDataTable.objects.create(banOnboarded=self.instance, **filtered_data)
+                bill_date = filtered_data.pop('bill_date').replace(',','')
+                self.bill_date = bill_date
+                obj = BaseDataTable.objects.create(banOnboarded=self.instance, bill_date=bill_date, **filtered_data)
+                self.account_number = obj.accountnumber
 
     def save_to_portal_info(self, data):
         obj = PortalInformation.objects.create(
@@ -220,6 +227,13 @@ class ProcessPdf:
             result_df = result
         else:
             df_unique,final_df,usage_df,tmp_df = process_all(self.pdf_path)
+            # edit all wireless_numbers from Wireless number column from df_unique
+            df_unique['Wireless_number'] = df_unique['Wireless_number'].astype(str).str.replace('.', '-', regex=False)
+            final_df['Wireless_number'] = final_df['Wireless_number'].astype(str).str.replace('.', '-', regex=False)
+            tmp_df['Wireless_number'] = tmp_df['Wireless_number'].astype(str).str.replace('.', '-', regex=False)
+            # print("df unique=\n",df_unique)
+            # print("final df=\n",final_df.columns)
+            # print("tmp df=\n",tmp_df.columns)
             df_unique['account_number'] = acc_info
             final_df['account_number'] = acc_info
             df_unique_dict = df_unique.to_dict(orient='records')
@@ -314,6 +328,26 @@ class ProcessPdf:
             filtered_data = remove_filds(PdfDataTable, updated_data)
             PdfDataTable.objects.create(banOnboarded=self.instance, **filtered_data)
             
+    def reflect_category_object(self):
+        uniques = UniquePdfDataTable.objects.filter(
+            company=self.company_name,
+            sub_company=self.sub_company,
+            vendor=self.vendor_name,
+            account_number=self.account_number
+        )
+
+        for line in uniques:
+            baseline = BaselineDataTable.objects.filter(
+                company=line.company,
+                sub_company=line.sub_company,
+                vendor=line.vendor,
+                account_number=self.account_number,
+                Wireless_number=line.wireless_number
+            ).first()
+
+            if baseline:
+                line.category_object = baseline.category_object
+                line.save()
     def save_to_batch_report(self, data, vendor):
         try:
             at_vendor_list = ['AT&T', 'AT n T', 'ATT', 'at&t', 'att', 'at n t']
@@ -585,8 +619,9 @@ class ProcessPdf:
             updated_data.pop('location') if 'location' in updated_data else None
             updated_data.pop('Note') if 'Note' in updated_data else None
             updated_data.pop('foundation_account') if 'foundation_account' in item else None
+            updated_data.pop('bill_date') if 'bill_date' in item else None
             filtered_data = remove_filds(UniquePdfDataTable, updated_data)
-            UniquePdfDataTable.objects.create(banOnboarded=self.instance,**filtered_data)
+            UniquePdfDataTable.objects.create(banOnboarded=self.instance,bill_date=self.bill_date,**filtered_data)
     def save_to_baseline_data_table(self,data):
         print("saving to baseline_data_table")
         data_df = pd.DataFrame(data)
@@ -651,11 +686,7 @@ class ProcessPdf:
         data_df.columns = data_df.columns.str.replace(' ', '_')
         data_df.rename(columns={'Voice_Plan_Usage_':"Voice_Plan_Usage"},inplace=True)
         data = data_df.to_dict(orient='records')
-        # for item in data:
-        #     keys = ', '.join([f'"{key}"' for key in item.keys()])
-        #     values = ', '.join([f"'{value}'" for value in item.values()])
-        #     cursor.execute(f'INSERT INTO myapp_baseline_data_table ({keys}) VALUES ({values})')
-        # Assuming `data` is a list of dictionaries containing the records to insert
+     
         
         mapping = {'Monthly_charges':"monthly_charges", 'Usage_and_Purchase_Charges':"usage_and_purchase_charges", 'Equipment_Charges':"equipment_charges", 'Taxes_Governmental_Surcharges_and_Fees':"taxes_governmental_surcharges_and_fees", "Surcharges_and_Other_Charges_and_Credits":"surcharges_and_other_charges_and_credits",
         'Third_Party_Charges_includes_Tax':"taxes_governmental_surcharges_and_fees", 'Total_Charges':"total_charges", 'Voice_Plan_Usage':"voice_plan_usage", 'Messaging_Usage':"messaging_usage", 'Data_Usage':"data_usage", 'Foundation_Account':"voice_plan_usage", 'Account_number':"account_number", 'Group_Number':"group_number", 'User_Email':"User_email", 'Status':"User_status", 'Cost_Center':"cost_center", 'Account_Charges_and_Credits':"account_charges_and_credits", 'Plans':"plans", 'Item_Category':"item_category", 'Item_Description':"item_description", 'Charges':"charges", "User_name":"user_name", "Monthly_Charges":"monthly_charges"}
@@ -672,15 +703,14 @@ class ProcessPdf:
             updated_data.pop('item_description') if 'item_description' in updated_data else None
             updated_data.pop('charges') if 'charges' in updated_data else None
             updated_data.pop('foundation_account') if 'foundation_account' in item else None
-            updated_data.pop('bill_date') if 'bill_date' in updated_data else None
+            updated_data.pop('bill_date') if 'bill_date' in item else None
             filtered_data = remove_filds(BaselineDataTable, updated_data)
-            BaselineDataTable.objects.create(banOnboarded=self.instance,**filtered_data)
+            BaselineDataTable.objects.create(banOnboarded=self.instance, bill_date=self.bill_date,**filtered_data)
     def process_pdf_from_buffer(self):
         logger.info('Extracting data from PDF')
         try:    
             data, acc_info, bill_date_info = self.extract_data_from_pdf()
             
-
             self.save_to_base_data_table(data)
             print(data)
             
@@ -766,36 +796,34 @@ class ProcessPdf:
                     else:
                         self.save_to_baseline_data_table(non_categorical_data)    
             print('wie gets')
+            self.reflect_category_object()
             message = 'file has been processed successfully'
         except Exception as e:
             print(f"Failed to send email notification. Error:",{e})
             message = 'file could not be processed due to invalid format or invalid content'
-        sender_email = 'avinashkalmegh93@gmail.com'
-        receiver_email = 'kunalkalpande1999@gmail.com'
-        subject = 'File Processing Notification'
+
+
+        subject = 'Notification: File Processing Completed'
+
         body = f"""
         Dear User,
-        This is to notify you that the {message} .
-        Thank you.
+
+        We would like to inform you that the following action has been completed: **{message}**.
+
+        You can view the corresponding baseline table at the following link:
+        [View Baseline Table](http://localhost:5173/view/onboard-bill-baseline/{self.sub_company}/{self.vendor_name}/{self.account_number})
+
+        If you have any questions or require further assistance, please do not hesitate to contact us.
+
+        Thank you for your attention.
+
+        Best regards,  
+        The Support Team
         """
-        smtp_server = 'mail.privateemail.com'
-        smtp_port = 465
-        smtp_username = 'support@disruptionsim.com'
-        smtp_password = 'Onesmarter@2023'
 
-        message = MIMEText(body, 'plain')
-        message['From'] = sender_email
-        message['To'] = receiver_email
-        message['Subject'] = subject
-
-        try:
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
-                server.starttls()
-                server.login(smtp_username, smtp_password)
-                server.sendmail(sender_email, receiver_email, message.as_string())
-            print("Email notification sent successfully!")
-        except Exception as e:
-            print(f"Failed to send email notification. Error: {str(e)}")
+        # send_custom_email(receiver_mail="gauravdhale09@gmail.com", subject=subject, body=body)
+        send_custom_email(receiver_mail=self.email, subject=subject, body=body)
+        
             
 def remove_filds(model, data):
     valid_fields = {field.name for field in model._meta.get_fields()}
@@ -803,3 +831,4 @@ def remove_filds(model, data):
     filtered_data = {key: value for key, value in data.items() if key in valid_fields}
 
     return filtered_data
+

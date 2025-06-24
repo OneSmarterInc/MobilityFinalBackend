@@ -14,15 +14,18 @@ class InventoryView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request,pk=None, *args, **kwargs):
         if pk:
-            inventory = UniquePdfDataTable.objects.filter(viewuploaded=None).filter(id=pk).order_by('-account_number').order_by('-created')
+            inventory = UniquePdfDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(id=pk).order_by('-account_number').order_by('-created')
         else:
-            inventory = UniquePdfDataTable.objects.filter(viewuploaded=None).order_by('-account_number').order_by('-created')
+            inventory = UniquePdfDataTable.objects.filter(viewuploaded=None,viewpapered=None).order_by('-account_number').order_by('-created')
         if request.user.designation.name == "Superadmin":
             orgs = Organizations.objects.all()
+            all_accnts = showBaseDataser(BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None), many=True)
         else:
             orgs = Organizations.objects.filter(company=request.user.company)
+            all_accnts = showBaseDataser(BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(company=request.user.company.Company_name), many=True)
 
-        all_accnts = showBaseDataser(BaseDataTable.objects.filter(viewuploaded=None).filter(company=request.user.company.Company_name), many=True)
+            
+        
         
         serializer = UniqueTableShowSerializer(inventory, many=True)
         orgser = OrganizationsShowSerializer(orgs, many=True)
@@ -136,7 +139,7 @@ class AddNewInventoryView(APIView):
         vendors = VendorsSerializer(organization[0].vendors.all(), many=True)
         print(vendors.data)
     
-        all_accnts = showBaseDataser(BaseDataTable.objects.filter(viewuploaded=None).filter(sub_company=org), many=True)
+        all_accnts = showBaseDataser(BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(sub_company=org), many=True)
         print(all_accnts.data)
         
         return Response({"accounts":all_accnts.data, "vendors":vendors.data}, status=status.HTTP_200_OK)

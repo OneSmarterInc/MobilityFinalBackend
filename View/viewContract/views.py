@@ -23,30 +23,39 @@ class viewContractView(APIView):
             status=status.HTTP_200_OK,
         )
     def post(self, request, *args, **kwargs):
-        is_base = True
-        is_uploaded = False
         try:
-            data = request.data
-            print(data)
+            data = request.data.copy()
+            sub_company = data.pop('sub_company')[0]
+            if not sub_company:
+                return Response({"message":"Organization undefined!"}, status=status.HTTP_400_BAD_REQUEST)
             bannumber = data.pop('ban', None)
-            print(bannumber)
             ban = BaseDataTable.objects.filter(accountnumber=bannumber[0])
             if not ban.exists():
-                ban = UploadBAN.objects.filter(account_number=bannumber[0])
-                is_uploaded = True
-                is_base = False
-            if not ban.exists():
-                return Response({"message": "No BAN found"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message": "BAN not found"}, status=status.HTTP_400_BAD_REQUEST)
+            
+
             ban=ban[0]
-            file = data.pop('contract_file')[0]
-            name = data.pop('contract_name')[0]
-            contract = Contracts.objects.create(**data, contract_file=file, contract_name=name, baseban=ban if is_base else None, uploadedban=ban if is_uploaded else None)
-            contract.save()
-            saveuserlog(
-                request.user,
-                f"Contract for ban {contract.baseban.accountnumber if contract.baseban else contract.uploadedban.account_number} created successfully!"
-            )
-            return Response({"message": "Contract created successfully"}, status=status.HTTP_201_CREATED)
+            contract = Contracts.objects.filter(sub_company=sub_company, baseban=ban)
+            if contract.exists():
+                contract.delete()
+            data = {
+                'person' : f'{request.user.first_name} {request.user.last_name}',
+                'baseban' :  ban,
+                'sub_company': sub_company,
+                'contract_name':data.pop('contract_name')[0],
+                'contract_file': data.pop('contract_file')[0]
+            }
+            contract = Contracts.objects.create(**data)
+            if contract:
+                saveuserlog(
+                    request.user,
+                    f"Contract for ban {contract.baseban.accountnumber} uploaded successfully!"
+                )
+                return Response({"message": "Contract uploaded successfully"}, status=status.HTTP_201_CREATED)
+            else:
+                return Response({"message": "Error in uploading contract!"},status=status.HTTP_400_BAD_REQUEST)
+
+            
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     def put(self, request, pk, *args, **kwargs):

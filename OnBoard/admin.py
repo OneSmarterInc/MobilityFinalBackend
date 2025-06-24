@@ -101,7 +101,9 @@ from .Ban.models import (
     OnboardBan,
     InventoryUpload,
     MappingObjectBan,
-    PdfDataTable
+    PdfDataTable,
+    BaselineDataTable,
+    UniquePdfDataTable
 )
 
 @admin.register(OnboardBan)
@@ -130,3 +132,17 @@ class PdfDataTableAdmin(admin.ModelAdmin):
     list_display = ('account_number', 'wireless_number', 'user_name', 'company', 'total_charges', 'created')
     search_fields = ('account_number', 'user_name', 'wireless_number', 'vendor', 'location')
     list_filter = ('vendor', 'company', 'created')
+
+@admin.register(BaselineDataTable)
+class BaselineDataTableAdmin(admin.ModelAdmin):
+    list_display = ('account_number', 'Wireless_number', 'user_name', 'vendor', 'created')
+    search_fields = ('account_number', 'Wireless_number', 'user_name', 'vendor')
+    list_filter = ('vendor', 'created')
+
+
+@admin.register(UniquePdfDataTable)
+class UniquePdfDataTableAdmin(admin.ModelAdmin):
+    list_display = ('id', 'inventory', 'banOnboarded', 'account_number', 'user_name', 'total_charges', 'wireless_number', 'created')
+    search_fields = ('account_number', 'user_name', 'wireless_number', 'vendor')
+    list_filter = ('vendor', 'created')
+    readonly_fields = ('created', 'updated')

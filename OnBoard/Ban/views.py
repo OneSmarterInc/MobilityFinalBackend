@@ -20,7 +20,7 @@ import ast
 from OnBoard.Ban.models import UniquePdfDataTable
 import os
 from checkbill import prove_bill_ID
-
+from addon import parse_until_dict
 class UploadBANView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -74,7 +74,8 @@ class UploadBANView(APIView):
                 'bans' : banserializer.data,
                 }, status=status.HTTP_200_OK)
         
-
+    def str_to_bool(self, value):
+        return str(value).strip().lower() == 'true' or str(value).strip().lower() == 'yes'
     def predatatrasform(self, data):
         mutable_data = data.copy()
         mutable_data = {key: (value if value != "" else None) for key, value in mutable_data.items()}
@@ -239,12 +240,14 @@ class UploadBANView(APIView):
             try:
                 for line in lines:
                     line = {key: (value if value != "" else None) for key, value in line.items()}
-
-                    if isinstance(line, dict) and line['wireless_number']: 
-                        lineobj = UniquePdfDataTable.objects.create(banUploaded=upload_ban, company=upload_ban.company.Company_name, sub_company=upload_ban.organization.Organization_name, **line)
+                    line.pop('vendor')
+                    line['category_object'] = json.dumps(line.pop('category_object')) if 'category_object' in line else {}
+                    wn = line.pop('wireless_number')
+                    if isinstance(line, dict) and wn: 
+                        lineobj = UniquePdfDataTable.objects.create(banUploaded=upload_ban, company=upload_ban.company.Company_name, sub_company=upload_ban.organization.Organization_name, vendor=upload_ban.Vendor.name, wireless_number=wn, **line)
                         lineobj.save()
                         updated = self.remove_filds(BaselineDataTable, line)
-                        baselineobj = BaselineDataTable.objects.create(banUploaded=upload_ban, company=upload_ban.company.Company_name, sub_company=upload_ban.organization.Organization_name, **updated)
+                        baselineobj = BaselineDataTable.objects.create(banUploaded=upload_ban, company=upload_ban.company.Company_name, sub_company=upload_ban.organization.Organization_name, vendor=upload_ban.Vendor.name, Wireless_number=wn, **updated)
                         baselineobj.save()
                         saveuserlog(
                             request.user, 
@@ -266,8 +269,6 @@ class UploadBANView(APIView):
 
         return filtered_data
     
-    def str_to_bool(self, value):
-        return str(value).strip().lower() in ['true','yes']
     
     def put(self, request, pk):
         try:
@@ -351,11 +352,14 @@ from Dashboard.ModelsByPage.DashAdmin import EntryType, BillType
 from .models import UploadBAN, MappingObjectBan
 from OnBoard.Ban.Background.tasks import process_pdf_task, process_csv
 from OnBoard.Ban.Background.tasks import process_csv
-
+from OnBoard.Ban.Background.cp import ProcessCSVOnboard
 
 class OnboardBanView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-
+    def __init__(self, **kwargs):
+        self.account_created = []
+        self.account_exists = []
+        super().__init__(**kwargs)
     def get(self, request, pk=None):
         if pk:
             ban = BaseDataTable.objects.get(accountnumber=pk)
@@ -390,9 +394,10 @@ class OnboardBanView(APIView):
                 rdd_Data = ast.literal_eval(rdd_Data_str)
             except (ValueError, SyntaxError) as e:
                 print(f"Error in literal_eval: {e}")
-
             try:
                 for i, rd in enumerate(rdd_Data):
+                    if not rd['organization']:
+                        continue
                     # org=get_object_or_404(Organizations, Organization_name=rd.pop('organization', None)),
                     org = Organizations.objects.filter(Organization_name=rd.pop('organization', None))[0]
                     boolean_fields = ["is_it_consolidatedBan", "baselineCheck"]
@@ -439,6 +444,8 @@ class OnboardBanView(APIView):
                         #         {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
                         #     )
                 for i, ed in enumerate(excel_data):
+                    if not ed['organization']:
+                        continue
                     # org=get_object_or_404(Organizations, Organization_name=ed.pop('organization', None)),
                     org = Organizations.objects.filter(Organization_name=ed.pop('organization', None))[0]
                     print(ed)
@@ -485,7 +492,7 @@ class OnboardBanView(APIView):
                     map = ed.pop('mapping_object', None)
                     mobj = MappingObjectBan.objects.create(onboard=obj, **map)
                     mobj.save()
-
+                    print("model to dict====", model_to_dict(obj))
                     mapping_obj = model_to_dict(MappingObjectBan.objects.get(onboard=obj)) or {}
                     if mapping_obj:
                         try:
@@ -494,80 +501,86 @@ class OnboardBanView(APIView):
                             print("")
                             return Response({"message": "Invalid JSON"}, status=status.HTTP_400_BAD_REQUEST)
 
-                        with tempfile.NamedTemporaryFile(delete=False) as temper_file:
-                                for chunk in obj.uploadBill.chunks():
-                                    temper_file.write(chunk)
-                                path = temper_file.name
+                        # with tempfile.NamedTemporaryFile(delete=False) as temper_file:
+                        #         for chunk in obj.uploadBill.chunks():
+                        #             temper_file.write(chunk)
+                        #         path = temper_file.name
                         
-                        df_csv = pd.read_excel(path)
-                        df_csv.columns = df_csv.columns.str.strip()
-                        df_csv.columns = df_csv.columns.str.strip().str.replace('-', '').str.replace(r'\s+', ' ', regex=True).str.replace(' ', '_')
+                        # df_csv = pd.read_excel(path)
+                        # df_csv.columns = df_csv.columns.str.strip()
+                        # df_csv.columns = df_csv.columns.str.strip().str.replace('-', '').str.replace(r'\s+', ' ', regex=True).str.replace(' ', '_')
 
-                        latest_entry_dict = mapping_json
-                        for key, value in latest_entry_dict.items():
-                            latest_entry_dict[key] = str(value).replace(' ', '_')
-                        column_mapping = {v: k for k, v in latest_entry_dict.items()}
-                        filtered_mapping = {key: value for key, value in column_mapping.items() if key != 'NA'}
-                                # missing_columns = [col for col in filtered_mapping.keys() if col not in df_csv.columns]
-                        for key, value in latest_entry_dict.items():
-                            if value == "NA":
-                                latest_entry_dict[key] = key
-                        columns_to_keep = [col for col in latest_entry_dict.values() if col in df_csv.columns]
-                        df_csv = df_csv[columns_to_keep]
-                        df_csv.rename(columns=filtered_mapping, inplace=True)
-                        print("dffffff",df_csv.columns)
-                        account_number = df_csv['account_number'].iloc[0]
-                        print("account_number",account_number)
-                        from .models import BaseDataTable
-                        try:
-                            instance = BaseDataTable.objects.get(accountnumber=account_number)
-                        except:
-                            instance =False    
+                        # latest_entry_dict = mapping_json
+                        # for key, value in latest_entry_dict.items():
+                        #     latest_entry_dict[key] = str(value).replace(' ', '_')
+                        # column_mapping = {v: k for k, v in latest_entry_dict.items()}
+                        # filtered_mapping = {key: value for key, value in column_mapping.items() if key != 'NA'}
+                        #         # missing_columns = [col for col in filtered_mapping.keys() if col not in df_csv.columns]
+                        # for key, value in latest_entry_dict.items():
+                        #     if value == "NA":
+                        #         latest_entry_dict[key] = key
+                        # columns_to_keep = [col for col in latest_entry_dict.values() if col in df_csv.columns]
+                        # df_csv = df_csv[columns_to_keep]
+                        # df_csv.rename(columns=filtered_mapping, inplace=True)
+                        # print("dffffff",df_csv.columns)
+                        # account_number = df_csv['account_number'].iloc[0]
+                        # print("account_number",account_number)
+                        # from .models import BaseDataTable
+                        # try:
+                        #     instance = BaseDataTable.objects.get(accountnumber=account_number)
+                        # except:
+                        #     instance =False    
                         
-                        print("instaaaa", instance)
+                        # print("instaaaa", instance)
                         
-                        if instance is True:
-                            return Response(
-                                {'message': 'File already exists in the database upload another'}, status=status.HTTP_400_BAD_REQUEST
-                            )
-                        else:
+                        # if instance:
+                        #     obj.delete()
+                        #     return Response(
+                        #         {'message': 'File already exists in the database upload another'}, status=status.HTTP_400_BAD_REQUEST
+                        #     )
+                        # else:
 
-                            ma = None
-                            if obj.masteraccount:
-                                ma = obj.masteraccount.account_number
-                            site = None
-                            if obj.location:
-                                site = obj.location.site_name
+                        ma = None
+                        if obj.masteraccount:
+                            ma = obj.masteraccount.account_number
+                        site = None
+                        if obj.location:
+                            site = obj.location.site_name
 
-                            buffer_data = json.dumps({'csv_path': obj.uploadBill.path,'company':obj.organization.company.Company_name,'sub_company':obj.organization.Organization_name,'vendor':obj.vendor.name,'entry_type':obj.entryType.name,"mapping_json":mapping_json,'location':site,'master_account':ma,
-                            })
+                        buffer_data = json.dumps({'excel_csv_path': obj.uploadBill.path,'company':obj.organization.company.Company_name,'sub_company':obj.organization.Organization_name,'vendor':obj.vendor.name,'entry_type':obj.entryType.name,"mapping_json":mapping_json,'location':site,'master_account':ma,'email':request.user.email
+                        })
 
-                            # if obj.location:
-                            #     AllUserLogs.objects.create(
-                            #         user_email=request.user.email,
-                            #         description=(
-                            #             f"User Onboarded excel file for {obj.organization.company.Company_name} - {obj.organization.Organization_name} "
-                            #             f"with location {obj.location.site_name} and vendor - {obj.vendor.name}. "
-                            #         )
-                            #     )
-                            # else:
-                            #     AllUserLogs.objects.create(
-                            #         user_email=request.user.email,
-                            #         description=(
-                            #             f"User Onboarded excel file for {obj.organization.company.Company_name} - {obj.organization.Organization_name} "
-                            #             f"with vendor - {obj.vendor.name}. "
-                            #         )
-                            #     )
+                        # if obj.location:
+                        #     AllUserLogs.objects.create(
+                        #         user_email=request.user.email,
+                        #         description=(
+                        #             f"User Onboarded excel file for {obj.organization.company.Company_name} - {obj.organization.Organization_name} "
+                        #             f"with location {obj.location.site_name} and vendor - {obj.vendor.name}. "
+                        #         )
+                        #     )
+                        # else:
+                        #     AllUserLogs.objects.create(
+                        #         user_email=request.user.email,
+                        #         description=(
+                        #             f"User Onboarded excel file for {obj.organization.company.Company_name} - {obj.organization.Organization_name} "
+                        #             f"with vendor - {obj.vendor.name}. "
+                        #         )
+                        #     )
 
-                            print("process_csv")
-                            process_csv.delay(instance_id=obj.id, buffer_data=buffer_data)
+                        print("process_csv")
+                        # process_csv.delay(instance_id=obj.id, buffer_data=buffer_data)
+                        classobject = ProcessCSVOnboard(instance=obj, buffer_data=buffer_data)
+                        process = classobject.process_excel_csv_data()
+                        print(process)
+                        if process['code'] != 0:
+                            print(f"Account number {process['account_number']} not processed!")
                 saveuserlog(
-                    request.user, f"Multiple RDD and Excel upload is in progress.\n It will take some time. Please check inventory page later."
+                    request.user, f"Multiple RDD and Excel uploaded."
                 )
                 return Response({"message" :'multiple files uploaded'}, status=status.HTTP_200_OK)
 
             except Exception as e:
-                print(f"Error in creating onboard ban: {e}")
+                print(f"Error in onboarding ban: {e}")
                 return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         bill = request.data.get('uploadBill')
@@ -652,9 +665,12 @@ class OnboardBanView(APIView):
             
 
             saveuserlog(request.user, f"Onboard BAN with account number created successfully!")
-
+            if bill.name.endswith('.pdf'):
+                msg = "BAN onboard is in progress.\n It will take some time. Please check inventory page later."
+            else:
+                msg = "BAN onboarded successfully!"
             return Response(
-                {"message": "BAN onboard is in progress.\n It will take some time. Please check inventory page later."}, 
+                {"message": msg}, 
                 status=status.HTTP_201_CREATED,
             )
 
@@ -775,9 +791,9 @@ class InventoryUploadView(APIView):
                 })
                 print(buffer_data)
                 print("Starting CSV process...")
-                process_csv.delay(instance_id=obj.id, buffer_data=buffer_data,type='inventory')
+                process_csv(instance_id=obj.id, buffer_data=buffer_data,type='inventory')
 
-                return Response({"message" : "Inventory upload is in progress.\n It will take some time. Please check inventory page later.", "data" : mutable_data}, status=status.HTTP_201_CREATED)
+                return Response({"message" : "Inventory added successfully!", "data" : mutable_data}, status=status.HTTP_201_CREATED)
             else:
                 return Response({"message": f"{message if message else ''}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -871,14 +887,14 @@ class InventoryProcess:
                 else:
                     # For new wireless numbers, log the entire row in new data
                     new_data_log.append(self.clean_data_for_json(new_row.to_dict()))
-            print(previous_data_log)
-            print(new_data_log)
             obj1 = new_data_log[0]
-            if self.org != obj1['sub_company']:
+            print(obj1)
+            print(obj1['account_number'], self.ban)
+            if 'sub_company' in obj1 and self.org != obj1['sub_company']:
                 return False, previous_data_log, new_data_log, f"The sub_company {self.org} not matched!"
-            if self.vendor != obj1['vendor']:
+            if 'vendor' in obj1 and self.vendor != obj1['vendor']:
                 return False, previous_data_log, new_data_log, f"The vendor {self.vendor} not matched!"
-            if self.ban != obj1['account_number']:
+            if str(self.ban) != str(obj1['account_number']):
                 return False, previous_data_log, new_data_log, f"The ban {self.ban} not matched!"
             return True, previous_data_log, new_data_log, None
     
@@ -1024,20 +1040,13 @@ class ProcessPdf:
                 bill_date_info = first_page_data_dict["bill_cycle_date"]
 
         acc_no = acc_info
-        bill_date_pdf = bill_date_info
-        print(acc_no, bill_date_pdf)
-
         print(acc_no, self.org, self.company)
         acc_exists  = BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org,company=self.company)
         print(acc_exists)
-        # bill_date_exists = PdfDataTable.objects.filter(Bill_Date=bill_date_pdf)
         if acc_exists.exists():
             message = f'Account Number {acc_no}  already exists.'
             print(message)
             return {'message': message, 'error': 1}
-        # storage = FileSystemStorage(location='uploaded_contracts/')
-        # filename = storage.save(self.file.name, self.path)
-        # path = storage.path(filename)
 
         return {
             'message': 'Process Done',
@@ -1068,6 +1077,7 @@ class ProcessZip:
         self.vendorList = Vendors.objects.all()
         self.typesList = BillType.objects.all()
         self.types = None
+        self.account_number = None
 
     def startprocess(self):
         print("start process")
@@ -1127,13 +1137,14 @@ class ProcessZip:
                 acc_no = data_base['accountnumber']
                 bill_date = data_base['bill_date']
 
-
+                bill_date = bill_date.replace(",","")
                 from .models import BaseDataTable
                 if BaseDataTable.objects.filter(accountnumber=acc_no, company=self.company, sub_company=self.org).exists():
                     return {'message' : f'Bill already exists for account number {acc_no}', 'error' : -1}
                 else:
                     obj = BaseDataTable.objects.create(banOnboarded=self.instance, **data_base)
                     print("saved to base data table")
+                    self.account_number = obj.accountnumber
                     obj.save()
                 print('done')
                 self.save_to_pdf_data_table(data_pdf, v, t)
@@ -1145,7 +1156,7 @@ class ProcessZip:
                 self.save_to_batch_report(dataforbatch, self.vendor)
                 print('saved to batch report')
                 if self.entrytype != "Master Account":
-                    self.save_to_unique_pdf_data_table(detailed_df, v, t)
+                    self.save_to_unique_pdf_data_table(data_pdf, v, t)
                 print('saved to unique pdf data table')
                 from collections import defaultdict
                 wireless_data = defaultdict(lambda: defaultdict(dict))
@@ -1165,7 +1176,7 @@ class ProcessZip:
                 for entry in result_list:
                         for number, charges in entry.items():
                             wireless_numbers.append(number)
-                            charges_objects.append(json.dumps(charges))  # Convert dictionary to JSON string for storage
+                            charges_objects.append(charges)  # Convert dictionary to JSON string for storage
 
                     # Create the DataFrame with two columns: Wireless_number and Charges_Object
                 obj_df = pd.DataFrame({
@@ -1181,9 +1192,9 @@ class ProcessZip:
                 for entry in category_data:
                     entry['company'] = self.company
                     entry['vendor'] = self.vendor
-                if self.baseline:
-                    self.save_to_baseline_data_table(category_data, self.vendor, self.types)
-                    print("saved to baseline data table")
+                # if self.baseline:
+                self.save_to_baseline_data_table(category_data, self.vendor, self.types)
+                print("saved to baseline data table")
                 
                 dataforportal = {
                     'account_number' : acc_no,
@@ -1191,6 +1202,7 @@ class ProcessZip:
                     'vendor' : self.vendor
                 }
                 self.save_to_portal(dataforportal)
+                self.reflect_category_object()
                 return {'message' : 'RDD uploaded successfully!', 'error' : 0}
         except Exception as e:
             print(f'Error occurred while processing zip file: {str(e)}')
@@ -1266,25 +1278,50 @@ class ProcessZip:
         data_df.columns = data_df.columns.str.replace(' ', '_')
         data_df.rename(columns={'Voice_Plan_Usage_':"Voice_Plan_Usage"},inplace=True)
 
+        data_df = data_df.drop(columns=['company', 'vendor'], errors='ignore')
+
+        if 'category_object' in data_df.columns:
+            data_df['category_object'] = data_df['category_object'].apply(
+                lambda x: json.dumps(x)
+            )
+
+        # Step 3: Convert DataFrame to list of dicts
         data = data_df.to_dict(orient='records')
 
-        import json
-        from .models import BaselineDataTable
-        objects_to_create = []
+        # Step 4: Build list of model instances
+        objects_to_create = [
+            BaselineDataTable(
+                banOnboarded=self.instance,
+                **item,
+                company=self.company,
+                vendor=self.vendor
+            )
+            for item in data
+        ]
 
-        for item in data:
-
-            # Convert dictionary values to JSON strings where needed
-            processed_item = {key: json.dumps(value) if isinstance(value, dict) else value for key, value in item.items()}
-            processed_item.pop('company')
-            processed_item.pop('vendor')
-            
-            # Create Django model instance
-            objects_to_create.append(BaselineDataTable(banOnboarded=self.instance, **processed_item, company=self.company, vendor=self.vendor))
-
-        # Bulk insert records
+        # Step 5: Bulk insert
         BaselineDataTable.objects.bulk_create(objects_to_create, ignore_conflicts=True)
 
+    def reflect_category_object(self):
+        uniques = UniquePdfDataTable.objects.filter(
+            company=self.company,
+            sub_company=self.org,
+            vendor=self.vendor,
+            account_number=self.account_number
+        )
+
+        for line in uniques:
+            baseline = BaselineDataTable.objects.filter(
+                company=line.company,
+                sub_company=line.sub_company,
+                vendor=line.vendor,
+                account_number=line.account_number,
+                Wireless_number=line.wireless_number
+            ).first()
+
+            if baseline:
+                line.category_object = baseline.category_object
+                line.save()
 
     def save_to_unique_pdf_data_table(self, data, vendor,types):
         print("save to unique_pdf_data_table")
@@ -1349,7 +1386,7 @@ class ProcessZip:
         data = self.map_json_to_model(data)
         model_fields = {field.name for field in UniquePdfDataTable._meta.fields}
         objects_to_create = [
-            UniquePdfDataTable(banOnboarded=self.instance, **{key: value for key, value in item.items() if key in model_fields})
+            UniquePdfDataTable(company=self.company, banOnboarded=self.instance, **{key: value for key, value in item.items() if key in model_fields})
             for item in data
         ]
         # Bulk insert records

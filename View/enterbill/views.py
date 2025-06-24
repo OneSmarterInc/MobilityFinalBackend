@@ -7,13 +7,11 @@ from rest_framework.permissions import IsAuthenticated
 from OnBoard.Organization.models import Organizations
 from OnBoard.Company.models import Company
 from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, BaselineDataTable
-from .ser import OrganizationShowSerializer, VendorShowSerializer, showBanSerializer, BaselineDataTableShowSerializer, viewPaperBillserializer, showOnboardedSerializer
-from Dashboard.ModelsByPage.DashAdmin import Vendors, PaymentType
-from ..models import viewPaperBill
+from .ser import OrganizationShowSerializer, VendorShowSerializer, BaselineDataTableShowSerializer, showOnboardedSerializer
+from Dashboard.ModelsByPage.DashAdmin import Vendors
 from checkbill import prove_bill_ID
 from ..viewbill.ser import BaselinedataSerializer
-from ..models import viewPaperBill
-class PaperBillView(APIView):
+class UploadedBillView(APIView):
     
     permission_classes = [IsAuthenticated]
 
@@ -23,85 +21,53 @@ class PaperBillView(APIView):
     def get(self, request, *args, **kwargs):
         orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
         vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
-        onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None), many=True)
-        paperbills = viewPaperBillserializer(viewPaperBill.objects.filter(company=request.user.company), many=True) if request.user.company else viewPaperBillserializer(viewPaperBill.objects.all(), many=True)
+        onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None), many=True)
+
+        
         if request.GET:
             org = request.GET.get('org')
             vendor = request.GET.get('ven')
             ban = request.GET.get('ban')
             invoice_number = request.GET.get('invoicenumber')
             billdate = request.GET.get('billdate')
+            formatted_billdate = format_date(billdate) if billdate else None
             duedate = request.GET.get('duedate')
             base = BaseDataTable.objects.filter(banOnboarded=None,banUploaded=None).filter(sub_company=org, vendor=vendor, accountnumber=ban)
             if not base.exists():
                 return Response({"message": f"No baseline found for account number {ban}"}, status=status.HTTP_404_NOT_FOUND)
             if invoice_number:
+                print("invoice number", invoice_number)
                 base = base.filter(invoicenumber=invoice_number)
                 if not base.exists():
                     return Response({"message": f"No baseline found for invoice {invoice_number}"}, status=status.HTTP_404_NOT_FOUND)
-            # if billdate:
-            #     base = base.filter(bill_date=billdate)
-            #     if not base.exists():
-            #         return Response({"message": f"No baseline found for bill date {billdate}"}, status=status.HTTP_404_NOT_FOUND)
+            if billdate:
+                base = base.filter(bill_date=formatted_billdate)
+                if not base.exists():
+                    return Response({"message": f"No baseline found for bill date {billdate}"}, status=status.HTTP_404_NOT_FOUND)
             if duedate:
                 base = base.filter(due_date=duedate)
                 if not base.exists():
                     return Response({"message": f"No baseline found for bill date {duedate}"}, status=status.HTTP_404_NOT_FOUND)
 
-            baseline = BaselineDataTable.objects.filter(viewuploaded=base[0].viewuploaded, account_number=base[0].accountnumber).filter(is_draft=False, is_pending=False)
+            baseline = BaselineDataTable.objects.filter(banOnboarded=None,banUploaded=None).filter(account_number=base[0].accountnumber).filter(is_draft=False, is_pending=False)
+            if len(base) == 1:
+                baseline = baseline.filter(viewuploaded=base[0].viewuploaded)
             wireless_numbers = baseline.values_list('Wireless_number', flat=True)
             Onboardedobjects = BaselineDataTable.objects.filter(
                 viewuploaded=None,
+                viewpapered=None,
                 vendor=vendor,
                 account_number=ban,
                 sub_company=org,
                 Wireless_number__in=wireless_numbers
             )
             self.filtered_baseline = BaselinedataSerializer(baseline, many=True, context={'onboarded_objects': Onboardedobjects}).data
-            print(self.filtered_baseline[4])
         return Response(
-            {"orgs": orgs.data, "vendors": vendors.data, "data":paperbills.data, "onborded": onboarded.data, "filtered_baseline": self.filtered_baseline},
+            {"orgs": orgs.data, "vendors": vendors.data, "onborded": onboarded.data, "filtered_baseline": self.filtered_baseline},
             status=status.HTTP_200_OK,
         )
-    def post(self, request, *args, **kwargs):
-        try:
-            data = request.data
-            print(data)
-
-            company = data.get('company')
-            org = data.get('organization')
-            vendor = data.get('vendor')
-            if str(company).lower() in (None, 'null', ''):
-                company = None
-            else:
-                company = Company.objects.filter(Company_name=company)[0]
-            print(company)
-            obj = viewPaperBill.objects.create(
-                company = company,
-                organization = Organizations.objects.filter(Organization_name=org)[0],
-                vendor = Vendors.objects.filter(name=vendor)[0],
-                account_number = data.get('account_number'),
-                invoice_number = data.get('invoice_number'),
-                invoice_date = data.get('invoice_date'),
-                due_date = data.get('due_date')
-            )
-            obj.save()
-            saveuserlog(
-                request.user,
-                f"Paper Bill with Account Number: {data.get('account_number')}, Invoice Number: {data.get('invoice_number')} Uploaded"
-            )
-            return Response(
-                {"message": "paper bill uploaded successfully"},
-                status=status.HTTP_200_OK,
-            )
-
-        except Exception as e:
-            print(e)
-            return Response(
-                {"message": f"Error Occured while Uploading Paper Bill: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
-            )
+    
        
-
     def put(self, request, pk, *args, **kwargs):
         
         try:
@@ -113,11 +79,16 @@ class PaperBillView(APIView):
         if action == "update-category":
             cat = request.data.get('category')
             print(cat)
-            main_onboarded = BaselineDataTable.objects.filter(viewuploaded=None, account_number=obj.account_number, sub_company=obj.sub_company, vendor=obj.vendor, Wireless_number=obj.Wireless_number)
+            main_onboarded = BaselineDataTable.objects.filter(viewuploaded=None,viewpapered=None, account_number=obj.account_number, sub_company=obj.sub_company, vendor=obj.vendor, Wireless_number=obj.Wireless_number)
             if main_onboarded.exists():
                 main_onboarded = main_onboarded[0]
                 main_onboarded.category_object = cat
                 main_onboarded.save()
+            unique_onboarded = UniquePdfDataTable.objects.filter(viewuploaded=None,viewpapered=None, account_number=obj.account_number, sub_company=obj.sub_company, vendor=obj.vendor, wireless_number=obj.Wireless_number)
+            if unique_onboarded.exists():
+                unique_onboarded = unique_onboarded[0]
+                unique_onboarded.category_object = cat
+                unique_onboarded.save()
         elif action == "is_draft":
             obj.is_draft = True
             obj.is_pending = False
@@ -141,12 +112,13 @@ class PendingView(APIView):
     def get(self, request, *args, **kwargs):
         orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
         vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
-        onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None), many=True)
+        onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None), many=True)
 
         baseline = BaselineDataTable.objects.filter(banOnboarded=None,banUploaded=None)
         wireless_numbers = baseline.values_list('Wireless_number', flat=True)
         Onboardedobjects = BaselineDataTable.objects.filter(
             viewuploaded=None,
+            viewpapered=None,
             Wireless_number__in=wireless_numbers
         )
         baselineData = BaselinedataSerializer(baseline, many=True, context={'onboarded_objects': Onboardedobjects})
@@ -174,6 +146,11 @@ class PendingView(APIView):
                 main_onboarded = main_onboarded[0]
                 main_onboarded.category_object = cat
                 main_onboarded.save()
+            unique_onboarded = UniquePdfDataTable.objects.filter(viewuploaded=None, account_number=obj.account_number, sub_company=obj.sub_company, vendor=obj.vendor, wireless_number=obj.Wireless_number)
+            if unique_onboarded.exists():
+                unique_onboarded = unique_onboarded[0]
+                unique_onboarded.category_object = cat
+                unique_onboarded.save()
         elif action == "is_draft":
             obj.is_draft = True
             obj.is_pending = False
@@ -197,7 +174,7 @@ class DraftView(APIView):
     def get(self, request, *args, **kwargs):
         orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
         vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
-        onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None), many=True)
+        onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None), many=True)
         baseline = BaselineDataTable.objects.filter(banOnboarded=None,banUploaded=None, is_draft=True)
         wireless_numbers = baseline.values_list('Wireless_number', flat=True)
         Onboardedobjects = BaselineDataTable.objects.filter(
@@ -227,6 +204,11 @@ class DraftView(APIView):
                 main_onboarded = main_onboarded[0]
                 main_onboarded.category_object = cat
                 main_onboarded.save()
+            unique_onboarded = UniquePdfDataTable.objects.filter(viewuploaded=None, account_number=obj.account_number, sub_company=obj.sub_company, vendor=obj.vendor, wireless_number=obj.Wireless_number)
+            if unique_onboarded.exists():
+                unique_onboarded = unique_onboarded[0]
+                unique_onboarded.category_object = cat
+                unique_onboarded.save()
             
         elif action == "is_draft":
             obj.is_draft = True
@@ -253,11 +235,14 @@ import pdfplumber
 from django.forms.models import model_to_dict
 
 from checkbill import prove_bill_ID
+from View.enterbill.ep import EnterBillProcessExcel
+
 class UploadfileView(APIView):
     permission_classes = [IsAuthenticated]
 
     def __init__(self, *args, **kwargs):
         self.processed_data = None
+        self.paylod_data = None
 
     def check_tmobile_type(self, Billpath):
         Lines = []
@@ -281,7 +266,7 @@ class UploadfileView(APIView):
     def get(self, request, *args, **kwargs):
         orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
         vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
-        onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None).exclude(Entry_type="Master Account"), many=True)
+        onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None).exclude(Entry_type="Master Account"), many=True)
 
         baselineData = BaselineDataTableShowSerializer(BaselineDataTable.objects.all(), many=True)
 
@@ -364,7 +349,7 @@ class UploadfileView(APIView):
                     return Response(
                         {"message": f"Problem to upload file, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
                     )
-                buffer_data = json.dumps({'pdf_path': obj.file.path,'vendor_name': obj.vendor.name if obj.vendor else None,'pdf_filename':obj.file.name,'company_name':obj.company.Company_name if obj.company else None,'sub_company_name':obj.organization.Organization_name if obj.organization else None,'types':obj.types})
+                buffer_data = json.dumps({'pdf_path': obj.file.path,'vendor_name': obj.vendor.name if obj.vendor else None,'pdf_filename':obj.file.name,'company_name':obj.company.Company_name if obj.company else None,'sub_company_name':obj.organization.Organization_name if obj.organization else None,'types':obj.types, 'month':obj.month, 'year':obj.year, 'email':request.user.email,'account_number':obj.ban})
                 print(buffer_data)
                 process_view_bills.delay(buffer_data, obj.id)
             elif (str(file.name).endswith('.xls') or str(file.name).endswith('.xlsx')):
@@ -395,15 +380,29 @@ class UploadfileView(APIView):
 
                 # Send the data to Celery for background processing
                 buffer_data = json.dumps({
-                    'csv_path': obj.file.path,
+                    'excel_csv_path': obj.file.path,
                     'company': obj.company.Company_name if obj.company else None,
                     'sub_company': obj.organization.Organization_name if obj.organization else None,
                     'vendor': obj.vendor.name if obj.vendor else None,
                     'account_number': obj.ban,
+                    'month':obj.month,
+                    'year':obj.year,
                     'mapping_json': model_to_dict(MappingObjectBan.objects.get(viewupload=obj)) or {}
                 })
                 print(buffer_data)
-                process_view_excel.delay(buffer_data, obj.id)
+                # process_view_excel.delay(buffer_data, obj.id)
+                # process_view_excel(buffer_data, obj.id)
+                try:
+                    excelobj = EnterBillProcessExcel(buffer_data=buffer_data, instance=obj)
+                    msgobject = excelobj.process_excel()
+                    print(msgobject)
+                    if msgobject['code'] != 0:
+                        obj.delete()
+                        return Response({"message":f"{str(msgobject['message'])}"},status=status.HTTP_400_BAD_REQUEST)
+                except Exception as e:
+                    print(e)
+                    obj.delete()
+                    return Response({"message":f"{str(e)}"},status=status.HTTP_400_BAD_REQUEST)
             elif str(file.name).endswith('.zip'):
                 addon = ProcessZip(obj)
                 check = addon.startprocess()
@@ -412,25 +411,34 @@ class UploadfileView(APIView):
                     return Response(
                         {"message": f"Problem to add data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
                     )
-                self.processed_data = BaselineDataTable.objects.filter(viewuploaded=obj)
+                
+                # self.processed_data = BaselineDataTable.objects.filter(viewuploaded=obj).first()
             
-                wireless_numbers = self.processed_data.values_list('Wireless_number', flat=True)
-                Onboardedobjects = BaselineDataTable.objects.filter(
-                    viewuploaded=None,
-                    Wireless_number__in=wireless_numbers
-                )
-                self.processed_data = BaselinedataSerializer(self.processed_data, many=True, context={'onboarded_objects': Onboardedobjects}).data
-
-                with open('results.json', 'w') as file:
-                    json.dump(self.processed_data, file)
+                # wireless_numbers = self.processed_data.values_list('Wireless_number', flat=True)
+                # Onboardedobjects = BaselineDataTable.objects.filter(
+                #     viewuploaded=None,
+                #     Wireless_number__in=wireless_numbers
+                # )
+                # self.processed_data = BaselinedataSerializer(self.processed_data, many=True, context={'onboarded_objects': Onboardedobjects}).data
+                # print(self.processed_data[4])
+                # with open('results.json', 'w') as file:
+                #     json.dump(self.processed_data, file)
             else:
                 return Response({"message": "Invalid file type"}, status=status.HTTP_400_BAD_REQUEST)
+            paylod_data = BaseDataTable.objects.filter(viewuploaded=obj).first()
+            self.paylod_data = {
+                'sub_company':paylod_data.sub_company,
+                'vendor':paylod_data.vendor,
+                'account_number':paylod_data.accountnumber,
+                'bill_date':paylod_data.bill_date
+            } if filetype in ("zip","excel") else None
+            print(paylod_data)
             saveuserlog(
                 request.user,
                 f"Uploading file if {obj.vendor.name}-{obj.ban} for {obj.month}-{obj.year}"
             )
             return Response(
-                {"message": "File uploaded successfully!" if filetype == "zip" else "File upload is in progress \n It will take some time.", "baseline":self.processed_data},
+                {"message": "File uploaded successfully!" if filetype in ("zip","excel") else "File upload is in progress \n It will take some time.", "payload":self.paylod_data},
                 status=status.HTTP_200_OK,
             )
         except Exception as e:
@@ -453,6 +461,11 @@ class UploadfileView(APIView):
                 main_onboarded = main_onboarded[0]
                 main_onboarded.category_object = cat
                 main_onboarded.save()
+            unique_onboarded = UniquePdfDataTable.objects.filter(viewuploaded=None, account_number=obj.account_number, sub_company=obj.sub_company, vendor=obj.vendor, wireless_number=obj.Wireless_number)
+            if unique_onboarded.exists():
+                unique_onboarded = unique_onboarded[0]
+                unique_onboarded.category_object = cat
+                unique_onboarded.save()
         elif action == "is_draft":
             obj.is_draft = True
             obj.is_pending = False
@@ -472,6 +485,57 @@ class UploadfileView(APIView):
         pass
 
 import json
+def parse_until_dict(data):
+    while isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError:
+            break
+    return data
+def tagging(baseline_data, bill_data):
+    baseline_data = parse_until_dict(baseline_data) if isinstance(baseline_data, str) else baseline_data
+    bill_data = parse_until_dict(bill_data) if isinstance(bill_data,str) else bill_data
+    def compare_and_tag(base, bill):
+        def normalize(key):
+            return key.strip().lower()
+        
+        base_keys_normalized = {normalize(k): k for k in base.keys()}
+
+        for bill_key in list(bill.keys()):
+            norm_key = normalize(bill_key)
+            if norm_key not in base_keys_normalized:
+                continue
+
+            base_key = base_keys_normalized[norm_key]
+            base_val = base[base_key]
+            bill_val = bill[bill_key]
+
+            if isinstance(bill_val, dict) and isinstance(base_val, dict):
+                compare_and_tag(base_val, bill_val)
+            else:
+                try:
+                    base_val = str(base_val).replace('$', '').replace('-', '')
+                    bill_val_init = str(bill_val).replace('$', '')
+                    bill_val = bill_val_init.replace('-', '')
+                    base_float = float(base_val)
+                    bill_float = float(bill_val)
+                    if base_float != 0:
+                        low_range = bill_float - (5 / 100 * bill_float)
+                        high_range = bill_float + (5 / 100 * bill_float)
+                        tag = low_range < base_float < high_range
+                        if '-' in bill_val_init:
+                            bill[bill_key] = {"amount": f'-{bill_val}', "approved": tag}
+                        else:
+                            bill[bill_key] = {"amount": bill_val, "approved": tag}
+                except (ValueError, TypeError):
+                    print("error")
+                    bill[bill_key] = {"amount": bill_val, "approved": False}
+
+    compare_and_tag(baseline_data, bill_data)
+    json_string = json.dumps(bill_data)
+    return json_string
+
+
 # from .tasks import process_view_bills
 from View.enterbill.tasks import process_view_bills, process_view_excel
 import re
@@ -584,24 +648,33 @@ class ProcessPdf:
                 
 
         acc_no = acc_info
-        bill_date_pdf = bill_date_info
+        bill_date_pdf = bill_date_info.replace(',','')
         print(acc_no, bill_date_pdf)
-
+        
         print(acc_no, self.org, self.company)
+        print("bill_date_pdf new", bill_date_pdf)
 
+        bill_date_pdf = bill_date_pdf.split(" ")
         if acc_no != self.account_number:
             self.instance.delete()
             return {'message' : f'Account number from the Pdf file did not matched with input ban', 'error' : -1}
-        if self.month != str(bill_date_pdf).split(' ')[0] and self.year != str(bill_date_pdf).split(' ')[2]:
+        
+        if not (bill_date_pdf[0].lower() in self.month.lower()):
             self.instance.delete()
-            return {'message' : f'Bill date from the Pdf file did not matched with input month and year', 'error' : -1}
-        if not BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org, bill_date=bill_date_pdf):  # temprory set to not
+            return {'message' : f'Bill date from the Pdf file did not matched with input month', 'error' : -1}
+
+        if self.year != bill_date_pdf[2]:
+            self.instance.delete()
+            return {'message' : f'Bill date from the Pdf file did not matched with input year', 'error' : -1}
+        if BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org, month=self.month, year=self.year):  # temprory set to not
             self.instance.delete()
             return {'message' : f'The bill with account number {acc_no} and bill date {bill_date_pdf} already exists', 'error' : -1}
         return {
             'message': 'Process Done',
             'error': 0,
         }
+    
+
 
 class ProcessZip:
     def __init__(self, instance, **kwargs):
@@ -613,13 +686,13 @@ class ProcessZip:
             self.path = self.path.path
         self.org = instance.organization
         self.company = instance.organization.company
-        print(self.company)
         self.vendor = instance.vendor
         self.month = instance.month
         self.masteraccount = instance.ban
         self.year = instance.year
         self.types = None
         self.ban = instance.ban
+        self.account_number = None
 
 
     def startprocess(self):
@@ -642,8 +715,8 @@ class ProcessZip:
                 self.types = check_tmobile_type(self.path)
 
             if self.path.endswith('.zip'):
+                
                 data_base, data_pdf,detailed_df,required_df = self.extract_rdd_data(self.path,self.org)
-                print("in unique=",len(detailed_df))
                 data_base['company'] = self.company
                 data_base['vendor'] = self.vendor
                 data_base['sub_company'] = self.org
@@ -664,28 +737,34 @@ class ProcessZip:
                     entry['company'] = self.company
                     entry['vendor'] = self.vendor
                 acc_no = data_base['accountnumber']
-                bill_date = data_base['bill_date']
-
-                print("bill=",acc_no, bill_date, self.ban)
+                bill_date = data_base.pop('bill_date').replace(",","").split(" ")
+                data_base['bill_date'] = " ".join(bill_date)
+                print("init base data",data_base)
                 if acc_no != self.ban:
                     self.instance.delete()
                     return {'message' : f'Account number from the RDD file did not matched with input ban', 'error' : -1}
-                if self.month != str(bill_date).split(' ')[0] and self.year != str(bill_date).split(' ')[2]:
+                if not (bill_date[0] in str(self.month)):
                     self.instance.delete()
-                    return {'message' : f'Bill date from the RDD file did not matched with input month and year', 'error' : -1}
-                from OnBoard.Ban.models import BaseDataTable
-                if BaseDataTable.objects.filter(accountnumber=acc_no, company=self.company, sub_company=self.org, bill_date=bill_date).exists():
+                    return {'message' : f'Bill date from the RDD file did not matched with input month', 'error' : -1}
+                if self.year != bill_date[2]:
+                    self.instance.delete()
+                    return {'message' : f'Bill date from the RDD file did not matched with input year', 'error' : -1}
+                if BaseDataTable.objects.filter(accountnumber=acc_no, company=self.company, sub_company=self.org, month=self.month, year=self.year).exists():
+                    self.instance.delete()
                     return {'message' : f'Bill already exists for account number {acc_no}', 'error' : -1}
                 else:
-                    obj = BaseDataTable.objects.create(viewuploaded=self.instance, **data_base)
+                    obj = BaseDataTable.objects.create(viewuploaded=self.instance,month=self.month, year=self.year, **data_base)
                     print("saved to base data table")
+                    self.account_number = obj.accountnumber
                     obj.save()
+                bill_main_id = obj.viewuploaded.id
+                onboarded_id = BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(sub_company=obj.sub_company, vendor=obj.vendor, accountnumber=obj.accountnumber).first().banOnboarded
                 print('done')
                 self.save_to_pdf_data_table(data_pdf, v, t,obj)
                 print("saved to pdf data table")
                 self.save_to_batch_report(data_base, self.vendor)
                 print('saved to batch report')
-                self.save_to_unique_pdf_data_table(detailed_df, v, t,obj)
+                self.save_to_unique_pdf_data_table(data_pdf, v, t,obj)
                 print('saved to unique pdf data table')
                 from collections import defaultdict
                 wireless_data = defaultdict(lambda: defaultdict(dict))
@@ -702,11 +781,12 @@ class ProcessZip:
                 udf = pd.DataFrame(data_pdf)
                 wireless_numbers = []
                 charges_objects = []
+                print("3rd result=========", result_list)
                 for entry in result_list:
+                        
                         for number, charges in entry.items():
                             wireless_numbers.append(number)
-                            charges_objects.append(json.dumps(charges))  # Convert dictionary to JSON string for storage
-
+                            charges_objects.append(charges)  # Convert dictionary to JSON string for storage
                     # Create the DataFrame with two columns: Wireless_number and Charges_Object
                 obj_df = pd.DataFrame({
                         'Wireless_number': wireless_numbers,
@@ -718,11 +798,26 @@ class ProcessZip:
                 lambda x: {"NAN": "NAN"} if pd.isna(x) or x == '' else x
                 )
                 category_data = category_obj_df.to_dict(orient='records')
+                
                 for entry in category_data:
                     entry['company'] = self.company
                     entry['vendor'] = self.vendor
-                self.save_to_baseline_data_table(category_data, self.vendor,date=bill_date, types=self.types,baseobj=obj)
+                self.save_to_baseline_data_table(category_data, self.vendor,date=" ".join(bill_date) if isinstance(bill_date,list) else bill_date, types=self.types,baseobj=obj)
                 print("saved to baseline data table")
+                self.reflect_uniquetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id)
+                self.reflect_baselinetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id)
+                self.add_tag_to_dict(bill_main_id)
+                self.reflect_category_object(bill_main_id)
+                self.check_baseline_approved(UniquePdfDataTable, bill_main_id)
+                self.check_baseline_approved(BaselineDataTable, bill_main_id)
+
+                account_obj = BaselineDataTable.objects.filter(sub_company=self.org, vendor=self.vendor, account_number=self.account_number).filter(viewuploaded=self.instance)
+                approved_wireless_list = account_obj.values_list('is_baseline_approved', flat=True)
+                print(list(approved_wireless_list))
+                print(len(approved_wireless_list))
+                print(False in approved_wireless_list)
+                obj.is_baseline_approved = False if False in list(approved_wireless_list) else True
+                
                 return {'message' : 'RDD uploaded successfully!', 'error' : 1}
         except Exception as e:
             print(f'Error occurred while processing zip file: {str(e)}')
@@ -789,29 +884,33 @@ class ProcessZip:
         data_df.columns = data_df.columns.str.replace(' ', '_')
         data_df.rename(columns={'Voice_Plan_Usage_':"Voice_Plan_Usage","Bill_Cycle_Date":"bill_date"},inplace=True)
 
+        data_df = data_df.drop(columns=['company', 'vendor'], errors='ignore') 
+
+        if 'category_object' in data_df.columns:
+            data_df['category_object'] = data_df['category_object'].apply(
+                lambda x: json.dumps(x)
+            )
+
         data = data_df.to_dict(orient='records')
 
-        import json
-        from OnBoard.Ban.models import BaselineDataTable
-        objects_to_create = []
-        print(data[0])
-        for item in data:
+        objects_to_create = [
+            BaselineDataTable(
+                viewuploaded=self.instance,
+                **item,
+                company=self.company,
+                vendor=self.vendor,
+                bill_date=date
+            )
+            for item in data
+        ]
 
-            # Convert dictionary values to JSON strings where needed
-            processed_item = {key: json.dumps(value) if isinstance(value, dict) else value for key, value in item.items()}
-            processed_item.pop('company')
-            processed_item.pop('vendor')
-            
-            # Create Django model instance
-            objects_to_create.append(BaselineDataTable(viewuploaded=self.instance, **processed_item, company=self.company, vendor=self.vendor,bill_date=date))
 
-        # Bulk insert records
         BaselineDataTable.objects.bulk_create(objects_to_create, ignore_conflicts=True)
         
         get_main_base_obj = BaseDataTable.objects.filter(viewuploaded=None, sub_company=baseobj.sub_company, vendor=baseobj.vendor, accountnumber=baseobj.accountnumber)
         get_main_base_obj = get_main_base_obj[0] if get_main_base_obj.exists() else None
         for obj in objects_to_create:
-            existing = BaselineDataTable.objects.filter(viewuploaded=None).filter(
+            existing = BaselineDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(
                 sub_company=obj.sub_company,
                 vendor=obj.vendor,
                 account_number=obj.account_number,
@@ -820,15 +919,16 @@ class ProcessZip:
             if not existing.exists():
                 print("not exists")
                 
-                
+                # print("new object data", model_to_dict(obj))
+                # print("get main base obj", model_to_dict(get_main_base_obj))
                 new_obj_data = model_to_dict(obj)
                 new_obj_data['viewuploaded'] = None
                 if get_main_base_obj.banUploaded:
-                    new_obj_data['banUploaded'] = get_main_base_obj.banUploaded.id
+                    new_obj_data['banUploaded'] = get_main_base_obj.banUploaded
                 elif get_main_base_obj.banOnboarded:
-                    new_obj_data['banOnboarded'] = get_main_base_obj.banOnboarded.id
+                    new_obj_data['banOnboarded'] = get_main_base_obj.banOnboarded
                 elif get_main_base_obj.inventory:
-                    new_obj_data['inventory'] = get_main_base_obj.inventory.id
+                    new_obj_data['inventory'] = get_main_base_obj.inventory
                 new_obj = BaselineDataTable.objects.create(**new_obj_data)
                 
                 new_obj.save()
@@ -907,7 +1007,7 @@ class ProcessZip:
         get_main_base_obj = BaseDataTable.objects.filter(viewuploaded=None, sub_company=baseobj.sub_company, vendor=baseobj.vendor, accountnumber=baseobj.accountnumber)
         get_main_base_obj = get_main_base_obj[0] if get_main_base_obj.exists() else None
         for obj in objects_to_create:
-            existing = UniquePdfDataTable.objects.filter(viewuploaded=None).filter(
+            existing = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(
                 sub_company=obj.sub_company,
                 vendor=self.vendor,
                 account_number=obj.account_number,
@@ -927,7 +1027,129 @@ class ProcessZip:
                 new_obj = UniquePdfDataTable.objects.create(**new_obj_data)
                 
                 new_obj.save()
-                print(new_obj.id)
+
+    def reflect_uniquetable_non_bill_data(self,onboarded_id,bill_main_id):
+        current_bill = UniquePdfDataTable.objects.filter(
+            company=self.company,
+            sub_company=self.org,
+            vendor=self.vendor,
+            account_number=self.account_number,
+            viewuploaded=bill_main_id
+        )
+        uploaded_baseline = UniquePdfDataTable.objects.filter(
+            company=self.company,
+            sub_company=self.org,
+            vendor=self.vendor,
+            account_number=self.account_number,
+            viewuploaded=None,
+            viewpapered=None
+        )
+        current_numbers = current_bill.values_list('wireless_number', flat=True)
+        uploaded_numbers = uploaded_baseline.values_list('wireless_number', flat=True)
+        missing_numbers = set(current_numbers) - set(uploaded_numbers)
+        print("length of missing uniques", len(missing_numbers))
+        missing_entries = current_bill.filter(wireless_number__in=missing_numbers)
+        new_entries = []
+        for entry in missing_entries:
+            entry.pk = None  # This ensures a new row is created on save
+            entry.viewuploaded = None
+            entry.viewpapered = None
+            entry.banOnboarded = onboarded_id
+            new_entries.append(entry)
+        
+        UniquePdfDataTable.objects.bulk_create(new_entries)
+    def reflect_baselinetable_non_bill_data(self,onboarded_id,bill_main_id):
+        current_bill = BaselineDataTable.objects.filter(
+            company=self.company,
+            sub_company=self.org,
+            vendor=self.vendor,
+            account_number=self.account_number,
+            viewuploaded=bill_main_id
+        )
+        uploaded_baseline = BaselineDataTable.objects.filter(
+            company=self.company,
+            sub_company=self.org,
+            vendor=self.vendor,
+            account_number=self.account_number,
+            viewuploaded=None,
+            viewpapered=None
+        )
+        current_numbers = current_bill.values_list('Wireless_number', flat=True)
+        uploaded_numbers = uploaded_baseline.values_list('Wireless_number', flat=True)
+        missing_numbers = set(current_numbers) - set(uploaded_numbers)
+        print("length of missing baselines", len(missing_numbers))
+        missing_entries = current_bill.filter(Wireless_number__in=missing_numbers)
+        new_entries = []
+        for entry in missing_entries:
+            entry.pk = None  # This ensures a new row is created on save
+            entry.viewuploaded = None
+            entry.viewpapered = None
+            entry.banOnboarded = onboarded_id
+            new_entries.append(entry)
+        
+        BaselineDataTable.objects.bulk_create(new_entries)
+    
+    def add_tag_to_dict(self, bill_main_id):
+        print("def add_tag_to_dict")
+        baseline = BaselineDataTable.objects.filter(
+            company=self.company,
+            sub_company=self.org,
+            vendor=self.vendor,
+            account_number=self.account_number,
+            viewuploaded=None,
+            viewpapered=None
+        )
+        current_bill = BaselineDataTable.objects.filter(
+            company=self.company,
+            sub_company=self.org,
+            vendor=self.vendor,
+            account_number=self.account_number,
+            viewuploaded=bill_main_id
+        )
+    
+        baseline_dict = {b.Wireless_number: b for b in baseline if b.Wireless_number}
+        for bill_obj in current_bill:
+            wireless = bill_obj.Wireless_number
+            baseline_obj = baseline_dict.get(wireless)
+            if baseline_obj:  
+                tagged_object = tagging(baseline_obj.category_object, bill_obj.category_object)
+                bill_obj.category_object = tagged_object
+                bill_obj.save()
+
+    def check_baseline_approved(self, model,bill_main_id):
+        all_objects = model.objects.filter(
+            company=self.company,
+            sub_company=self.org,
+            vendor=self.vendor,
+            account_number=self.account_number,
+            viewuploaded=bill_main_id
+        )
+        for line in all_objects:
+            line.is_baseline_approved = check_true_false(line.category_object)
+            line.save()
+
+    def reflect_category_object(self, bill_main_id):
+        uniques = UniquePdfDataTable.objects.filter(
+            company=self.company,
+            sub_company=self.org,
+            vendor=self.vendor,
+            account_number=self.account_number,
+            viewuploaded=bill_main_id
+        )
+
+        for line in uniques:
+            baseline = BaselineDataTable.objects.filter(
+                company=line.company,
+                sub_company=line.sub_company,
+                vendor=line.vendor,
+                account_number=self.account_number,
+                viewuploaded=bill_main_id,
+                Wireless_number=line.wireless_number,
+            ).first()
+
+            if baseline:
+                line.category_object = baseline.category_object
+                line.save()
     def map_json_to_model(self, data):
         KEY_MAPPING = {
             "account_number_y": "account_number",
@@ -1227,9 +1449,9 @@ class ProcessZip:
     def save_to_base_data_table(self, data):
         print("save to base data table")
         from OnBoard.Ban.models import BaseDataTable
-        objects_to_create = [BaseDataTable(viewuploaded=self.instance, **item) for item in data]
-
-        BaseDataTable.objects.bulk_create(objects_to_create, ignore_conflicts=True)
+        for item in data:
+            bill_date = item.pop('bill_date').replace(",","")
+            BaseDataTable.objects.create(viewuploaded=self.instance,bill_date=bill_date, **item)
 
 
     def extract_rdd_data(self, filepath, organization):
@@ -1336,6 +1558,8 @@ import tempfile
 
 class ProcessExcel:
 
+
+
     def __init__(self, instance, user_mail):
         self.instance = instance
         self.file = instance.file
@@ -1426,3 +1650,201 @@ class ProcessExcel:
             else:
                 cleaned_data[key] = value
         return cleaned_data
+    
+class ApproveView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    
+    def post(self, request,id, *args, **kwargs):
+        data = request.data.copy()
+        sub_company = data.pop('sub_company')
+        vendor = data.pop('vendor')
+        ban = data.pop('ban')
+        wn = data.pop('wireless_number')
+
+        if not (id and sub_company and ban and wn):
+            return Response({"message":"Incomplete paylod"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        main_object = data.pop('main_object')
+        print(main_object)
+
+        main_uploaded_id = BaselineDataTable.objects.filter(id=id)
+        if not main_uploaded_id.exists():
+            return Response({"message":"object not found!"},status=status.HTTP_400_BAD_REQUEST)
+        main_uploaded_id = main_uploaded_id.first()
+        try:
+            account_obj = BaselineDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered=main_uploaded_id.viewpapered)
+            baseline_obj = account_obj.filter(Wireless_number=wn)
+            if not baseline_obj.exists():
+                return Response({"message":"Baseline data for given attributes Not found!"}, status=status.HTTP_400_BAD_REQUEST)
+
+            unique_obj = UniquePdfDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered=main_uploaded_id.viewpapered)
+            if not unique_obj.exists():
+                return Response({"message":"Unique data for given attributes Not found!"}, status=status.HTTP_400_BAD_REQUEST)
+
+            if 'approve' in main_object:
+                new_approved = json.dumps(main_object['approve'])
+                _obj = baseline_obj.first()
+                if _obj:
+                    _obj.category_object = new_approved
+                    _obj.is_baseline_approved = check_true_false(_obj.category_object)
+                    _obj.save() 
+
+                approved_wireless_list = account_obj.values_list('is_baseline_approved', flat=True)
+
+                base_obj = BaseDataTable.objects.filter(viewuploaded=_obj.viewuploaded,viewpapered= _obj.viewpapered)
+                if base_obj.exists():
+                    base_instance = base_obj.first()
+                    base_instance.is_baseline_approved = False if False in approved_wireless_list else True
+                    base_instance.save()  
+
+                u_obj = unique_obj.filter(wireless_number=wn).first()
+                if u_obj:
+                    u_obj.category_object = new_approved
+                    u_obj.is_baseline_approved = check_true_false(u_obj.category_object)
+                    u_obj.save()  
+
+            if 'baseline' in main_object:
+                new_baseline = json.dumps(main_object['baseline'])
+
+                _obj = baseline_obj.first()
+                if _obj:
+                    _obj.category_object = new_baseline
+                    _obj.save()  
+
+                u_obj = unique_obj.filter(wireless_number=wn).first()
+                if u_obj:
+                    u_obj.category_object = new_baseline
+                    u_obj.save() 
+
+            return Response({"message": "Baseline updated successfully!"}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print(e)
+            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def check_true_false(cat):
+    formatted = json.loads(cat) if isinstance(cat, str) else cat
+    for key, value in formatted.items():
+        if isinstance(value, dict):
+            for sub_key, sub_value in value.items():
+                if isinstance(sub_value, dict):
+                    if sub_value['approved'] == False:
+                        return False
+    return True
+
+from datetime import datetime
+from ..models import PaperBill
+class PaperBillView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.filtered_baseline = None
+    def get(self, request, *args, **kwargs):
+        orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
+        vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
+        onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None), many=True)
+        
+        if request.GET:
+            org = request.GET.get('org')
+            vendor = request.GET.get('ven')
+            ban = request.GET.get('ban')
+            invoice_number = request.GET.get('invoicenumber')
+            billdate = request.GET.get('billdate')
+            duedate = request.GET.get('duedate')
+            formatted_billdate = format_date(billdate)
+            month = formatted_billdate.split(" ")[0]
+            year = formatted_billdate.split(" ")[2]
+            formatted_duedate = format_date(duedate)
+
+            print(org, vendor, ban, invoice_number,month, year)
+            
+            base = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban)
+
+            print(base)
+
+
+            if base.filter(invoicenumber=invoice_number).exists():
+                return Response({"message":f"Bill with invoice number {invoice_number} already exists!"},status=status.HTTP_400_BAD_REQUEST)
+        
+
+            if base.filter(month=month, year=year).exists():
+                return Response({"message":f"Bill with month {month} and year {year} already exists!"},status=status.HTTP_400_BAD_REQUEST)
+
+            new_paper_obj = PaperBill.objects.create(
+                sub_company=org,
+                vendor=vendor,
+                account_number=ban,
+                invoice_number=invoice_number,
+                bill_date=formatted_billdate,
+                due_date=formatted_duedate
+            )
+            new_paper_obj.save()
+
+            new_base_obj = BaseDataTable.objects.create(
+                viewpapered=new_paper_obj,
+                company=base.first().company,
+                sub_company=org,
+                vendor=vendor,
+                accountnumber=ban,
+                invoicenumber=invoice_number,
+                bill_date=formatted_billdate,
+                date_due=formatted_duedate,
+                month=formatted_billdate.split(" ")[0],
+                year=formatted_billdate.split(" ")[2]
+            )
+            new_base_obj.save()
+            
+            onboarded_uniques = UniquePdfDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(sub_company=org, vendor=vendor, account_number=ban)
+            onboarded_baseline = BaselineDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(sub_company=org, vendor=vendor, account_number=ban)
+
+            print(len(onboarded_baseline), len(onboarded_uniques))
+
+            new_uniques = []
+            for unique in onboarded_uniques:
+                unique.pk = None
+                unique.banOnboarded = None
+                unique.banUploaded = None
+                unique.viewpapered = new_paper_obj
+                unique.bill_date = formatted_billdate
+                unique.category_object = {}
+                new_uniques.append(unique)
+            UniquePdfDataTable.objects.bulk_create(new_uniques)
+            new_baselinies = []
+            for line in onboarded_baseline:
+                line.pk = None
+                line.banOnboarded = None
+                line.banUploaded = None
+                line.viewpapered = new_paper_obj
+                line.bill_date = formatted_billdate
+                line.category_object = {}
+                new_baselinies.append(line)
+            BaselineDataTable.objects.bulk_create(new_baselinies)
+
+
+            baseline = BaselineDataTable.objects.exclude(viewpapered=None).filter(account_number=base[0].accountnumber).filter(is_draft=False, is_pending=False)
+            if len(base) == 1:
+                baseline = baseline.filter(viewpapered=base[0].viewpapered)
+            wireless_numbers = baseline.values_list('Wireless_number', flat=True)
+            Onboardedobjects = BaselineDataTable.objects.filter(
+                viewpapered=None,
+                vendor=vendor,
+                account_number=ban,
+                sub_company=org,
+                Wireless_number__in=wireless_numbers
+            )
+            self.filtered_baseline = BaselinedataSerializer(baseline, many=True, context={'onboarded_objects': Onboardedobjects}).data
+        return Response(
+            {"orgs": orgs.data, "vendors": vendors.data, "onborded": onboarded.data, "filtered_baseline": self.filtered_baseline},
+            status=status.HTTP_200_OK,
+        )
+
+def format_date(date_str):
+    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+    formatted_date = date_obj.strftime("%B %d %Y")
+    return formatted_date
+
+# def reflect_to_paper(baselines, uniquelines, billdate):
+    

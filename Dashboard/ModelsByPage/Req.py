@@ -32,7 +32,7 @@ class Requests(models.Model):
     features = models.JSONField(default=list, null=True, blank=True)
     is_international_plan = models.BooleanField(default=False)
     is_voice_calling = models.BooleanField(default=False)
-    is_insurace = models.BooleanField(default=False)
+    is_insurance = models.BooleanField(default=False)
     first_name = models.CharField(max_length=255, null=True, blank=True)
     last_name = models.CharField(max_length=255, null=True, blank=True)
     user_email = models.CharField(max_length=255, null=True, blank=True)

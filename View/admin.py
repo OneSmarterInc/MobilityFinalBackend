@@ -2,14 +2,8 @@ from django.contrib import admin
 
 # Register your models here.
 from django.contrib import admin
-from .models import viewPaperBill, ViewUploadBill, ProcessedWorkbook
+from .models import ViewUploadBill, ProcessedWorkbook
 
-@admin.register(viewPaperBill)
-class ViewPaperBillAdmin(admin.ModelAdmin):
-    list_display = ('account_number', 'wireless_number', 'invoice_number', 'user_name', 'invoice_date', 'due_date', 'monthly_bill', 'company', 'organization', 'vendor', 'created_at', 'updated_at')
-    search_fields = ('account_number', 'invoice_number', 'user_name')
-    list_filter = ('company', 'organization', 'vendor', 'invoice_date', 'due_date')
-    ordering = ('-created_at',)
 
 @admin.register(ViewUploadBill)
 class ViewUploadBillAdmin(admin.ModelAdmin):

@@ -2,7 +2,6 @@ from rest_framework import serializers
 from OnBoard.Organization.models import Organizations
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, BaselineDataTable
-from ..models import viewPaperBill
 
 class OrganizationShowSerializer(serializers.ModelSerializer):
     vendors = serializers.StringRelatedField(many=True)
@@ -33,13 +32,6 @@ class BaselineDataTableShowSerializer(serializers.ModelSerializer):
         fields = '__all__'
     
 
-class viewPaperBillserializer(serializers.ModelSerializer):
-    company = serializers.CharField()
-    organization = serializers.CharField()
-    vendor = serializers.CharField()
-    class Meta:
-        model = viewPaperBill
-        fields = '__all__'
 class showOnboardedSerializer(serializers.ModelSerializer):
     class Meta:
         model = BaseDataTable

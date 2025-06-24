@@ -172,7 +172,7 @@ forgot = [
 ]
 urlpatterns.extend(forgot)
 
-from .CRUDViews.requests import RequestsView, OnlineFormView, RequestLogsView
+from .CRUDViews.requests import RequestsView, OnlineFormView, RequestLogsView, RequestExcelUploadView
 
 requests = [
     path("requests-management/", RequestsView().as_view(), name='requests-list-create'),
@@ -183,6 +183,7 @@ urlpatterns.extend(requests)
 
 requestsform = [
     path("request-management/requests-form/", OnlineFormView().as_view(), name='form-create'),
+    path("request-management/excel-upload/<org>/", RequestExcelUploadView().as_view(), name='form-create'),
 ]
 urlpatterns.extend(requestsform)
 
@@ -191,3 +192,4 @@ requestslogs = [
     # path("requests-management/<pk>/request-logs/", RequestLogsView().as_view(), name='request-logs-detail'),
 ]
 urlpatterns.extend(requestslogs)
+

@@ -21,7 +21,7 @@ class GetPaymentReportByDueDate(APIView):
             all_companys = CompanyShowOnboardSerializer(Company.objects.all(), many=True)
         else:
             all_companys = OrganizationShowOnboardSerializer(Organizations.objects.filter(company=request.user.company), many=True)
-        all_accounts = BaseDataTableShowSerializer(BaseDataTable.objects.filter(viewuploaded=None), many=True)
+        all_accounts = BaseDataTableShowSerializer(BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None), many=True)
         if 'request_type' in request.GET:
             due_date = request.GET.get('due_date')
             company = request.GET.get('company')

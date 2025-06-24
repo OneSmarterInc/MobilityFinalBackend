@@ -26,6 +26,9 @@ from django.core.files.base import ContentFile
 from django.conf import settings
 from django.core.files import File
 import ast
+from sendmail import send_custom_email
+
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -44,13 +47,14 @@ class ProcessBills:
         self.master_account = self.buffer_data['master_account'] if 'master_account' in self.buffer_data else None
         self.year = self.buffer_data['year'] if 'year' in self.buffer_data else None
         self.types = self.buffer_data['types'] if 'types' in self.buffer_data else None
-        # self.email = self.buffer_data['email'] if 'email' in self.buffer_data else None
+        self.email = self.buffer_data['email'] if 'email' in self.buffer_data else None
         self.sub_company = self.buffer_data['sub_company_name'] if 'sub_company_name' in self.buffer_data else None
         self.t_mobile_type = self.check_tmobile_type() if 'mobile' in str(self.vendor_name).lower() else 0
         logger.info(f'Processing PDF from buffer: {self.pdf_path}, {self.company_name}, {self.vendor_name}, {self.pdf_filename}')
 
         self.instance = instance
         self.check = True
+        self.account_number = self.buffer_data['account_number'] if 'account_number' in self.buffer_data else None
     def check_tmobile_type(self):
         print("def check_tmobile_type")
         Lines = []
@@ -154,7 +158,7 @@ class ProcessBills:
             data_dict['master_account'] = self.master_account
 
         return data_dict,acc_info,bill_date_info
-    def save_to_base_data_table(self, data):
+    def save_to_base_data_table(self, data,remittance_address):
     
         print("def save_to_base_data_table")
         from django.db import transaction
@@ -174,15 +178,18 @@ class ProcessBills:
             updated_data = {mapping.get(k, k): v for k, v in data.items()}
             updated_data.pop("foundation_account") if 'foundation_account' in updated_data else None
             filtered_data = remove_filds(BaseDataTable, updated_data)
-            print("filtered=", filtered_data)
-            obj = BaseDataTable.objects.create(viewuploaded=self.instance, **filtered_data)
+       
+            bill_date = filtered_data.pop('bill_date').replace(',','')
+            obj = BaseDataTable.objects.create(viewuploaded=self.instance,bill_date=bill_date,RemittanceAdd=remittance_address, **filtered_data)
+            self.account_number = obj.accountnumber
             obj.save()
         elif type(data) == list:
             for item in data:
                 updated_data = {mapping.get(k, k): v for k, v in item.items()}
                 filtered_data = filtered_data = remove_filds(BaseDataTable, updated_data)
-                print("filtered=", filtered_data)
-                obj = BaseDataTable.objects.create(viewuploaded=self.instance, **filtered_data)
+                bill_date = filtered_data.pop('bill_date').replace(',','')
+                obj = BaseDataTable.objects.create(viewuploaded=self.instance,bill_date=bill_date,RemittanceAdd=remittance_address, **filtered_data)
+                self.account_number = obj.accountnumber
                 obj.save()
         return obj
         
@@ -493,6 +500,8 @@ class ProcessBills:
             duplicate_df = duplicate
         else:
             final_df, unique_df,usage_df, initial_df = process_all(self.pdf_path)
+            unique_df['Wireless_number'] = unique_df['Wireless_number'].astype(str).str.replace('.', '-', regex=False)
+            final_df['Wireless_number'] = final_df['Wireless_number'].astype(str).str.replace('.', '-', regex=False)
             result_df = unique_df
             duplicate_df = final_df
         return result_df,duplicate_df
@@ -570,6 +579,9 @@ class ProcessBills:
             result_df = result
         else:
             df_unique,final_df,usage_df,tmp_df = process_all(self.pdf_path)
+            df_unique['Wireless_number'] = df_unique['Wireless_number'].astype(str).str.replace('.', '-', regex=False)
+            final_df['Wireless_number'] = final_df['Wireless_number'].astype(str).str.replace('.', '-', regex=False)
+            tmp_df['Wireless_number'] = tmp_df['Wireless_number'].astype(str).str.replace('.', '-', regex=False)
             df_unique['account_number'] = acc_info
             final_df['account_number'] = acc_info
             df_unique_dict = df_unique.to_dict(orient='records')
@@ -663,6 +675,80 @@ class ProcessBills:
             
             PdfDataTable.objects.create(viewuploaded=self.instance, **filtered_data)
     
+    def add_tag_to_dict(self, bill_main_id):
+        print("def add_tag_to_dict")
+        baseline = BaselineDataTable.objects.filter(
+            company=self.company_name,
+            sub_company=self.sub_company,
+            vendor=self.vendor_name,
+            account_number=self.account_number,
+            viewuploaded=None,
+            viewpapered=None
+        )
+        current_bill = BaselineDataTable.objects.filter(
+            company=self.company_name,
+            sub_company=self.sub_company,
+            vendor=self.vendor_name,
+            account_number=self.account_number,
+            viewuploaded=bill_main_id
+        )
+        print("length of baseline",len(baseline))
+
+        print("length of current_bill",len(current_bill))
+        baseline_dict = {b.Wireless_number: b for b in baseline if b.Wireless_number}
+        for bill_obj in current_bill:
+            wireless = bill_obj.Wireless_number
+            baseline_obj = baseline_dict.get(wireless)
+            if baseline_obj:  
+                tagged_object = tagging(baseline_obj.category_object, bill_obj.category_object)
+                bill_obj.category_object = tagged_object
+                bill_obj.save()
+    def reflect_category_object(self, bill_main_id):
+        uniques = UniquePdfDataTable.objects.filter(
+            company=self.company_name,
+            sub_company=self.sub_company,
+            vendor=self.vendor_name,
+            account_number=self.account_number,
+            viewuploaded=bill_main_id
+        )
+
+        for line in uniques:
+            baseline = BaselineDataTable.objects.filter(
+                company=line.company,
+                sub_company=line.sub_company,
+                vendor=line.vendor,
+                account_number=self.account_number,
+                viewuploaded=bill_main_id,
+                Wireless_number=line.wireless_number,
+            ).first()
+
+            if baseline:
+                line.category_object = baseline.category_object
+                line.save()
+
+
+    def check_true_false(self, cat):
+        formatted = json.loads(cat) if isinstance(cat, str) else cat
+        for key, value in formatted.items():
+            if isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    if isinstance(sub_value, dict):
+                        if sub_value['approved'] == False:
+                            return False
+        return True
+        
+    def check_baseline_approved(self, model,bill_main_id):
+        all_objects = model.objects.filter(
+            company=self.company_name,
+            sub_company=self.sub_company,
+            vendor=self.vendor_name,
+            account_number=self.account_number,
+            viewuploaded=bill_main_id
+        )
+        for line in all_objects:
+            line.is_baseline_approved = self.check_true_false(line.category_object)
+            line.save()
+
     def save_to_unique_pdf_data_table(self,data):
         print("saving to unique_pdf_data_table")
         data_df = pd.DataFrame(data)
@@ -739,6 +825,66 @@ class ProcessBills:
             filtered_data = remove_filds(UniquePdfDataTable, updated_data)
             UniquePdfDataTable.objects.create(viewuploaded=self.instance,**filtered_data)
     
+    def reflect_uniquetable_non_bill_data(self,onboarded_id,bill_main_id):
+        current_bill = UniquePdfDataTable.objects.filter(
+            company=self.company_name,
+            sub_company=self.sub_company,
+            vendor=self.vendor_name,
+            account_number=self.account_number,
+            viewuploaded=bill_main_id
+        )
+        uploaded_baseline = UniquePdfDataTable.objects.filter(
+            company=self.company_name,
+            sub_company=self.sub_company,
+            vendor=self.vendor_name,
+            account_number=self.account_number,
+            viewuploaded=None,
+            viewpapered=None
+        )
+        current_numbers = current_bill.values_list('wireless_number', flat=True)
+        uploaded_numbers = uploaded_baseline.values_list('wireless_number', flat=True)
+        missing_numbers = set(current_numbers) - set(uploaded_numbers)
+        print("length of missing uniques", len(missing_numbers))
+        missing_entries = current_bill.filter(wireless_number__in=missing_numbers)
+        new_entries = []
+        for entry in missing_entries:
+            entry.pk = None  # This ensures a new row is created on save
+            entry.viewuploaded = None
+            entry.viewpapered = None
+            entry.banOnboarded = onboarded_id
+            new_entries.append(entry)
+        
+        UniquePdfDataTable.objects.bulk_create(new_entries)
+    def reflect_baselinetable_non_bill_data(self,onboarded_id,bill_main_id):
+        current_bill = BaselineDataTable.objects.filter(
+            company=self.company_name,
+            sub_company=self.sub_company,
+            vendor=self.vendor_name,
+            account_number=self.account_number,
+            viewuploaded=bill_main_id
+        )
+        uploaded_baseline = BaselineDataTable.objects.filter(
+            company=self.company_name,
+            sub_company=self.sub_company,
+            vendor=self.vendor_name,
+            account_number=self.account_number,
+            viewuploaded=None,
+            viewpapered=None
+        )
+        current_numbers = current_bill.values_list('Wireless_number', flat=True)
+        uploaded_numbers = uploaded_baseline.values_list('Wireless_number', flat=True)
+        missing_numbers = set(current_numbers) - set(uploaded_numbers)
+        print("length of missing baselines", len(missing_numbers))
+        missing_entries = current_bill.filter(Wireless_number__in=missing_numbers)
+        new_entries = []
+        for entry in missing_entries:
+            entry.pk = None  # This ensures a new row is created on save
+            entry.viewuploaded = None
+            entry.viewpapered = None
+            entry.banOnboarded = onboarded_id
+            new_entries.append(entry)
+        
+        BaselineDataTable.objects.bulk_create(new_entries)
     def save_to_baseline_data_table(self,data):
         print("saving to baseline_data_table")
         data_df = pd.DataFrame(data)
@@ -811,6 +957,7 @@ class ProcessBills:
         mapping = {'Monthly_charges':"monthly_charges", 'Usage_and_Purchase_Charges':"usage_and_purchase_charges", 'Equipment_Charges':"equipment_charges", 'Taxes_Governmental_Surcharges_and_Fees':"taxes_governmental_surcharges_and_fees", "Surcharges_and_Other_Charges_and_Credits":"surcharges_and_other_charges_and_credits",
         'Third_Party_Charges_includes_Tax':"taxes_governmental_surcharges_and_fees", 'Total_Charges':"total_charges", 'Voice_Plan_Usage':"voice_plan_usage", 'Messaging_Usage':"messaging_usage", 'Data_Usage':"data_usage", 'Foundation_Account':"voice_plan_usage", 'Account_number':"account_number", 'Group_Number':"group_number", 'User_Email':"User_email", 'Status':"User_status", 'Cost_Center':"cost_center", 'Account_Charges_and_Credits':"account_charges_and_credits", 'Plans':"plans", 'Item_Category':"item_category", 'Item_Description':"item_description", 'Charges':"charges", "User_name":"user_name", "Monthly_Charges":"monthly_charges"}
         for item in data:
+           
             for key, value in item.items():
                 if isinstance(value, dict):
                     item[key] = json.dumps(value)  
@@ -824,16 +971,25 @@ class ProcessBills:
             updated_data.pop('charges') if 'charges' in updated_data else None
             filtered_data = remove_filds(BaselineDataTable, updated_data)
             BaselineDataTable.objects.create(viewuploaded=self.instance,**filtered_data)
+        
     def process(self):
         logger.info('Extracting data from PDF')
         xlsx_first_dict, acc_info, bill_date_info = self.extract_data_from_pdf()
-        baseinstance = self.save_to_base_data_table(xlsx_first_dict)
+
+        onboarded = BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(sub_company=self.sub_company, vendor=self.vendor_name, accountnumber=self.account_number).first()
+
+        baseinstance = self.save_to_base_data_table(xlsx_first_dict, remittance_address=onboarded.RemittanceAdd)
         
+
+        bill_main_id = baseinstance.viewuploaded.id
+
+        onboarded_id = onboarded.banOnboarded
 
         if isinstance(bill_date_info, list):
             bill_date_info = bill_date_info[0]
         xlsx_unique, xlsx_duplicate = self.extract_total_pdf_data(acc_info)
 
+        bill_date_info = bill_date_info.replace(",","")
         print(len(xlsx_unique))
         print(xlsx_unique.columns)
         print(len(xlsx_duplicate))
@@ -894,12 +1050,11 @@ class ProcessBills:
             self.save_to_pdf_data_table(pdf_data)
             print('got here')
             self.save_to_unique_pdf_data_table(unique_pdf_data)
-            if self.month == None and self.year == None:
-                print("**",type(self.baseline_check), self.baseline_check)
-                if self.baseline_check == True:
-                    self.save_to_baseline_data_table(category_data)
-                else:
-                    self.save_to_baseline_data_table(non_categorical_data)    
+            print("**",type(self.baseline_check), self.baseline_check)
+            if self.baseline_check == True:
+                self.save_to_baseline_data_table(category_data)
+            else:
+                self.save_to_baseline_data_table(non_categorical_data)    
         print('wie gets')
         message = 'file has been processed successfully'
         print(len(pdf_data), len(unique_pdf_data), len(tmp_df))
@@ -919,6 +1074,19 @@ class ProcessBills:
         output_file_path = os.path.join(output_dir, workbook_name)
         if self.entry_type != "Master Account":
             pass
+        
+        # self.reflect_non_bill_data(onboarded_id,bill_main_id)
+        self.reflect_uniquetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id)
+        self.reflect_baselinetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id)
+        self.add_tag_to_dict(bill_main_id)
+        self.reflect_category_object(bill_main_id)
+        self.check_baseline_approved(UniquePdfDataTable, bill_main_id)
+        self.check_baseline_approved(BaselineDataTable, bill_main_id)
+
+        account_obj = BaselineDataTable.objects.filter(sub_company=self.sub_company, vendor=self.vendor_name, account_number=self.account_number).filter(viewuploaded=self.instance)
+        approved_wireless_list = account_obj.values_list('is_baseline_approved', flat=True)
+
+        baseinstance.is_baseline_approved = False if False in list(approved_wireless_list) else True
         try:
             with open(output_file_path, "wb") as f:
                 f.write(workbook.getvalue())
@@ -947,8 +1115,32 @@ class ProcessBills:
             baseinstance.save()
 
             f.close()
-        except:
-            pass
+
+            message = 'file has been processed successfully'
+        except Exception as e:
+            print(e)
+            message = 'file could not be processed due to invalid format or invalid content'
+
+        subject = 'Notification: File Processing Completed'
+
+        body = f"""
+        Dear User,
+
+        We would like to inform you that the following action has been completed: **{message}**.
+
+        You can view the corresponding baseline table at the following link:
+        [View Baseline Table](http://localhost:5173/view/view-bill-baseline/{self.sub_company}/{self.vendor_name}/{self.account_number}/{bill_date_info})
+
+        If you have any questions or require further assistance, please do not hesitate to contact us.
+
+        Thank you for your attention.
+
+        Best regards,  
+        The Support Team
+        """
+
+        # send_custom_email(receiver_mail="gauravdhale09@gmail.com", subject=subject, body=body)
+        send_custom_email(receiver_mail=self.email, subject=subject, body=body)
 
     
 def remove_filds(model, data):
@@ -957,3 +1149,42 @@ def remove_filds(model, data):
     filtered_data = {key: value for key, value in data.items() if key in valid_fields}
 
     return filtered_data
+
+from addon import parse_until_dict
+def tagging(baseline_data, bill_data):
+    baseline_data = parse_until_dict(baseline_data)
+    bill_data = parse_until_dict(bill_data)
+    def compare_and_tag(base, bill):
+        for key in list(bill.keys()):
+            if key not in base:
+                continue
+            base_val = base[key]
+            bill_val = bill[key]
+
+            if isinstance(bill_val, dict) and isinstance(base_val, dict):
+                compare_and_tag(base_val, bill_val)
+            else:
+                try:
+                    base_val = str(base_val).replace('$','').replace('-','')
+                    bill_val_init = str(bill_val).replace('$','')
+                    bill_val = bill_val_init.replace('-','')
+                    base_float = float(base_val)
+                    bill_float = float(bill_val)
+                    if base_float != 0:
+                        low_range = bill_float - (5/100 * bill_float)
+                        high_range = bill_float + (5/100 * bill_float)
+                        if ((base_float < high_range) and (base_float > low_range)):
+                            tag = True
+                        else:
+                            tag = False
+                        if '-' in bill_val_init:
+                            bill[key] = {"amount":f'-{bill_val}', "approved":tag}
+                        else:
+                            bill[key] = {"amount":bill_val, "approved":tag}
+                except (ValueError, TypeError):
+                    print("error")
+                    bill[key] = {"amount":bill_val, "approved":False}
+
+    compare_and_tag(baseline_data, bill_data)
+    json_string = json.dumps(bill_data)
+    return json_string

@@ -9,10 +9,10 @@ from OnBoard.Location.models import Location
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 from .ser import OrganizationgetNameSerializer, CompanygetNameSerializer, LocationGetNameSerializer, VendorNameSerializer
 from .ser import OrganizationGetAllDataSerializer, CompanygetAllDataSerializer, LocationGetAllDataSerializer, VendorGetAllDataSerializer
-from .ser import CompanyShowOnboardSerializer, OrganizationShowOnboardSerializer, BanShowSerializer, OnboardBanshowserializer, BaseDataTableShowSerializer, UploadBANSerializer, UniqueTableShowSerializer
+from .ser import CompanyShowOnboardSerializer, OrganizationShowOnboardSerializer, BanShowSerializer, OnboardBanshowserializer, BaseDataTableShowSerializer, UploadBANSerializer, UniqueTableShowSerializer, BaselineSaveSerializer
 from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
-from OnBoard.Ban.models import UploadBAN, OnboardBan, BaseDataTable
+from OnBoard.Ban.models import UploadBAN, OnboardBan, BaseDataTable, BaselineDataTable
 # Create your views here.
 
 
@@ -20,12 +20,14 @@ class InventorySubjectView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
+        from django.db.models import Q
+
         if request.user.designation.name == "Superadmin":
             objs = Company.objects.all()
-            onboardbanObjs = BaseDataTable.objects.filter(viewuploaded=None)
+            onboardbanObjs = BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None)
             onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
             serializer = CompanyShowOnboardSerializer(objs, many=True)
-            all_lines = UniquePdfDataTable.objects.filter(viewuploaded=None)
+            all_lines = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None)
             lines_Ser = UniqueTableShowSerializer(all_lines, many=True)
             return Response({"data": serializer.data, 'banonboarded':onbanser.data, "lines":lines_Ser.data}, status=status.HTTP_200_OK)
         elif request.user.designation.name == "Admin":
@@ -33,9 +35,9 @@ class InventorySubjectView(APIView):
             objs = Organizations.objects.filter(company=com)
             allobjs = OnboardBan.objects.all()
             serializer = OrganizationShowOnboardSerializer(objs, many=True)
-            onboardbanObjs = BaseDataTable.objects.filter(company=request.user.company).filter(viewuploaded=None)
+            onboardbanObjs = BaseDataTable.objects.filter(company=request.user.company).filter(viewuploaded=None, viewpapered=None)
             onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
-            all_lines = UniquePdfDataTable.objects.filter(viewuploaded=None)
+            all_lines = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None)
             lines_Ser = UniqueTableShowSerializer(all_lines, many=True)
             return Response({"data": serializer.data, 'banonboarded':onbanser.data, "lines":lines_Ser.data}, status=status.HTTP_200_OK)
         try:
@@ -133,7 +135,7 @@ class BanInfoView(APIView):
             orgobject = Organizations.objects.get(Organization_name=org)
             locobj = Location.objects.filter(organization=orgobject)
             vendorobject = Vendors.objects.get(name=vendor)
-            banobject = BaseDataTable.objects.filter(viewuploaded=None).get(accountnumber=ban)
+            banobject = BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None).get(accountnumber=ban)
             if banobject.banUploaded:
                 portalinfo = PortalInformation.objects.get(banUploaded=banobject.banUploaded.id)
             elif banobject.banOnboarded:
@@ -147,14 +149,14 @@ class BanInfoView(APIView):
         except BaseDataTable.DoesNotExist:
             return Response({"message": "Ban not found"}, status=status.HTTP_404_NOT_FOUND)
                 
-        banlines = UniquePdfDataTable.objects.filter(viewuploaded=None)
+        banlines = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None)
         vendorser = VendorGetAllDataSerializer(vendorobject)
         orgser = OrganizationGetAllDataSerializer(orgobject)
         locser = LocationGetAllDataSerializer(locobj, many=True)
 
         divisions = DivisionNameSerializer(Division.objects.filter(organization=orgobject), many=True)
 
-        allonboards = BaseDataTable.objects.filter(viewuploaded=None).filter(sub_company=org)
+        allonboards = BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(sub_company=org)
 
 
         allonboards = BaseDataTableAllShowSerializer(allonboards, many=True)
@@ -173,7 +175,7 @@ class BanInfoView(APIView):
     
     def post(self, request, org, vendor, ban, *args, **kwargs):
         try:
-            obj = BaseDataTable.objects.filter(viewuploaded=None).filter(sub_company=org, vendor=vendor, accountnumber=ban)
+            obj = BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(sub_company=org, vendor=vendor, accountnumber=ban)
         except:
             return Response(
                 {"message": "Ban not found"},
@@ -217,7 +219,9 @@ class BanInfoView(APIView):
         
         base = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban)
         if not base:
-            return Response({"message":f"Ban with account number {ban} not found!"},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":f"Ban {ban} not found!"},status=status.HTTP_400_BAD_REQUEST)
+        if len(base) > 1:
+            return Response({"message":f"can not delete ban {ban}!"},status=status.HTTP_400_BAD_REQUEST)
         print(base[0].banOnboarded, base[0].banUploaded)
         if base[0].banOnboarded:
             obj = OnboardBan.objects.get(id=base[0].banOnboarded.id)
@@ -226,7 +230,7 @@ class BanInfoView(APIView):
         else:
             return Response({"message":f"Ban with account number {ban} not found!"},status=status.HTTP_400_BAD_REQUEST)
         obj.delete()
-        return Response({"message":f"Ban with account number {ban} deleted successfully!"})
+        return Response({"message":f"Ban with account number {ban} deleted successfully!"},status=status.HTTP_200_OK)
         
 
 from Dashboard.ModelsByPage.DashAdmin import EntryType, BillType, PaymentType, InvoiceMethod, BanType, BanStatus, CostCenterLevel, CostCenterType
@@ -286,7 +290,7 @@ class Mobiles(APIView):
     permission_classes = [permissions.IsAuthenticated]
     def get(self,request, account, *args, **kwargs):
 
-        mobiles = UniquePdfDataTable.objects.filter(viewuploaded=None).filter(account_number=account)
+        mobiles = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(account_number=account)
         mobiles = UniqueTableShowSerializer(mobiles, many=True)
 
         acc = UploadBAN.objects.filter(account_number=account)[0]
@@ -304,7 +308,15 @@ class MobileView(APIView):
     def get(self, request,account_number, wireless_number=None, *args, **kwargs):
         com = request.GET.get('company')
         sub_com = request.GET.get('sub_company')
-        lines = UniquePdfDataTable.objects.filter(viewuploaded=None).filter(account_number=account_number, company=com, sub_company=sub_com)
+        lines = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(account_number=account_number, company=com, sub_company=sub_com)
+        # for line in lines:
+        #     if not line.category_object:
+        #         baseline_obj = BaselineDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(company=line.company, sub_company=line.sub_company, vendor=line.vendor, account_number=line.account_number, Wireless_number=line.wireless_number)
+        #         if baseline_obj:
+        #             line.category_object = baseline_obj[0].category_object
+        #             line.save()
+        
+        print("length of lines", len(lines))
         if not wireless_number:
             lines = lines
         else:
@@ -323,7 +335,7 @@ class MobileView(APIView):
         sub_com = data.get('sub_company', None)
         vendor = data.get('vendor', None)
         print(com, sub_com, account_number, wireless_number)
-        mainobject = UniquePdfDataTable.objects.filter(viewuploaded=None).filter(company=com, sub_company=sub_com, account_number=account_number,vendor=vendor)
+        mainobject = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(company=com, sub_company=sub_com, account_number=account_number,vendor=vendor)
         if mainobject.filter(wireless_number=wireless_number).exists():
             return Response({
                 "message": f"Mobile data with line {wireless_number} already exists"
@@ -359,17 +371,24 @@ class MobileView(APIView):
         },status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request,account_number,wireless_number, *args, **kwargs):
-        obj = UniquePdfDataTable.objects.filter(viewuploaded=None).filter(account_number=account_number, wireless_number=wireless_number)
+        data = request.data.copy()
+        obj = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(account_number=account_number, wireless_number=wireless_number)
         if obj:
-            obj = obj[0]
+            obj = obj.first()
         else:
             return Response({
                 "message": "Mobile data not found"
             },status=status.HTTP_404_NOT_FOUND)
         try:
-            serializer = UniqueTableShowSerializer(obj, data=request.data, partial=True)
+            serializer = UniqueTableShowSerializer(obj, data=data, partial=True)
             if serializer.is_valid():
                 serializer.save()
+            baselineobj = BaselineDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(account_number=account_number, Wireless_number=wireless_number)
+            if  baselineobj:
+                baselineobj = baselineobj.first()
+            baseline_ser = BaselineSaveSerializer(baselineobj, data=data, partial=True)
+            if baseline_ser.is_valid():
+                baseline_ser.save()
                 saveuserlog(
                     request.user,
                     f'mobile data of account number {account_number} and wireless number {wireless_number} updated successfully!'
@@ -387,7 +406,7 @@ class MobileView(APIView):
         },status=status.HTTP_400_BAD_REQUEST)
     def delete(self, request,account_number,wireless_number, *args, **kwargs):
         try:
-            obj = UniquePdfDataTable.objects.filter(viewuploaded=None).filter(account_number=account_number, wireless_number=wireless_number)
+            obj = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(account_number=account_number, wireless_number=wireless_number)
             if obj:
                 obj = obj[0]
             else:
@@ -406,3 +425,19 @@ class MobileView(APIView):
             return Response({
             "message": str(e)
         },status=status.HTTP_400_BAD_REQUEST)
+
+
+class OnboardedBaselineView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, org, vendor, ban, *args, **kwargs):
+        try:
+            if not org or not vendor or not ban:
+                return Response({"message": "Organization, Vendor, and Ban parameters are required."}, status=status.HTTP_400_BAD_REQUEST)
+            objs = BaselineDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(sub_company=org, vendor=vendor, account_number=ban)
+            if not objs:
+                return Response({"message": "No baseline data found for the given parameters."}, status=status.HTTP_404_NOT_FOUND)
+            serializer = BaselineSaveSerializer(objs, many=True)
+            return Response({"data": serializer.data}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)

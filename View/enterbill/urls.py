@@ -1,10 +1,10 @@
 from django.urls import path, include
-from .views import PaperBillView, PendingView, DraftView, UploadfileView
+from .views import UploadedBillView, PendingView, DraftView, UploadfileView
 
 enterbillurls = []
 paperbillurls = [
-    path('enter-bill/paper-bill/', PaperBillView.as_view(), name='paper-bill-list-create'),
-    path('enter-bill/paper-bill/<int:pk>/', PaperBillView.as_view(), name='paper-bill-detail'),
+    path('enter-bill/uploaded-bill/', UploadedBillView.as_view(), name='paper-bill-list-create'),
+    path('enter-bill/uploaded-bill/<int:pk>/', UploadedBillView.as_view(), name='paper-bill-detail'),
 ]
 
 
@@ -32,3 +32,17 @@ uploadfileurls = [
 ]
 
 enterbillurls.extend(uploadfileurls)
+
+from .views import ApproveView
+approveurls = [
+    path('approve-bill/<int:id>/', ApproveView.as_view(), name='approve')
+]
+enterbillurls.extend(approveurls)
+
+from .views import PaperBillView
+
+paperbillurls = [
+    path('enter-bill/paper-bill/', PaperBillView.as_view(), name='paper-bill')
+]
+
+enterbillurls.extend(paperbillurls)

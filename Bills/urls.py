@@ -32,7 +32,8 @@ my_app_urlpatterns = [
     path('analysis/', include('Analysis.urls')),
     path('view/', include('View.urls')),
     path('batch/', include('Batch.urls')),
-    path('report/', include('Report.urls'))
+    path('report/', include('Report.urls')),
+    path('settings/', include('Settings.urls')),
 ]
 
 

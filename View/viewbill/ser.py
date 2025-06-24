@@ -45,29 +45,40 @@ class uniquepdftableSerializer(serializers.ModelSerializer):
         fields = ('id', 'inventory', 'banOnboarded', 'account_number','user_name', 'total_charges', 'wireless_number')
 
 from collections import defaultdict
+import json
 class BaselinedataSerializer(serializers.ModelSerializer):
-    onboarded_categories = serializers.SerializerMethodField()
+    onboarded_categories = serializers.CharField(read_only=True)
+    category_object = serializers.CharField(read_only=True)
 
     class Meta:
         model = BaselineDataTable
         fields = '__all__'
-        extra_fields = ['onboarded_categories']
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
 
-        # Prepare the mapping once during serializer initialization
-        onboarded_objects = self.context.get('onboarded_objects')
-        wireless_to_categories = defaultdict(list)
-        for obj in onboarded_objects:
-            wireless_to_categories[obj.Wireless_number].append(obj.category_object)
-        
-        # Save it in context for use in get_onboarded_categories
-        self.context['wireless_to_categories'] = wireless_to_categories
+        wireless_to_categories = self.context.get('wireless_to_categories')
+        if not wireless_to_categories:
+            onboarded_objects = self.context.get('onboarded_objects', [])
+            wireless_to_categories = defaultdict(list)
+            for obj in onboarded_objects:
+                val = obj.category_object
+                # val = add_tag_to_dict(val)
+                if isinstance(val, dict):
+                    import json
+                    val = json.dumps(val)
+                wireless_to_categories[obj.Wireless_number].append(val)
+            self.context['wireless_to_categories'] = wireless_to_categories
 
-    def get_onboarded_categories(self, obj):
-        wireless_to_categories = self.context.get('wireless_to_categories', {})
-        return wireless_to_categories.get(obj.Wireless_number)
+        categories_list = wireless_to_categories.get(instance.Wireless_number, [])
+        rep['onboarded_categories'] = categories_list[0] if categories_list else ""
+
+        if not isinstance(rep.get('category_object'), str):
+            import json
+            rep['category_object'] = json.dumps(rep.get('category_object', {}))
+
+        return rep
+
     
 class BaselineDataTableShowSerializer(serializers.ModelSerializer):
     class Meta:
@@ -102,3 +113,14 @@ class BaselineWithOnboardedCategorySerializer(serializers.ModelSerializer):
             Wireless_number=obj.Wireless_number
         ).first()
         return related.category_object if related else None
+
+def add_tag_to_dict(baseline):
+    formatted = json.loads(baseline) if isinstance(baseline, str) else baseline
+    for key, value in formatted.items():
+        if isinstance(value, dict):
+            for sub_key, sub_value in value.items():
+                if not isinstance(sub_value, dict):
+                    value[sub_key] = f"{sub_value} - True"
+        else:
+            formatted[key] = f"{value} - True"
+    return formatted

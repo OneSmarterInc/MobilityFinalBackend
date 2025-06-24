@@ -4,32 +4,25 @@ from OnBoard.Organization.models import Organizations
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 
 
-class viewPaperBill(models.Model):
+class PaperBill(models.Model):
+    sub_company = models.CharField(max_length=255, null=False)
+    vendor = models.CharField(max_length=255, null=False)
     account_number = models.CharField(max_length=255, null=False)
-    wireless_number = models.CharField(max_length=255, null=True, blank=True)
-    invoice_number = models.CharField(max_length=255, null=False)
-    user_name = models.CharField(max_length=255, null=True, blank=True)
-    invoice_date = models.CharField(max_length=255, null=True, blank=True)
+    invoice_number = models.CharField(max_length=255, null=True, blank=True)
+    bill_date = models.CharField(max_length=255, null=True, blank=True)
     due_date = models.CharField(max_length=255, null=True, blank=True)
-    monthly_bill = models.CharField(max_length=255, null=True, blank=True)
 
-    company = models.ForeignKey(
-        Company, related_name='company_view_paper_bills', on_delete=models.CASCADE, default=None, null=True, blank=True
-    )
-    organization = models.ForeignKey(
-        Organizations, related_name='organization_view_paper_bills', on_delete=models.CASCADE, default=None
-    )
-    vendor = models.ForeignKey(
-        Vendors, related_name='vendor_view_paper_bills', on_delete=models.CASCADE, default=None
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'ViewPaperBill'
+        db_table = 'PaperBill'
     
+        constraints = [
+            models.UniqueConstraint(fields=['sub_company', 'vendor','account_number','bill_date'], name='unique_paperbill')
+        ]
     def __str__(self):
-        return f'{self.company.Company_name} - {self.organization.Organization_name} - {self.vendor.name} - {self.account_number} - {self.wireless_number}'
+        return f'{self.invoice_number}'
 
 # Create your models here.
 
@@ -90,9 +83,10 @@ from OnBoard.Ban.models import UploadBAN, BaseDataTable
 class Contracts(models.Model):
     baseban = models.ForeignKey(BaseDataTable, related_name='base_ban_contracts', on_delete=models.CASCADE, null=True, blank=True)
     uploadedban = models.ForeignKey(UploadBAN, related_name='uploaded_ban_contracts', on_delete=models.CASCADE, null=True, blank=True)
+    sub_company = models.CharField(max_length=255, null=True, blank=True)
     person = models.CharField(max_length=255, null=True, blank=True)
     term = models.CharField(max_length=255, null=True, blank=True)
-    status = models.CharField(max_length=255, null=True, blank=True)
+    status = models.CharField(max_length=255, null=True, blank=True,default="Active")
     notes = models.CharField(max_length=255, null=True, blank=True)
     contract_file = models.FileField(upload_to='BanContracts/', null=True, blank=True)
     contract_name = models.CharField(max_length=255, null=True, blank=True)

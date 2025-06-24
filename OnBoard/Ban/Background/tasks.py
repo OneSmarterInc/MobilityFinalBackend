@@ -50,7 +50,7 @@ def process_pdf_task(buffer_data, instance_id):
 
 
 # @background(schedule=3600)
-@shared_task
+# @shared_task
 def process_csv(instance_id, buffer_data,type=None):
     print("Processing CSV...")
     buffer_data_dict = json.loads(buffer_data)

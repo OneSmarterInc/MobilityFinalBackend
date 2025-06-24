@@ -14,5 +14,5 @@ q = "SELECT * FROM UniquePdfDataTable WHERE account_number='342125539-00001'"
 
 df = pd.read_sql_query(q, conn)
 print(df)
-df.to_excel("Bills/sample.xlsx")
+df.to_excel("Bills/sample_verizon.xlsx")
 conn.close()

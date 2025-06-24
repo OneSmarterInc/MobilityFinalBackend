@@ -8,7 +8,7 @@ from OnBoard.Organization.models import Organizations
 from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, BaselineDataTable, OnboardBan
 from .ser import showOrganizationSerializer, showBanSerializer, vendorshowSerializer, basedatahowSerializer, paytypehowSerializer, uniquepdftableSerializer, BaselinedataSerializer, BaselineDataTableShowSerializer, showaccountbasetable, BaselineWithOnboardedCategorySerializer
 from Dashboard.ModelsByPage.DashAdmin import Vendors, PaymentType
-from ..models import ViewUploadBill
+from ..models import ViewUploadBill, PaperBill
 
 class ViewBill(APIView):
     permission_classes = [IsAuthenticated]
@@ -18,7 +18,7 @@ class ViewBill(APIView):
         ser = showOrganizationSerializer(objs, many=True)
         uniquedata = uniquepdftableSerializer(UniquePdfDataTable.objects.filter(banOnboarded=None,banUploaded=None), many=True)
         vendors = vendorshowSerializer(Vendors.objects.all(), many=True)
-        baseaccounts = showaccountbasetable(BaseDataTable.objects.filter(viewuploaded=None), many=True)
+        baseaccounts = showaccountbasetable(BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None), many=True)
         basedata = basedatahowSerializer(BaseDataTable.objects.filter(banOnboarded=None,banUploaded=None), many=True)
         paytypes = paytypehowSerializer(PaymentType.objects.all(), many=True)
         return Response({
@@ -83,10 +83,13 @@ class ViewBill(APIView):
         if obj.viewuploaded:
             main_obj = ViewUploadBill.objects.get(id=obj.viewuploaded.id)
             main_obj.delete()
+        if obj.viewpapered:
+            main_obj = PaperBill.objects.get(id=obj.viewpapered.id)
+            main_obj.delete()
         else:
             obj.delete()
         saveuserlog(request.user, f"Bill of account number {acc} and bill date {bd} deletec successfully!")
-        return Response({"message": "Base Data successfully deleted!"}, status=status.HTTP_200_OK)
+        return Response({"message": "Bill deleted successfully deleted!"}, status=status.HTTP_200_OK)
 
 from datetime import datetime
 class ViewBillBaseline(APIView):
@@ -98,17 +101,17 @@ class ViewBillBaseline(APIView):
         date = request.GET.get('bill_date')
         # formatted_date = datetime.strptime(date, "%B %d %Y").date()
         # print(formatted_date)
-        objs = BaselineDataTable.objects.filter(banOnboarded=None).filter(banUploaded=None).filter(vendor=vendor, account_number=account_number, sub_company=sub_company, bill_date=date)
+        objs = BaselineDataTable.objects.filter(banOnboarded=None,banUploaded=None).filter(vendor=vendor, account_number=account_number, sub_company=sub_company, bill_date=date)
         wireless_numbers = objs.values_list('Wireless_number', flat=True)
         Onboardedobjects = BaselineDataTable.objects.filter(
             viewuploaded=None,
+            viewpapered=None,
             vendor=vendor,
             account_number=account_number,
             sub_company=sub_company,
             Wireless_number__in=wireless_numbers
         )
         serializer = BaselinedataSerializer(objs, many=True, context={'onboarded_objects': Onboardedobjects})
-
         return Response({"data": serializer.data}, status=status.HTTP_200_OK)
     def put(self, request, pk, *args, **kwargs):
         

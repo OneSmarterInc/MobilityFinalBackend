@@ -230,12 +230,15 @@ class MappingObjectBan(models.Model):
     inventory = models.ForeignKey(InventoryUpload, related_name='inventory', on_delete=models.CASCADE, null=True, blank=True)
     ban = models.ForeignKey(UploadBAN, related_name='ban', on_delete=models.CASCADE, null=True, blank=True)
     viewupload = models.ForeignKey(ViewUploadBill, related_name='viewupload', on_delete=models.CASCADE, null=True, blank=True)
+    bill_date =  models.CharField(max_length=255, null=False, blank=True)
+    invoice_number =  models.CharField(max_length=255, null=True, blank=True)
     account_number = models.CharField(max_length=255, null=False, blank=True)
     vendor = models.CharField(max_length=255, null=False, blank=True)
     wireless_number = models.CharField(max_length=255, null=False, blank=True)
     user_name = models.CharField(max_length=255, null=True, blank=True)
     site_name = models.CharField(max_length=255, null=True, blank=True)
     mobile_device = models.CharField(max_length=255, null=True, blank=True)
+
     imei_number = models.CharField(max_length=255, null=True, blank=True)
     mobile_sim_num = models.CharField(max_length=255, null=True, blank=True)
     upgrade_eligible_date = models.CharField(max_length=255, null=True, blank=True)
@@ -325,12 +328,14 @@ class PdfDataTable(models.Model):
     def __str__(self):
         return self.account_number
     
-from View.models import ViewUploadBill
+from View.models import ViewUploadBill,PaperBill
 class BaseDataTable(models.Model):
     banUploaded = models.ForeignKey(UploadBAN, related_name='banUploadedBase', on_delete=models.CASCADE, null=True, blank=True)
     banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedBase', on_delete=models.CASCADE, null=True, blank=True)
     viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewbase', on_delete=models.CASCADE, null=True, blank=True)
+    viewpapered = models.ForeignKey(PaperBill, related_name='paperbase', on_delete=models.CASCADE, null=True, blank=True)
     inventory = models.ForeignKey(InventoryUpload, related_name='inventorybase', on_delete=models.CASCADE, null=True, blank=True)
+    
     bill_date = models.CharField(max_length=255, blank=True, null=True, default="")
     date_due = models.CharField(max_length=255, blank=True, null=True, default="")
     accountnumber = models.CharField(max_length=255, blank=True, null=True, default="")
@@ -418,15 +423,17 @@ class BaseDataTable(models.Model):
     contract_file = models.FileField(upload_to='ban-contracts/', null=True)
 
     paymentType = models.CharField(max_length=255, null=True, blank=True, default="")
-    billstatus = models.CharField(max_length=255, null=True, blank=True)
+    billstatus = models.CharField(max_length=255, null=True, blank=True, default="Active")
     banstatus = models.CharField(max_length=255, null=True, blank=True,default="Active")
     Check = models.CharField(max_length=255, null=True, blank=True)
     summary_file = models.FileField(upload_to='view_summary_files/', null=True, blank=True)
-    
+    is_baseline_approved = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True, null=True)
 
     workbook_path = models.CharField(max_length=255, null=True, blank=True)
+
+    
 
     class Meta:
         db_table = 'BaseDataTable'
@@ -438,6 +445,7 @@ class UniquePdfDataTable(models.Model):
     banUploaded = models.ForeignKey(UploadBAN, related_name='uploadedlines', on_delete=models.CASCADE, null=True, blank=True)
     inventory = models.ForeignKey(InventoryUpload, related_name='inventorylines', on_delete=models.CASCADE, null=True, blank=True)
     viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewunique', on_delete=models.CASCADE, null=True, blank=True)
+    viewpapered = models.ForeignKey(PaperBill, related_name='paperunique', on_delete=models.CASCADE, null=True, blank=True)
     account_number = models.CharField(max_length=255, blank=True, null=True, default="")
     ECPD_Profile_ID = models.CharField(max_length=255, blank=True, null=True, default="")
     wireless_number = models.CharField(max_length=255, blank=True, null=True, default="")
@@ -464,7 +472,7 @@ class UniquePdfDataTable(models.Model):
     mobile_device = models.CharField(max_length=255, blank=True, null=True, default="")
     imei_number = models.CharField(max_length=255, blank=True, null=True, default="")
     mobile_sim_num = models.CharField(max_length=255, blank=True, null=True, default="")
-    User_status = models.CharField(max_length=255, blank=True, null=True, default="")
+    User_status = models.CharField(max_length=255, blank=True, null=True, default="Active")
     User_email = models.CharField(max_length=255, blank=True, null=True, default="")
     Devices_device_type = models.CharField(max_length=255, blank=True, null=True, default="")
     Devices_make = models.CharField(max_length=255, blank=True, null=True, default="")
@@ -503,6 +511,9 @@ class UniquePdfDataTable(models.Model):
     cost_center_notes = models.CharField(max_length=255, null=True, blank=True)
     item_category =  models.CharField(max_length=255, blank=True, null=True, default="")
     item_description =  models.CharField(max_length=255, blank=True, null=True, default="")
+    category_object = models.JSONField(default=dict, null=True, blank=True)
+
+    is_baseline_approved = models.BooleanField(default=False)
     
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True, null=True)
@@ -511,14 +522,14 @@ class UniquePdfDataTable(models.Model):
         
         db_table = 'UniquePdfDataTable'
 
-    def __str__(self):
-        return self.account_number
-    
+    # def __str__(self):
+    #     return self.account_number if self.account_number else None
 
 class BaselineDataTable(models.Model):
     banUploaded = models.ForeignKey(UploadBAN, related_name='banUploadedbaseline', on_delete=models.CASCADE, null=True, blank=True)
     banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedbaseline', on_delete=models.CASCADE, null=True, blank=True)
     viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewbaseline', on_delete=models.CASCADE, null=True, blank=True)
+    viewpapered = models.ForeignKey(PaperBill, related_name='paperbaseline', on_delete=models.CASCADE, null=True, blank=True)
     account_number = models.CharField(max_length=255, blank=True, null=True, default="")
     Wireless_number = models.CharField(max_length=255, blank=True, null=True, default="")
     user_name = models.CharField(max_length=255, blank=True, null=True, default="")
@@ -541,6 +552,7 @@ class BaselineDataTable(models.Model):
     vendor = models.CharField(max_length=255, blank=True, null=True, default="")
     bill_date = models.CharField(max_length=255, blank=True, null=True, default="")
     
+    is_baseline_approved = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True, null=True)
     is_pending = models.BooleanField(default=False)
@@ -557,6 +569,7 @@ class BatchReport(models.Model):
     banUploaded = models.ForeignKey(UploadBAN, related_name='banUploadedbatch', on_delete=models.CASCADE, null=True, blank=True)
     banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedbatchreport', on_delete=models.CASCADE, null=True, blank=True)
     viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewbatch', on_delete=models.CASCADE, null=True, blank=True)
+    viewpapered = models.ForeignKey(PaperBill, related_name='paperbatch', on_delete=models.CASCADE, null=True, blank=True)
     Cust_Id = models.CharField(max_length=100, null=True, blank=True, default="")
     Sub_Id = models.CharField(max_length=100, null=True, blank=True, default="")
     Vendor_Number = models.CharField(max_length=100, null=True, blank=True, default="")

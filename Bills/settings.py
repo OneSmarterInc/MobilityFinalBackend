@@ -56,7 +56,8 @@ MY_APPS = [
     'Analysis',
     'View',
     'Batch',
-    'Report'
+    'Report',
+    'Settings'
 ]
 
 

@@ -7,8 +7,8 @@ from authenticate.views import saveuserlog
 from rest_framework.permissions import IsAuthenticated
 from OnBoard.Organization.models import Organizations
 from OnBoard.Company.models import Company
-from OnBoard.Ban.models import BatchReport, OnboardBan
-from .ser import BatchReportSerializer, OrganizationShowSerializer
+from OnBoard.Ban.models import BatchReport, OnboardBan, BaseDataTable
+from .ser import BatchReportSerializer, OrganizationShowSerializer, BaseDataSerializer
 from openpyxl import Workbook
 from sendmail import send_custom_email
 # call update_or_create a django method
@@ -27,13 +27,14 @@ import pandas as pd
 class BatchView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, *args, **kwargs):
+        objs = BaseDataTable.objects.exclude(viewuploaded=None, viewpapered=None).filter(is_baseline_approved=True)
         if request.user.designation.name == 'Admin':
             orgs = Organizations.objects.filter(company=request.user.company)
-            objs = BatchReport.objects.filter(company=request.user.company.Company_name)
+            objs = objs.filter(company=request.user.company.Company_name)
         else:
             orgs = Organizations.objects.all()
-            objs = BatchReport.objects.all()
-        serializer = BatchReportSerializer(objs, many=True)
+            objs = objs
+        serializer = BaseDataSerializer(objs, many=True)
         orgser = OrganizationShowSerializer(orgs, many=True)
         return Response({"data": serializer.data, 'orgs':orgser.data}, status=status.HTTP_200_OK)
     
@@ -141,7 +142,7 @@ class BatchView(APIView):
             # empty all 
             folder_path = os.path.join(settings.MEDIA_ROOT, "batchfiles")
             print(folder_path)
-            shutil.rmtree(folder_path)
+            shutil.rmtree(folder_path) if os.path.exists(folder_path) else None
 
             excel_buffer = self.generate_excel_file(df)
             obj = batch[0]
