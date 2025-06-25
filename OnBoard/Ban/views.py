@@ -243,7 +243,8 @@ class UploadBANView(APIView):
                     line.pop('vendor')
                     line['category_object'] = json.dumps(line.pop('category_object')) if 'category_object' in line else {}
                     wn = line.pop('wireless_number')
-                    if isinstance(line, dict) and wn: 
+                    check_exist = UniquePdfDataTable.objects.filter(banUploaded=upload_ban, company=upload_ban.company.Company_name, sub_company=upload_ban.organization.Organization_name, vendor=upload_ban.Vendor.name, wireless_number=wn).exists()
+                    if not check_exist and (isinstance(line, dict) and wn): 
                         lineobj = UniquePdfDataTable.objects.create(banUploaded=upload_ban, company=upload_ban.company.Company_name, sub_company=upload_ban.organization.Organization_name, vendor=upload_ban.Vendor.name, wireless_number=wn, **line)
                         lineobj.save()
                         updated = self.remove_filds(BaselineDataTable, line)

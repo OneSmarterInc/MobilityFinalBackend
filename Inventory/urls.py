@@ -10,4 +10,5 @@ urlpatterns = [
     path('mobiles/<account_number>/', MobileView.as_view(), name='mobiles-info-get'),
     path('mobiles/<account_number>/<wireless_number>/', MobileView.as_view(), name='mobiles-put-delete'),
     path('onboarded-baseline/<org>/<vendor>/<ban>/', OnboardedBaselineView.as_view(), name='onboarded-baseline'),
+
 ]

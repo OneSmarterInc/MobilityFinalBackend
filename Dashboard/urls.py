@@ -144,13 +144,17 @@ inventory = [
 ]
 urlpatterns.extend(inventory)
 
-from .CRUDViews.Inventory import AddNewInventoryView
+from .CRUDViews.Inventory import AddNewInventoryView, DownloadInventoryExcel
 
 addnew = [
     path("add-new-inventory/<org>/", AddNewInventoryView().as_view(), name='new-inventory-list-create'),
 ]
 urlpatterns.extend(addnew)
 
+downloadexcel = [
+    path("inventory/download-excel/<org>/", DownloadInventoryExcel().as_view(), name='download-excel'),
+]
+urlpatterns.extend(downloadexcel)
 from .CRUDViews.vendors import VendorsView
 vendors = [
     path("vendors-portal/", VendorsView().as_view(), name='vendorportal-list-create'),

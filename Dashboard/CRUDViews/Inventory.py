@@ -10,6 +10,7 @@ from ..Serializers.inventory import UniqueTableShowSerializer, OrganizationsShow
 import ast
 from OnBoard.Organization.models import Organizations
 
+
 class InventoryView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request,pk=None, *args, **kwargs):
@@ -81,9 +82,7 @@ class InventoryView(APIView):
         data = new_data
         try:
             unique_obj = UniquePdfDataTable.objects.filter(id=pk)
-            print("********", unique_obj[0].wireless_number, unique_obj[0].account_number)
             baseline_obj = BaselineDataTable.objects.filter(account_number=unique_obj[0].account_number, Wireless_number=unique_obj[0].wireless_number)
-            print(unique_obj, baseline_obj)
         except UniquePdfDataTable.DoesNotExist:
             return Response({"message": "Inventory not found in unique table!"}, status=status.HTTP_404_NOT_FOUND)
         except BaselineDataTable.DoesNotExist:
@@ -103,7 +102,6 @@ class InventoryView(APIView):
         unique_ser = UniqueTableShowSerializer(unique_obj[0], data, partial=True)
         if unique_ser.is_valid():
             unique_ser.save()
-            print(unique_ser.data)
             wn = data.get('wireless_number')
             data['Wireless_number'] = wn
             if baseline_obj:
@@ -119,8 +117,10 @@ class InventoryView(APIView):
                 return Response({"message": str(unique_ser.errors)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     def delete(self, request, pk, *args, **kwargs):
         try:
-            inventory = UniquePdfDataTable.objects.get(id=pk)
-            inventory.delete()
+            inventoryunique = UniquePdfDataTable.objects.get(id=pk)
+            inventorybaseline = BaselineDataTable.objects.filter(banUploaded=inventoryunique.banUploaded, banOnboarded=inventoryunique.banOnboarded).get(Wireless_number=inventoryunique.wireless_number)
+            inventoryunique.delete()
+            inventorybaseline.delete()
             return Response({"message": "Inventory deleted successfully"}, status=status.HTTP_200_OK)
         except UniquePdfDataTable.DoesNotExist:
             return Response({"message": "Inventory not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -137,10 +137,8 @@ class AddNewInventoryView(APIView):
         except Organizations.DoesNotExist:
             return Response({"message":f"Organization {org} not found!"})
         vendors = VendorsSerializer(organization[0].vendors.all(), many=True)
-        print(vendors.data)
     
         all_accnts = showBaseDataser(BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(sub_company=org), many=True)
-        print(all_accnts.data)
         
         return Response({"accounts":all_accnts.data, "vendors":vendors.data}, status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
@@ -171,4 +169,50 @@ class AddNewInventoryView(APIView):
         else:
             print(baselineser.errors)
             return Response({"message":str(baselineser.errors)},status=status.HTTP_400_BAD_REQUEST)
-        
+    
+from django.forms.models import model_to_dict
+import pandas as pd
+import os
+from django.conf import settings
+
+class DownloadInventoryExcel(APIView):
+    def post(self, request, org, *args, **kwargs):
+        inventory_data = UniquePdfDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(sub_company=org)
+        data = request.data
+        is_all = data.get('download_all')
+        vendor = data.get('vendor_name')
+        User_status = data.get('User_status')
+        upgrade_eligibility_date = data.get('upgrade_eligibility_date')
+        device_type = data.get('Devices_device_type')
+        Location_code = data.get('Location_code')
+
+        if not is_all:
+            inventory_data = inventory_data.filter(vendor=vendor) if not 'All' in vendor else inventory_data
+            inventory_data = inventory_data.filter(User_status=User_status) if not 'All' in User_status else inventory_data
+            inventory_data = inventory_data.filter(upgrade_eligible_date=upgrade_eligibility_date) if not 'All' in upgrade_eligibility_date else inventory_data
+            inventory_data = inventory_data.filter(Devices_device_type=device_type) if not 'All' in device_type else inventory_data
+            inventory_data = inventory_data.filter(Location_zip=Location_code) if not 'All' in Location_code else inventory_data
+
+
+        if not inventory_data:
+            return Response({"message":"No data found with given filters"},status=status.HTTP_400_BAD_REQUEST)
+
+        inventory_data = [model_to_dict(obj) for obj in inventory_data]
+        inventory_data = pd.DataFrame(inventory_data)
+        inventory_data = inventory_data.drop(columns=['id', 'banOnboarded', 'banUploaded', 'inventory', 'viewuploaded',
+       'viewpapered','category_object', 'is_baseline_approved'])
+        inventory_dir = os.path.join(settings.MEDIA_ROOT, 'inventory')
+        os.makedirs(inventory_dir, exist_ok=True)
+
+        # File path
+        file_name = 'inventory.xlsx'
+        file_path = os.path.join(inventory_dir, file_name)
+
+        # Save the DataFrame to Excel
+        inventory_data.to_excel(file_path, index=False)
+
+        # Return relative media URL
+        return Response({
+            "message": "Excel downloaded successfully!",
+            "file_path": f"{settings.MEDIA_URL}inventory/{file_name}"
+        }, status=status.HTTP_200_OK)
