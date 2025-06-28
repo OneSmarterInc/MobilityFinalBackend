@@ -438,7 +438,7 @@ class UploadfileView(APIView):
                 f"Uploading file if {obj.vendor.name}-{obj.ban} for {obj.month}-{obj.year}"
             )
             return Response(
-                {"message": "File uploaded successfully!" if filetype in ("zip","excel") else "File upload is in progress \n It will take some time.", "payload":self.paylod_data},
+                {"message": "File uploaded successfully!" if filetype in ("zip","excel") else "The bill upload is currently in progress and may take some time. You will receive an email notification once the process is complete.", "payload":self.paylod_data},
                 status=status.HTTP_200_OK,
             )
         except Exception as e:
