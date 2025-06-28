@@ -25,7 +25,7 @@ class OnboardOrganizationView(APIView):
         
         if Organizations.objects.filter(Organization_name=data["Organization_name"], company=company).exists():
             print("already exists")
-            return Response({"message": "Location with this site_name already exists!"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Organization with this name already exists!"}, status=status.HTTP_400_BAD_REQUEST)
         serializer = OrganizationSaveSerializer(data=data)
         if serializer.is_valid():
             serializer.save()
