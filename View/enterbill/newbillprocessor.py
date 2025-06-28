@@ -19,6 +19,8 @@ import io
 from io import BytesIO, StringIO
 import numpy as np
 from collections import defaultdict
+from urllib.parse import quote
+
 
 from OnBoard.Ban.models import PdfDataTable, UniquePdfDataTable, BaselineDataTable, BaseDataTable
 from ..models import ProcessedWorkbook, ViewUploadBill
@@ -1122,6 +1124,9 @@ class ProcessBills:
             message = 'file could not be processed due to invalid format or invalid content'
 
         subject = 'Notification: File Processing Completed'
+        encoded_vendor = quote(self.vendor_name)
+        encoded_bill_date = quote(bill_date_info)
+        link = f"https://mobdash.vercel.app/view/view-bill-baseline/{self.sub_company}/{encoded_vendor}/{self.account_number}/{encoded_bill_date}"
 
         body = f"""
         Dear User,
@@ -1129,7 +1134,7 @@ class ProcessBills:
         We would like to inform you that the following action has been completed: **{message}**.
 
         You can view the corresponding baseline table at the following link:
-        [View Baseline Table](https://mobdash.vercel.app/view/view-bill-baseline/{self.sub_company}/{self.vendor_name}/{self.account_number}/{bill_date_info})
+        [View Baseline Table] {link}
 
         If you have any questions or require further assistance, please do not hesitate to contact us.
 
