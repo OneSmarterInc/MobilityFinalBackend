@@ -504,7 +504,7 @@ def tagging(baseline_data, bill_data):
         for bill_key in list(bill.keys()):
             norm_key = normalize(bill_key)
             if norm_key not in base_keys_normalized:
-                bill[bill_key] = {"amount": f'{bill[bill_key]}', "approved": True}
+                bill[bill_key] = {"amount": f'{str(bill[bill_key]).strip().replace("$","")}', "approved": True}
                 continue
 
             base_key = base_keys_normalized[norm_key]
@@ -1736,7 +1736,59 @@ class ApproveView(APIView):
             print(e)
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+class AprroveAllView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def post(self, request,id, *args, **kwargs):
+        main_uploaded_id = BaselineDataTable.objects.filter(id=id).first()
+        print("man uploded id==", main_uploaded_id)
+        if not main_uploaded_id:
+            return Response({"message":"object not found!"},status=status.HTTP_400_BAD_REQUEST)
+        try:
+            approve_obj = make_true_all(main_uploaded_id.category_object)
+            print("approve_obj==",approve_obj)
+            main_uploaded_id.category_object = approve_obj
+            main_uploaded_id.is_baseline_approved = check_true_false(main_uploaded_id.category_object)
+            main_uploaded_id.save()
+            print(main_uploaded_id)
+            
+
+            enter_bill_unique_obj = UniquePdfDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered=main_uploaded_id.viewpapered, wireless_number=main_uploaded_id.Wireless_number).first()
+            enter_bill_unique_obj.category_object = approve_obj
+            enter_bill_unique_obj.is_baseline_approved = check_true_false(enter_bill_unique_obj.category_object)
+            enter_bill_unique_obj.save()
+            print(enter_bill_unique_obj)
+
+            enter_bill_baseline_objs = BaselineDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered=main_uploaded_id.viewpapered)
+
+            approved_wireless_list = enter_bill_baseline_objs.values_list('is_baseline_approved', flat=True)
+            base_obj = BaseDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered= main_uploaded_id.viewpapered)
+            if base_obj.exists():
+                base_instance = base_obj.first()
+                base_instance.is_baseline_approved = False if False in approved_wireless_list else True
+                base_instance.save()
+            onboard_baseline_objs = BaselineDataTable.objects.filter(viewuploaded=None,viewpapered=None, vendor=main_uploaded_id.vendor, account_number=main_uploaded_id.account_number)
+            filtered_baseline = BaselinedataSerializer(enter_bill_baseline_objs, many=True, context={'onboarded_objects': onboard_baseline_objs})
+            return Response({"message": "Baseline updated successfully!", "baseline":filtered_baseline.data}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"message":str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class AddNoteView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self, request,*args, **kwargs):
+        data = request.data.copy()
+        sub_company = data.pop('sub_company')
+        vendor = data.pop('vendor')
+        ban = data.pop('ban')
+        bill_date = data.pop('bill_date')
+        notes = data.pop('notes')
+        base_obj = BaseDataTable.objects.filter(banUploaded=None, banOnboarded=None).filter(sub_company=sub_company, vendor=vendor, accountnumber=ban, bill_date=bill_date).first()
+        if not base_obj:
+            return Response({"message":"Bill not found!"},status=status.HTTP_400_BAD_REQUEST)
+        base_obj.baseline_notes = str(notes).strip()
+        base_obj.save()
+        return Response({"message":"Notes added successfully!"},status=status.HTTP_200_OK)
+    
 def check_true_false(cat):
     formatted = json.loads(cat) if isinstance(cat, str) else cat
     for key, value in formatted.items():
@@ -1746,6 +1798,15 @@ def check_true_false(cat):
                     if sub_value['approved'] == False:
                         return False
     return True
+
+def make_true_all(cat):
+    formatted = json.loads(cat) if isinstance(cat, str) else cat
+    for key, value in formatted.items():
+        if isinstance(value, dict):
+            for sub_key, sub_value in value.items():
+                if isinstance(sub_value, dict):
+                    sub_value['approved'] = True
+    return json.dumps(formatted)
 
 from datetime import datetime
 from ..models import PaperBill

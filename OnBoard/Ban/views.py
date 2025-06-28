@@ -590,7 +590,8 @@ class OnboardBanView(APIView):
             print(isreal)
             if not isreal:
                 return Response({"message" : f"the uploaded file is not {request.data.get('vendor')} file!"}, status=status.HTTP_400_BAD_REQUEST)
-        mutable_data = request.data.copy()
+        print(request.data)
+        mutable_data = {k: v for k, v in request.data.items() if not hasattr(v, 'read')}
         mutable_data = {key: (value if value != "" else None) for key, value in mutable_data.items()}
         boolean_fields = ["is_it_consolidatedBan", "addDataToBaseline"]
         for field in boolean_fields:
@@ -622,7 +623,7 @@ class OnboardBanView(APIView):
                entryType=etype,
                location=loc,
                masteraccount=masteraccount,
-               uploadBill = mutable_data.pop('uploadBill', None),
+               uploadBill = bill,
                billType = btype,
                addDataToBaseline = False if etype.name == "Master Account" else mutable_data.pop('addDataToBaseline', False),
                is_it_consolidatedBan = mutable_data.pop('is_it_consolidatedBan', False)
@@ -638,7 +639,9 @@ class OnboardBanView(APIView):
                         {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
                     )
             else:
+                print("Its pdf")
                 addon = ProcessPdf(instance=obj, user_mail=request.user.email)
+                
                 check = addon.startprocess()
                 print(check)
                 if check['error'] != 0:

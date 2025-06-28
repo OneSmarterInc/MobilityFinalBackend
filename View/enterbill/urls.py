@@ -33,9 +33,11 @@ uploadfileurls = [
 
 enterbillurls.extend(uploadfileurls)
 
-from .views import ApproveView
+from .views import ApproveView, AprroveAllView, AddNoteView
 approveurls = [
-    path('approve-bill/<int:id>/', ApproveView.as_view(), name='approve')
+    path('approve-bill/<int:id>/', ApproveView.as_view(), name='approve-bill'),
+    path('approve-all/<int:id>/', AprroveAllView.as_view(), name='approve-all'),
+    path('add-baseline-notes/', AddNoteView.as_view(), name='add-note'),
 ]
 enterbillurls.extend(approveurls)
 

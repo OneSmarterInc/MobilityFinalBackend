@@ -1162,7 +1162,7 @@ def tagging(baseline_data, bill_data):
     def compare_and_tag(base, bill):
         for key in list(bill.keys()):
             if key not in base:
-                bill[key] = {"amount": f'{bill[key]}', "approved": True}
+                bill[key] = {"amount": f'{str(bill[key]).strip().replace("$","")}', "approved": True}
                 continue
             base_val = base[key]
             bill_val = bill[key]

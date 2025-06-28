@@ -433,6 +433,7 @@ class BaseDataTable(models.Model):
 
     workbook_path = models.CharField(max_length=255, null=True, blank=True)
 
+    baseline_notes = models.TextField(null=True, blank=True)
     
 
     class Meta:
@@ -513,6 +514,8 @@ class UniquePdfDataTable(models.Model):
     item_description =  models.CharField(max_length=255, blank=True, null=True, default="")
     category_object = models.JSONField(default=dict, null=True, blank=True)
 
+    remark = models.CharField(max_length=255, blank=True, null=True)
+
     is_baseline_approved = models.BooleanField(default=False)
     
     created = models.DateTimeField(auto_now_add=True)
@@ -551,7 +554,7 @@ class BaselineDataTable(models.Model):
     company = models.CharField(max_length=255, blank=True, null=True, default="")
     vendor = models.CharField(max_length=255, blank=True, null=True, default="")
     bill_date = models.CharField(max_length=255, blank=True, null=True, default="")
-    
+    remark =  models.CharField(max_length=255, blank=True, null=True)
     is_baseline_approved = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True, null=True)
