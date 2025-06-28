@@ -504,6 +504,7 @@ def tagging(baseline_data, bill_data):
         for bill_key in list(bill.keys()):
             norm_key = normalize(bill_key)
             if norm_key not in base_keys_normalized:
+                bill[bill_key] = {"amount": f'{bill[bill_key]}', "approved": True}
                 continue
 
             base_key = base_keys_normalized[norm_key]
@@ -519,6 +520,8 @@ def tagging(baseline_data, bill_data):
                     bill_val = bill_val_init.replace('-', '')
                     base_float = float(base_val)
                     bill_float = float(bill_val)
+                    if base_float == 0 and bill_float == 0:
+                        bill[bill_key] = {"amount": f'{bill_val}', "approved": True}
                     if base_float != 0:
                         low_range = bill_float - (5 / 100 * bill_float)
                         high_range = bill_float + (5 / 100 * bill_float)
@@ -772,9 +775,9 @@ class ProcessZip:
                 tmp_df.rename(columns={'Item Category':'Item_Category','Item Description':'Item_Description','Wireless Number':'Wireless_number'},inplace=True)
                 for idx, row in tmp_df.iterrows():
                             wireless_number = row['Wireless_number']
-                            item_category = row['Item_Category']
-                            item_description = row['Item_Description']
-                            charges = row['Charges']
+                            item_category = str(row['Item_Category']).strip().upper()
+                            item_description = str(row['Item_Description']).strip().upper()
+                            charges = str(row['Charges']).replace("$",'')
                             if pd.notna(item_category) and pd.notna(item_description) and pd.notna(charges):
                                 wireless_data[wireless_number][item_category][item_description] = charges
                 result_list = [dict(wireless_data)]
@@ -1668,56 +1671,66 @@ class ApproveView(APIView):
         main_object = data.pop('main_object')
         print(main_object)
 
-        main_uploaded_id = BaselineDataTable.objects.filter(id=id)
-        if not main_uploaded_id.exists():
+        main_uploaded_id = BaselineDataTable.objects.filter(id=id).first()
+        print("man uploded id==", main_uploaded_id)
+        if not main_uploaded_id:
             return Response({"message":"object not found!"},status=status.HTTP_400_BAD_REQUEST)
-        main_uploaded_id = main_uploaded_id.first()
+        
         try:
-            account_obj = BaselineDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered=main_uploaded_id.viewpapered)
-            baseline_obj = account_obj.filter(Wireless_number=wn)
-            if not baseline_obj.exists():
+            enter_bill_baseline_objs = BaselineDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered=main_uploaded_id.viewpapered)
+            onboard_baseline_objs = BaselineDataTable.objects.filter(viewuploaded=None,viewpapered=None, vendor=vendor, account_number=ban)
+
+            if not onboard_baseline_objs.exists():
                 return Response({"message":"Baseline data for given attributes Not found!"}, status=status.HTTP_400_BAD_REQUEST)
 
-            unique_obj = UniquePdfDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered=main_uploaded_id.viewpapered)
-            if not unique_obj.exists():
+            enter_bill_unique_objs = UniquePdfDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered=main_uploaded_id.viewpapered)
+            onboard_unique_objs = UniquePdfDataTable.objects.filter(viewuploaded=None,viewpapered=None, vendor=vendor, account_number=ban)
+            if not enter_bill_unique_objs.exists():
                 return Response({"message":"Unique data for given attributes Not found!"}, status=status.HTTP_400_BAD_REQUEST)
+                
+            # update baseline
+            baseline = main_object['baseline']
+            new_baseline = json.dumps(baseline)
 
-            if 'approve' in main_object:
-                new_approved = json.dumps(main_object['approve'])
-                _obj = baseline_obj.first()
-                if _obj:
-                    _obj.category_object = new_approved
-                    _obj.is_baseline_approved = check_true_false(_obj.category_object)
-                    _obj.save() 
+            _obj = onboard_baseline_objs.filter(Wireless_number=wn).first()
+            if _obj:
+                _obj.category_object = new_baseline
+                _obj.save()  
 
-                approved_wireless_list = account_obj.values_list('is_baseline_approved', flat=True)
+            u_obj = onboard_unique_objs.filter(wireless_number=wn).first()
+            if u_obj:
+                u_obj.category_object = new_baseline
+                u_obj.save() 
 
-                base_obj = BaseDataTable.objects.filter(viewuploaded=_obj.viewuploaded,viewpapered= _obj.viewpapered)
-                if base_obj.exists():
-                    base_instance = base_obj.first()
-                    base_instance.is_baseline_approved = False if False in approved_wireless_list else True
-                    base_instance.save()  
 
-                u_obj = unique_obj.filter(wireless_number=wn).first()
-                if u_obj:
-                    u_obj.category_object = new_approved
-                    u_obj.is_baseline_approved = check_true_false(u_obj.category_object)
-                    u_obj.save()  
+            # approve bill
+            approve = main_object['approve']
+            new_approved = json.dumps(approve)
 
-            if 'baseline' in main_object:
-                new_baseline = json.dumps(main_object['baseline'])
+            _obj = enter_bill_baseline_objs.filter(Wireless_number=wn).first()
+            print(_obj.id)
+            if _obj:
+                _obj.category_object = new_approved
+                _obj.is_baseline_approved = check_true_false(_obj.category_object)
+                _obj.save()   
 
-                _obj = baseline_obj.first()
-                if _obj:
-                    _obj.category_object = new_baseline
-                    _obj.save()  
+            u_obj = enter_bill_unique_objs.filter(wireless_number=wn).first()
+            if u_obj:
+                u_obj.category_object = new_approved
+                u_obj.is_baseline_approved = check_true_false(u_obj.category_object)
+                u_obj.save()  
+            
+            # approve whole
+            approved_wireless_list = enter_bill_baseline_objs.values_list('is_baseline_approved', flat=True)
 
-                u_obj = unique_obj.filter(wireless_number=wn).first()
-                if u_obj:
-                    u_obj.category_object = new_baseline
-                    u_obj.save() 
-
-            return Response({"message": "Baseline updated successfully!"}, status=status.HTTP_200_OK)
+            base_obj = BaseDataTable.objects.filter(viewuploaded=_obj.viewuploaded,viewpapered= _obj.viewpapered)
+            if base_obj.exists():
+                base_instance = base_obj.first()
+                base_instance.is_baseline_approved = False if False in approved_wireless_list else True
+                base_instance.save()
+            
+            filtered_baseline = BaselinedataSerializer(enter_bill_baseline_objs, many=True, context={'onboarded_objects': onboard_baseline_objs})
+            return Response({"message": "Baseline updated successfully!", "baseline":filtered_baseline.data}, status=status.HTTP_200_OK)
 
         except Exception as e:
             print(e)

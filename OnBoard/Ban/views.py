@@ -1165,9 +1165,9 @@ class ProcessZip:
                 tmp_df.rename(columns={'Item Category':'Item_Category','Item Description':'Item_Description','Wireless Number':'Wireless_number'},inplace=True)
                 for idx, row in tmp_df.iterrows():
                             wireless_number = row['Wireless_number']
-                            item_category = row['Item_Category']
-                            item_description = row['Item_Description']
-                            charges = row['Charges']
+                            item_category = str(row['Item_Category']).strip().upper()
+                            item_description = str(row['Item_Description']).strip().upper()
+                            charges = str(row['Charges']).replace("$",'')
                             if pd.notna(item_category) and pd.notna(item_description) and pd.notna(charges):
                                 wireless_data[wireless_number][item_category][item_description] = charges
                 result_list = [dict(wireless_data)]

@@ -1005,9 +1005,9 @@ class ProcessBills:
         if 'mobile' in str(self.vendor_name).lower() and self.t_mobile_type == 1:
             for idx, row in tmp_df.iterrows():
                 wireless_number = row['wireless number']
-                item_category = row['item category']
-                item_description = row['item description']
-                charges = row['charges']
+                item_category = str(row['item category']).strip().upper()
+                item_description = str(row['item description']).strip().upper()
+                charges = str(row['charges']).replace("$",'')
                 if pd.notna(item_category) and pd.notna(item_description) and pd.notna(charges):
                     wireless_data[wireless_number][item_category][item_description] = charges
             result_list = [dict(wireless_data)]
@@ -1017,9 +1017,9 @@ class ProcessBills:
             tmp_df.rename(columns={'Item Category':'Item_Category','Item Description':'Item_Description'},inplace=True)
             for idx, row in tmp_df.iterrows():
                 wireless_number = row['Wireless_number']
-                item_category = row['Item_Category']
-                item_description = row['Item_Description']
-                charges = row['Charges']
+                item_category = str(row['Item_Category']).strip().upper() if 'Item_Category' in row else None
+                item_description = str(row['Item_Description']).strip().upper() if 'Item_Description' in row else None
+                charges = str(row['Charges']).replace("$",'')
                 if pd.notna(item_category) and pd.notna(item_description) and pd.notna(charges):
                     wireless_data[wireless_number][item_category][item_description] = charges
             result_list = [dict(wireless_data)]
@@ -1129,7 +1129,7 @@ class ProcessBills:
         We would like to inform you that the following action has been completed: **{message}**.
 
         You can view the corresponding baseline table at the following link:
-        [View Baseline Table](http://localhost:5173/view/view-bill-baseline/{self.sub_company}/{self.vendor_name}/{self.account_number}/{bill_date_info})
+        [View Baseline Table](https://mobdash.vercel.app/view/view-bill-baseline/{self.sub_company}/{self.vendor_name}/{self.account_number}/{bill_date_info})
 
         If you have any questions or require further assistance, please do not hesitate to contact us.
 
@@ -1157,6 +1157,7 @@ def tagging(baseline_data, bill_data):
     def compare_and_tag(base, bill):
         for key in list(bill.keys()):
             if key not in base:
+                bill[key] = {"amount": f'{bill[key]}', "approved": True}
                 continue
             base_val = base[key]
             bill_val = bill[key]
@@ -1170,6 +1171,8 @@ def tagging(baseline_data, bill_data):
                     bill_val = bill_val_init.replace('-','')
                     base_float = float(base_val)
                     bill_float = float(bill_val)
+                    if base_float == 0 and bill_float == 0:
+                        bill[key] = {"amount": f'{bill_val}', "approved": True}
                     if base_float != 0:
                         low_range = bill_float - (5/100 * bill_float)
                         high_range = bill_float + (5/100 * bill_float)

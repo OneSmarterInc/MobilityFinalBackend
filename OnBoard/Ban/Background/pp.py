@@ -740,9 +740,9 @@ class ProcessPdf:
             if 'mobile' in str(self.vendor_name).lower() and self.t_mobile_type == 1:
                 for idx, row in tmp_df.iterrows():
                     wireless_number = row['wireless number']
-                    item_category = row['item category']
-                    item_description = row['item description']
-                    charges = row['charges']
+                    item_category = str(row['item category']).strip().upper()
+                    item_description = str(row['item description']).strip().upper()
+                    charges = charges = str(row['charges']).replace("$",'')
                     if pd.notna(item_category) and pd.notna(item_description) and pd.notna(charges):
                         wireless_data[wireless_number][item_category][item_description] = charges
                 result_list = [dict(wireless_data)]
@@ -755,9 +755,9 @@ class ProcessPdf:
                     tmp_df.rename(columns={'Item Category':'Item_Category','Item Description':'Item_Description'},inplace=True)
                     for idx, row in tmp_df.iterrows():
                         wireless_number = row['Wireless_number'] if 'Wireless_number' in row else None
-                        item_category = row['Item_Category'] if 'Item_Category' in row else None
-                        item_description = row['Item_Description'] if 'Item_Description' in row else None
-                        charges = row['Charges'] if 'Charges' in row else None
+                        item_category = str(row['Item_Category']).strip().upper() if 'Item_Category' in row else None
+                        item_description = str(row['Item_Description']).strip().upper() if 'Item_Description' in row else None
+                        charges = charges = str(row['Charges']).replace("$",'') if 'Charges' in row else None
                         if pd.notna(item_category) and pd.notna(item_description) and pd.notna(charges):
                             wireless_data[wireless_number][item_category][item_description] = charges
                 result_list = [dict(wireless_data)]
@@ -811,7 +811,7 @@ class ProcessPdf:
         We would like to inform you that the following action has been completed: **{message}**.
 
         You can view the corresponding baseline table at the following link:
-        [View Baseline Table](http://localhost:5173/view/onboard-bill-baseline/{self.sub_company}/{self.vendor_name}/{self.account_number})
+        [View Baseline Table](https://mobdash.vercel.app/view/onboard-bill-baseline/{self.sub_company}/{self.vendor_name}/{self.account_number})
 
         If you have any questions or require further assistance, please do not hesitate to contact us.
 
