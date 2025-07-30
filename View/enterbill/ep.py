@@ -138,7 +138,15 @@ class EnterBillProcessExcel:
             item['account_number'] = self.account_number
             item['entry_type'] = self.entry_type
         # Bulk insert into UniquePDFDataTable
-        UniquePdfDataTable.objects.bulk_create([UniquePdfDataTable(**item,viewuploaded=self.instance) for item in df_csv_dict])
+
+        model_fields = [field.name for field in UniquePdfDataTable._meta.get_fields() if field.concrete and not field.auto_created]
+
+        clean_items = [
+            UniquePdfDataTable(viewuploaded=self.instance, **{k: v for k, v in item.items() if k in model_fields})
+            for item in df_csv_dict
+        ]
+        UniquePdfDataTable.objects.bulk_create(clean_items)
+        # UniquePdfDataTable.objects.bulk_create([UniquePdfDataTable(**item,viewuploaded=self.instance) for item in df_csv_dict])
         print("Data added to UniquePdfDataTable")
 
         df_csv = pd.DataFrame(df_csv_dict)
@@ -148,7 +156,6 @@ class EnterBillProcessExcel:
 
         model_fields = [field.name for field in BaselineDataTable._meta.get_fields() if field.concrete and not field.auto_created]
 
-        # Prepare clean items
         clean_items = [
             BaselineDataTable(viewuploaded=self.instance, **{k: v for k, v in item.items() if k in model_fields})
             for item in df_csv_dict
@@ -309,7 +316,15 @@ class EnterBillProcessExcel1:
                 item['account_number'] = self.account_number
                 item['entry_type'] = self.entry_type
             # Bulk insert into UniquePDFDataTable
-            UniquePdfDataTable.objects.bulk_create([UniquePdfDataTable(**item,viewuploaded=self.instance) for item in df_csv_dict])
+            model_fields = [field.name for field in UniquePdfDataTable._meta.get_fields() if field.concrete and not field.auto_created]
+            print(df_csv_dict[0])
+            clean_items = [
+                UniquePdfDataTable(viewuploaded=self.instance, **{k: v for k, v in item.items() if k in model_fields})
+                for item in df_csv_dict
+            ]
+            print(clean_items[0])
+            UniquePdfDataTable.objects.bulk_create(clean_items)
+            # UniquePdfDataTable.objects.bulk_create([UniquePdfDataTable(**item,viewuploaded=self.instance) for item in df_csv_dict])
             print("Data added to UniquePdfDataTable")
 
             df_csv = pd.DataFrame(df_csv_dict)

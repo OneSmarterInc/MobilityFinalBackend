@@ -56,7 +56,7 @@ class ProcessCSVOnboard:
 
     def process_excel_csv_data(self):
         df_csv = pd.read_excel(self.excel_csv_path)
-
+        print(df_csv)
         df_csv.columns = df_csv.columns.str.strip()
         df_csv.columns = df_csv.columns.str.strip().str.replace('-', '').str.replace(r'\s+', ' ', regex=True).str.replace(' ', '_')
 
@@ -88,12 +88,13 @@ class ProcessCSVOnboard:
 
         print(file_account_number, self.account_number)
         
-        if BaseDataTable.objects.filter(accountnumber=file_account_number).exists():
+        if BaseDataTable.objects.filter(sub_company=self.sub_company,vendor=self.vendor,accountnumber=file_account_number).exists():
             return {'code':1, 'account_number':file_account_number, 'message':'account number already exists!'}
         
         # if str(file_account_number) != str(self.account_number):
         #     return {"message":f"Input account number {self.account_number} not matched with excel account number {file_account_number}!", 'code':1}
         print("existance checked")
+        print("base_dict",base_dict)
         base_dict['company'] = self.company
         base_dict['vendor'] = self.vendor
         base_dict['sub_company'] = self.sub_company
@@ -105,16 +106,14 @@ class ProcessCSVOnboard:
         keys_to_keep = ['company', 'vendor', 'sub_company', 'accountnumber', 'Entry_type', 'location', 'master_account']
         b_dict = {key: base_dict[key] for key in keys_to_keep if key in base_dict}
 
-        # Insert into BaseDataTable
-        if self.type and self.type == 'inventory':
-            base = BaseDataTable.objects.create(inventory=self.instance, **b_dict)
-        else:
-            base = BaseDataTable.objects.create(banOnboarded=self.instance,**b_dict)
-        
+        print("b_dict",b_dict)
+        BaseDataTable.objects.create(banOnboarded=self.instance,**b_dict)
+        print("df_csv",df_csv)
         print("Data added to BaseDataTable")
-        self.account_number = base.accountnumber
+        self.account_number = file_account_number
         df_csv['wireless_number'] = df_csv['wireless_number'].apply(self.format_wireless_number)
         df_csv_dict = df_csv.to_dict(orient='records')
+        print(df_csv)
         for item in df_csv_dict:
             item['company'] = self.company
             item['vendor'] = self.vendor
@@ -420,18 +419,20 @@ class ProcessCsv:
             keys_to_keep = ['company', 'vendor', 'sub_company', 'accountnumber', 'Entry_type', 'location', 'master_account']
             b_dict = {key: base_dict[key] for key in keys_to_keep if key in base_dict}
             
-            if BaseDataTable.objects.filter(accountnumber=b_dict['accountnumber']).exists():
+            if BaseDataTable.objects.filter(sub_company=self.sub_company,vendor=self.vendor,accountnumber=b_dict['accountnumber']).exists():
                 return f"Accoount number {b_dict['accountnumber']} already exists!"
             # Insert into BaseDataTable
-            if self.type and self.type == 'inventory':
-                base = BaseDataTable.objects.create(inventory=self.instance, **b_dict)
-            else:
-                base = BaseDataTable.objects.create(banOnboarded=self.instance,**b_dict)
+            # if self.type and self.type == 'inventory':
+            #     base = BaseDataTable.objects.create(inventory=self.instance, **b_dict)
+            # else:
+            base = BaseDataTable.objects.create(banOnboarded=self.instance,**b_dict)
            
+            print()
             print("Data added to BaseDataTable")
             self.account_number = base.accountnumber
             df_csv['wireless_number'] = df_csv['wireless_number'].apply(self.format_wireless_number)
             df_csv_dict = df_csv.to_dict(orient='records')
+            print(df_csv_dict)
             for item in df_csv_dict:
                 item['company'] = self.company
                 item['vendor'] = self.vendor

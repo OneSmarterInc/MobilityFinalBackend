@@ -39,7 +39,6 @@ class ProcessPdf:
         self.pdf_filename = self.buffer_data['pdf_filename'] if 'pdf_filename' in self.buffer_data else None
         self.month = self.buffer_data['month'] if 'month' in self.buffer_data else None
         self.entry_type = self.buffer_data['entry_type'] if 'entry_type' in self.buffer_data else None
-        print(self.buffer_data['baseline_check']) 
         self.baseline_check = True if self.buffer_data['baseline_check'] in ('true',True,'True') else False
         self.location = self.buffer_data['location'] if 'location' in self.buffer_data else None
         self.master_account = self.buffer_data['master_account'] if 'master_account' in self.buffer_data else None
@@ -53,9 +52,11 @@ class ProcessPdf:
         self.bill_date = None
 
         self.instance = instance
+        self.net_amount = 0
         self.check = True
 
         self.account_number = None
+        self.billing_address = {}
     
     def check_tmobile_type(self):
         print("def check_tmobile_type")
@@ -80,8 +81,6 @@ class ProcessPdf:
     def extract_data_from_pdf(self):
         print("def extract_data_from_pdf")
         logger.info(f'Extracting data from PDF: {self.pdf_path}')
-        at_vendor_list = ['AT&T','AT n T','ATT','at&t','att','at n t']
-        t_mobile_list = ['T_Mobile','t-mobile','T-mobile','t_mobile']
 
         if 'mobile' in str(self.vendor_name).lower() and self.t_mobile_type == 1:
             base_data_df,pdf_df,temp,rox,on,dates,acc_nos = get_all_dataframes_type_1(self.pdf_path)
@@ -128,6 +127,8 @@ class ProcessPdf:
             data = extractor.get_result_df()
             acc_info = extractor.get_accounts_info()
             bill_date_info = extractor.get_bill_date()
+            self.net_amount = extractor.get_net_amount()
+            self.billing_address = extractor.get_billing_address()
             data_dict = data.to_dict(orient='records')
             for entry in data_dict:
                 entry['company'] = self.company_name
@@ -147,6 +148,8 @@ class ProcessPdf:
             data_dict = first_obj.first_page_data_func()
             acc_info = first_obj.get_acc_info()
             bill_date_info = first_obj.get_bill_date_info()
+            self.billing_address = first_obj.get_billing_info()
+            
             data_dict['company'] = self.company_name
             data_dict['vendor'] = self.vendor_name
             data_dict['pdf_path'] = self.pdf_path
@@ -155,7 +158,7 @@ class ProcessPdf:
             data_dict['year'] = self.year
             data_dict['sub_company'] = self.sub_company
             data_dict['entry_type'] = self.entry_type
-
+            self.net_amount = first_obj.get_net_amount()
             data_dict['location'] = self.location
             data_dict['master_account'] = self.master_account
 
@@ -164,7 +167,13 @@ class ProcessPdf:
     
         print("def save_to_base_data_table")
         
-        mapping = {"Date_Due":"date_due", "AccountNumber":"accountnumber","InvoiceNumber":"invoicenumber", "Website":"website","Duration":"duration","Bill_Date":"bill_date","Client_Address":"RemittanceAdd","entry_type":"Entry_type","billing_address":"BillingAdd", "Billing_Address":"Billing_Address","Billing_Name":"BillingName", "Remidence_Address":"RemittanceAdd"}
+        mapping = {"Date_Due":"date_due", "AccountNumber":"accountnumber","InvoiceNumber":"invoicenumber", "Website":"website","Duration":"duration","Bill_Date":"bill_date","Client_Address":"RemittanceAdd","entry_type":"Entry_type","Remidence_Address":"RemittanceAdd"}
+        print("billing==",self.billing_address)
+        billing = {
+            "BillingName" : self.billing_address["name"] if "name" in self.billing_address else None,
+            "BillingAdd": self.billing_address["address"] if "address" in self.billing_address else None,
+            "BillingAtn" : self.billing_address["attn"] if "attn" in self.billing_address else None,
+        }
         if type(data) == dict:
             updated_data = {mapping.get(k, k): v for k, v in data.items()}
             updated_data.pop("foundation_account") if 'foundation_account' in updated_data else None
@@ -172,7 +181,7 @@ class ProcessPdf:
             filtered_data['location'] = self.location
             bill_date = filtered_data.pop('bill_date').replace(',','')
             self.bill_date = bill_date
-            obj = BaseDataTable.objects.create(banOnboarded=self.instance, bill_date=bill_date, **filtered_data)
+            obj = BaseDataTable.objects.create(banOnboarded=self.instance, bill_date=bill_date, net_amount=self.net_amount,**billing, **filtered_data)
             self.account_number = obj.accountnumber
         elif type(data) == list:
             for item in data:
@@ -181,7 +190,7 @@ class ProcessPdf:
                 filtered_data = remove_filds(BaseDataTable, updated_data)
                 bill_date = filtered_data.pop('bill_date').replace(',','')
                 self.bill_date = bill_date
-                obj = BaseDataTable.objects.create(banOnboarded=self.instance, bill_date=bill_date, **filtered_data)
+                obj = BaseDataTable.objects.create(banOnboarded=self.instance, bill_date=bill_date, net_amount=self.net_amount,**billing, **filtered_data)
                 self.account_number = obj.accountnumber
 
     def save_to_portal_info(self, data):
@@ -201,7 +210,6 @@ class ProcessPdf:
         tmp_df = None
         if 'mobile' in str(self.vendor_name).lower():
             print("vendor name is mobile")
-            print(self.vendor_name)
             if self.t_mobile_type == 1:
                 print('got first')
                 print('>>>>>>>>>>>>><<<<<<<<<<<<<<>>>>>>>>>>>>><<<<<<<<<<<>>>>>>>>>>>')
@@ -258,10 +266,10 @@ class ProcessPdf:
             entry['location'] = self.location
         return res_data_dict,total_dict,tmp_df
     def save_to_pdf_data_table(self, data):
+        
         print('saving to pdf data table')
         data_df = pd.DataFrame(data)
         print('in saves B')
-        print(data_df.columns)
         if 'mobile' in str(self.vendor_name).lower() and self.t_mobile_type == 1:
             column_mapping = {
                 'wireless number': 'Wireless_number',
@@ -460,7 +468,8 @@ class ProcessPdf:
             'Vendor_City': 'Vendor_City',
             'Vendor_State': 'Vendor_State',
             'Vendor_Zip': 'Vendor_Zip',
-            'entry_type':'Entry_type'
+            'entry_type':'Entry_type',
+            'NetAmount':'Net_Amount'
         }
 
         fields_to_remove = [
@@ -548,6 +557,8 @@ class ProcessPdf:
     def save_to_unique_pdf_data_table(self,data):
         print("saving to unique_pdf_data_table")
         data_df = pd.DataFrame(data)
+
+        
         if 'mobile' in str(self.vendor_name).lower() and self.t_mobile_type == 1:
         # if vendor in ['T_Mobile','t-mobile','T-mobile','t_mobile'] and types== 'first':
             column_mapping = {
@@ -627,7 +638,7 @@ class ProcessPdf:
         data_df = pd.DataFrame(data)
         if 'mobile' in str(self.vendor_name).lower() and self.t_mobile_type == 1:
             column_mapping = {
-                'Wireless_number': 'wireless_number',
+                'Wireless_number': 'Wireless_number',
                 'Recurring Charges': 'monthly_charges',
                 'Usage Charges': 'usage_and_purchase_charges',
                 'Other Charges': 'surcharges_and_other_charges_and_credits',
@@ -710,9 +721,7 @@ class ProcessPdf:
         logger.info('Extracting data from PDF')
         try:    
             data, acc_info, bill_date_info = self.extract_data_from_pdf()
-            
             self.save_to_base_data_table(data)
-            print(data)
             
             self.save_to_portal_info(data=data[0] if type(data) == list else data)
             
@@ -726,7 +735,6 @@ class ProcessPdf:
             else:
                 self.save_to_batch_report(data, self.vendor_name)
                 pass
-            print("*********",self.pdf_path, acc_info, self.company_name, self.vendor_name,bill_date_info,self.sub_company)
             print('rex')
             pdf_data, unique_pdf_data,tmp_df = self.extract_total_pdf_data(acc_info,bill_date_info)
             print('brock')
@@ -747,7 +755,6 @@ class ProcessPdf:
                         wireless_data[wireless_number][item_category][item_description] = charges
                 result_list = [dict(wireless_data)]
                 udf = pd.DataFrame(unique_pdf_data)
-                print(udf)
                 if isinstance(udf, pd.DataFrame):
                     udf.rename(columns={'wireless number':'Wireless_number'},inplace=True)
             else:
@@ -778,6 +785,7 @@ class ProcessPdf:
                 'category_object': charges_objects
             })
             category_obj_df = pd.merge(udf,obj_df,on='Wireless_number',how='left')
+            
             category_obj_df['category_object'] = category_obj_df['category_object'].apply(
                 lambda x: {"NAN": "NAN"} if pd.isna(x) or x == '' else x
             )
@@ -790,7 +798,6 @@ class ProcessPdf:
                 print('got here')
                 self.save_to_unique_pdf_data_table(unique_pdf_data)
                 if self.month == None and self.year == None:
-                    print("**",type(self.baseline_check), self.baseline_check)
                     if self.baseline_check == True:
                         self.save_to_baseline_data_table(category_data)
                     else:

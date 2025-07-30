@@ -9,7 +9,8 @@ from io import BytesIO
 from pathlib import Path
 import os
 from PyPDF2 import PdfReader
-import PyPDF2,fitz
+import PyPDF2
+
 
 class PDFExtractor:
     def __init__(self, pdf_path):
@@ -17,6 +18,9 @@ class PDFExtractor:
         self.result_df = None
         self.accounts_data = None
         self.bill_date_data = None
+        self.net_amount = None
+        self.key = None
+        self.billing_address = {}
 
     def extract_data(self):
         Total_Charges_list = []
@@ -33,7 +37,7 @@ class PDFExtractor:
                 if match:
                     url = match.group()
                     w.append(url)
-
+                
                 for index, line in enumerate(lines):
                     if line.startswith('InvoiceNumber AccountNumber DateDue'):
                         line = lines[index + 1]
@@ -47,6 +51,17 @@ class PDFExtractor:
                         dates.append(date)
                         accounts.append(account)
                         invoices.append(invoice)
+                    if "keyline" in line.lower():
+                        self.key = "keyline"
+                    if "total" in line.lower():
+                        self.key = "total"
+                    if self.key == "keyline":
+                        match = re.match(r'^([A-Z\s]+,\s[A-Z]{2}\s\d{5}-\d{4})', line)
+                        if match:
+                            p2 = match.group(1)
+                            p1 = re.sub(r'\bPayment\b.*', '', lines[index - 1])
+                            print(f'{p1}{p2}')
+                            self.billing_address["address"] = f'{p1}{p2}'
 
                 match = re.search(r'Total Current Charges \$([\d,]+(?:\.\d{2})?)', text)
                 if match:
@@ -57,9 +72,9 @@ class PDFExtractor:
                     match = re.search(pattern, text)
                     if match:
                         total_charges = match.group(1)
-                        Total_Charges_list.append(total_charges)
-
+                        Total_Charges_list.append(total_charges)                
                 name_regex = re.compile(r'(?:\b[A-Z][A-Z\s.-]+\b)')
+
                 names = name_regex.findall(text)
                 global name_s
                 name_s = names[-1] if names else None
@@ -104,8 +119,16 @@ class PDFExtractor:
 
     def extract_specific_lines_from_pdf(self, page_number, lines_to_extract):
         try:
-            lines = [line for i, line in enumerate(fitz.open(self.pdf_path)[page_number - 1].get_text("text").splitlines()) if i + 1 in lines_to_extract]
-            return lines
+            with pdfplumber.open(self.pdf_path) as pdf:
+                page = pdf.pages[page_number - 1]
+                text_lines = page.extract_text().splitlines()
+                for line in text_lines:
+                    match = re.search(r"Total\s*AmountDue\s*\$([\d,]+\.\d{2})", line)
+                    if match:
+                        self.net_amount =  match.group(1)
+                        break
+                lines = [line for i, line in enumerate(text_lines) if i + 1 in lines_to_extract]
+                return lines
         except Exception as e:
             print(f"Error: {e}")
             return []
@@ -113,6 +136,7 @@ class PDFExtractor:
     def process_pdf(self, lines_to_extract):
         clnd_add = []
         extracted_lines = self.extract_specific_lines_from_pdf(1, lines_to_extract)
+        
         for line_number, line_text in zip(lines_to_extract, extracted_lines):
             clnd_add.append(f"{line_text}")
 
@@ -123,6 +147,7 @@ class PDFExtractor:
         self.result_df['Billing_Name'] = name_s
         self.result_df['Billing_Address'] = address if address else 'Not_Available'
 
+
     def get_result_df(self):
         return self.result_df
 
@@ -131,6 +156,13 @@ class PDFExtractor:
     
     def get_bill_date(self):
         return self.bill_date_data
+    
+    def get_net_amount(self):
+        return self.net_amount
+    def get_billing_address(self):
+        return self.billing_address
+
+
 
 class First:
     def __init__(self, path):
@@ -138,6 +170,7 @@ class First:
         self.Lines = []
         self.line_re = re.compile(r'\d{3}-\d{3}-\d{4}')
         self.pdf = None
+        self.wn_pattern = r'\d{3}[-.]\d{3}[-.]\d{4}'
 
     def parse_pdf(self):
         self.pdf = pdfplumber.open(self.path)
@@ -148,6 +181,7 @@ class First:
         return self.Lines
     def parse_text(self, text):
         for line in text.split('\n'):
+
             if line.startswith('Account Charges (pg.2)'):
                 items = line.split()
                 items[1] = items[0]+' '+items[1]
@@ -177,20 +211,22 @@ class First:
         return None
 
     def process_items(self, items):
-        self.Lines.append({
-            'Wireless_number': 'NA' if items[0] == '--' else items[0],
-            'User_name': 'NA' if items[1] == '--' else items[1],
-            'Monthly_Charges': 'NA' if items[2] == '--' else items[2],
-            'Usage_and_Purchase_Charges': 'NA' if items[3] == '--' else items[3],
-            'Equipment_Charges': 'NA' if items[4] == '--' else items[4],
-            'Surcharges_and_Other_Charges_and_Credits': 'NA' if items[5] == '--' else items[5],
-            'Taxes_Governmental_Surcharges_and_Fees': 'NA' if items[6] == '--' else items[6],
-            'Third_Party_Charges_includes_Tax': 'NA' if items[7] == '--' else items[7],
-            'Total_Charges': 'NA' if items[8] == '--' else items[8],
-            'Voice_Plan_Usage': 'NA' if items[9] == '--' else items[9],
-            'Messaging_Usage': 'NA' if items[10] == '--' else items[10],
-            'Data_Usage': 'NA' if items[11] == '--' else items[11]
-        })
+        wn = items[0]
+        if re.match(self.wn_pattern, wn):
+            self.Lines.append({
+                'Wireless_number': 'NA' if items[0] == '--' else items[0],
+                'User_name': 'NA' if items[1] == '--' else items[1],
+                'Monthly_Charges': 'NA' if items[2] == '--' else items[2],
+                'Usage_and_Purchase_Charges': 'NA' if items[3] == '--' else items[3],
+                'Equipment_Charges': 'NA' if items[4] == '--' else items[4],
+                'Surcharges_and_Other_Charges_and_Credits': 'NA' if items[5] == '--' else items[5],
+                'Taxes_Governmental_Surcharges_and_Fees': 'NA' if items[6] == '--' else items[6],
+                'Third_Party_Charges_includes_Tax': 'NA' if items[7] == '--' else items[7],
+                'Total_Charges': 'NA' if items[8] == '--' else items[8],
+                'Voice_Plan_Usage': 'NA' if items[9] == '--' else items[9],
+                'Messaging_Usage': 'NA' if items[10] == '--' else items[10],
+                'Data_Usage': 'NA' if items[11] == '--' else items[11]
+            })
 
 def save_upload_file_tmp(upload_file: UploadedFile) -> str:
     temp_filename = os.path.join("/tmp", upload_file.name) 
@@ -354,7 +390,7 @@ class Model3(Model2):
         for line in lines:
             
             # Find the wireless number
-            match = re.search(r'\d{3}-\d{3}-\d{4}', line)
+            match = re.search(r'(?<!\d-)\b\d{3}-\d{3}-\d{4}\b', line)
             if match:
                 current_number = match.group(0)
                 charges_dict[current_number] = {'Name': '', 'Monthly Charge': '', 
@@ -1106,13 +1142,20 @@ class Model4(First, Model3):
 
     def process_pdf(self):
         lines = self.parse_pdf()
+        
         self.lines = lines
         data_from_model3,rdf,df_df = self.data2()
         df_lines = pd.DataFrame(lines)
         df_model3 = pd.DataFrame(data_from_model3)
         df_model3['Charges'] = rdf['Charges']
+
+        print(df_lines.columns)
+        print(df_model3.columns)
+        print(df_df)
         merged_df = pd.merge(df_lines, df_model3, left_on='Wireless_number', right_on='Wireless_number', how='left')
         merged_df['Charges'] = df_df['Current_Charges']
+        
+        print(merged_df[['Wireless_number','Item Category','Item Description','Charges']])
         duplicate_df = merged_df
         merged_df = merged_df.drop_duplicates(subset='Wireless_number')
         merged_df = merged_df.reset_index(drop=True)
@@ -1127,3 +1170,36 @@ class Model4(First, Model3):
        'Share Messaging', 'Share Data', 'Allowance', 'Used', 'Billable', 'Order Details','Bill Cycle Date', 'Invoice Number'],inplace=True)
         return merged_df,duplicate_df
 
+
+
+def extract_total_data(result,tmp_df):
+    temp_result_df = result
+    df_unique = temp_result_df.drop_duplicates(subset=['Wireless_number'])
+    df_unique_dict = df_unique.to_dict(orient='records')
+
+    ### main
+    total_dict = df_unique_dict
+    result_df = result
+    for entry in total_dict:
+        entry['company'] = "Simpletek"
+        entry['vendor'] = "Verizon"
+        entry['sub_company'] = "BABW"
+        entry['location'] = "Shegaon"
+    res_data_dict = result_df.to_dict(orient='records')
+    for entry in res_data_dict:
+        entry['company'] = "Simpletek"
+        entry['vendor'] = "Verizon"
+        entry['sub_company'] = "BABW"
+        entry['location'] = "Shegaon"
+    return res_data_dict,total_dict,tmp_df
+# path = 'Bills/media/BanUploadBill/mob_1175_34212553900001_06152024_9966671861.pdf'
+# lines_to_extract = [2, 3, 4, 5]
+
+# extractor = PDFExtractor(path)
+# extractor.extract_data()
+# extractor.process_pdf(lines_to_extract)
+# acc_info = extractor.get_accounts_info()
+# extractor = Model4(path,acc_info)
+# result,tmp_df = extractor.process_pdf()
+# pdf_data, unique_pdf_data,tmp_df = extract_total_data(result,tmp_df)
+# print(tmp_df[['Wireless_number','Item Category','Item Description','Charges']])

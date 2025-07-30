@@ -9,44 +9,39 @@ from OnBoard.Ban.models import UniquePdfDataTable, BaselineDataTable, BaseDataTa
 from ..Serializers.inventory import UniqueTableShowSerializer, OrganizationsShowSerializer, BaselineTableShowSerializer, showBaseDataser, VendorsSerializer, UniqueTableSaveSerializer, BaselineTableSaveSerializer
 import ast
 from OnBoard.Organization.models import Organizations
-
+from addon import parse_until_dict
+import json
 
 class InventoryView(APIView):
     permission_classes = [IsAuthenticated]
-    def get(self, request,pk=None, *args, **kwargs):
+    def get(self, request,org,pk=None, *args, **kwargs):
         if pk:
-            inventory = UniquePdfDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(id=pk).order_by('-account_number').order_by('-created')
+            inventory = UniquePdfDataTable.objects.filter(sub_company=org).filter(viewuploaded=None,viewpapered=None).filter(id=pk).order_by('-account_number').order_by('-created')
         else:
-            inventory = UniquePdfDataTable.objects.filter(viewuploaded=None,viewpapered=None).order_by('-account_number').order_by('-created')
+            inventory = UniquePdfDataTable.objects.filter(sub_company=org).filter(viewuploaded=None,viewpapered=None).order_by('-account_number').order_by('-created')
         if request.user.designation.name == "Superadmin":
-            orgs = Organizations.objects.all()
-            all_accnts = showBaseDataser(BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None), many=True)
+            all_accnts = showBaseDataser(BaseDataTable.objects.filter(sub_company=org).filter(viewuploaded=None,viewpapered=None), many=True)
         else:
-            orgs = Organizations.objects.filter(company=request.user.company)
-            all_accnts = showBaseDataser(BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(company=request.user.company.Company_name), many=True)
+            all_accnts = showBaseDataser(BaseDataTable.objects.filter(sub_company=org).filter(viewuploaded=None,viewpapered=None).filter(company=request.user.company.Company_name), many=True)
 
-            
-        
-        
         serializer = UniqueTableShowSerializer(inventory, many=True)
-        orgser = OrganizationsShowSerializer(orgs, many=True)
-        return Response({"orgs":orgser.data, "data":serializer.data, "accounts":all_accnts.data}, status=status.HTTP_200_OK)
+        return Response({"data":serializer.data, "accounts":all_accnts.data}, status=status.HTTP_200_OK)
     
-    def post(self, request, *args, **kwargs):
+    def post(self, request,org, *args, **kwargs):
         return Response({"message": "Post"}, status=status.HTTP_200_OK)
     def data_filter(self, data):
         return {
             k: v for k, v in data.items()
             if str(v).lower() not in ('nan', 'null','na') and v is not None
         }
-    def put(self, request,pk=None, *args, **kwargs):
+    def put(self, request,org,pk=None, *args, **kwargs):
         data = request.data
         
         if not pk:
             try:
                 for inv in data:
                     print(inv)
-                    obj = UniquePdfDataTable.objects.get(id=inv.get('id'))
+                    obj = UniquePdfDataTable.objects.filter(sub_company=org).get(id=inv.get('id'))
                     print(obj)
                     
                     if (obj.banOnboarded):
@@ -62,7 +57,7 @@ class InventoryView(APIView):
                         return Response({"message":f"Unexpected error {ser.errors}"}, status=status.HTTP_400_BAD_REQUEST)
                     wn = inv.get('Wireless_number')
                     inv['Wireless_number'] = wn
-                    baseline_obj = BaselineDataTable.objects.filter(account_number=obj.account_number, Wireless_number=obj.wireless_number, vendor=obj.vendor)
+                    baseline_obj = BaselineDataTable.objects.filter(sub_company=org).filter(account_number=obj.account_number, Wireless_number=obj.wireless_number, vendor=obj.vendor)
                     if baseline_obj:
                         baselineser = BaselineTableSaveSerializer(baseline_obj[0], data=inv, partial=True)
                         if baselineser.is_valid():
@@ -76,13 +71,15 @@ class InventoryView(APIView):
                 return Response({"message":f"Unexpected error {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
             
 
-        print(pk)
         
         new_data = self.data_filter(data)
         data = new_data
+        co = data.get("category_object")
+        co = parse_until_dict(co) if co else None
+        data["category_object"] = json.dumps(co) if co else {}
         try:
-            unique_obj = UniquePdfDataTable.objects.filter(id=pk)
-            baseline_obj = BaselineDataTable.objects.filter(account_number=unique_obj[0].account_number, Wireless_number=unique_obj[0].wireless_number)
+            unique_obj = UniquePdfDataTable.objects.filter(sub_company=org).filter(id=pk)
+            baseline_obj = BaselineDataTable.objects.filter(sub_company=org).filter(account_number=unique_obj[0].account_number, Wireless_number=unique_obj[0].wireless_number)
         except UniquePdfDataTable.DoesNotExist:
             return Response({"message": "Inventory not found in unique table!"}, status=status.HTTP_404_NOT_FOUND)
         except BaselineDataTable.DoesNotExist:
@@ -115,10 +112,10 @@ class InventoryView(APIView):
             
         else:
                 return Response({"message": str(unique_ser.errors)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    def delete(self, request, pk, *args, **kwargs):
+    def delete(self, request,org, pk, *args, **kwargs):
         try:
-            inventoryunique = UniquePdfDataTable.objects.get(id=pk)
-            inventorybaseline = BaselineDataTable.objects.filter(banUploaded=inventoryunique.banUploaded, banOnboarded=inventoryunique.banOnboarded).get(Wireless_number=inventoryunique.wireless_number)
+            inventoryunique = UniquePdfDataTable.objects.filter(sub_company=org).get(id=pk)
+            inventorybaseline = BaselineDataTable.objects.filter(sub_company=org).filter(banUploaded=inventoryunique.banUploaded, banOnboarded=inventoryunique.banOnboarded).get(Wireless_number=inventoryunique.wireless_number)
             inventoryunique.delete()
             inventorybaseline.delete()
             return Response({"message": "Inventory deleted successfully"}, status=status.HTTP_200_OK)
@@ -177,7 +174,7 @@ from django.conf import settings
 
 class DownloadInventoryExcel(APIView):
     def post(self, request, org, *args, **kwargs):
-        inventory_data = UniquePdfDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(sub_company=org)
+        inventory_data = UniquePdfDataTable.objects.filter(sub_company=org).filter(viewuploaded=None,viewpapered=None)
         data = request.data
         is_all = data.get('download_all')
         vendor = data.get('vendor_name')

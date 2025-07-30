@@ -51,13 +51,13 @@ MY_APPS = [
     'background_task',
     'authenticate',
     'Dashboard',
-    'OnBoard',
     'Inventory',
     'Analysis',
-    'View',
+    'View.apps.ViewConfig',
     'Batch',
     'Report',
-    'Settings'
+    'Settings',
+    'OnBoard.apps.OnboardConfig',
 ]
 
 
@@ -199,6 +199,6 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'grddeveloper.py@gmail.com'
 SENDERS_NAME = "SimpleTek"
-EMAIL_HOST_PASSWORD = 'omfw wgid vepu cgyf'  
+EMAIL_HOST_PASSWORD = 'znal juyy lruk wxjz '  
 DEFAULT_FROM_EMAIL = f"{SENDERS_NAME} <{EMAIL_HOST_USER}>"
 

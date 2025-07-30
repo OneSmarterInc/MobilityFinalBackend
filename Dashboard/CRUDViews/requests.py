@@ -87,9 +87,10 @@ class OnlineFormView(APIView):
             ven = Vendors.objects.get(name=vendor_name)
         except Vendors.DoesNotExist:
             return Response({"vendor": f"Vendor with name '{vendor_name}' does not exist."})
-        print(lines)
         added = 0
         for line in lines:
+            request_type = line.get("request_type")
+            
             line['requester'] = request.user.id
             line['organization'] = org.id
             line['vendor'] = ven.id
@@ -98,6 +99,7 @@ class OnlineFormView(APIView):
             ser = RequestsSaveSerializer(data=line)
             if ser.is_valid():
                 ser.save()
+                    
             else:
                 print(ser.errors)
                 return Response({"message":{str(ser.errors)}},status=status.HTTP_400_BAD_REQUEST)
@@ -126,7 +128,6 @@ class RequestLogsView(APIView):
         except Exception as e:
             return Response({"message":str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         data = request.data.copy()
-        print(data)
         ser = RequestsSaveSerializer(obj, data=data,partial=True)
         if ser.is_valid():
             ser.save()
@@ -156,10 +157,8 @@ class RequestExcelUploadView(APIView):
             return Response({"organization": f"Organization with name '{org}' does not exist."})
         
         data = request.data.copy()
-        print(data)
 
         try:
-            objects = []
             for obj in data:
                 obj['organization'] = orgobj
                 obj['requester'] = request.user
@@ -167,23 +166,67 @@ class RequestExcelUploadView(APIView):
                     continue
                 else:
                     obj['vendor'] = Vendors.objects.get(name=obj['vendor'])
-                obj['delivery_verified'] = str_to_bool(obj['delivery_verified']) if 'delivery_verified' in obj else False #1
-                obj['activation_verified'] = str_to_bool(obj['activation_verified']) if 'activation_verified' in obj else False #2
-                obj['is_call_forwarding'] = str_to_bool(obj['is_call_forwarding']) if 'is_call_forwarding' in obj else False #3
-                obj['is_susped_30_days'] = str_to_bool(obj['is_susped_30_days']) if 'is_susped_30_days' in obj else False #4
-                obj['is_new_device'] = str_to_bool(obj['is_new_device']) if 'is_new_device' in obj else False #5
-                obj['is_remote'] = str_to_bool(obj['is_remote']) if 'is_remote' in obj else False #6
-                obj['is_insurance'] = str_to_bool(obj['is_insurance']) if 'is_insurance' in obj else False #7
-                obj['is_voice_calling'] = str_to_bool(obj['is_voice_calling']) if 'is_voice_calling' in obj else False #8
-                obj['is_international_plan'] = str_to_bool(obj['is_international_plan']) if 'is_international_plan' in obj else False #9
                 
-                objects.append(Requests(**obj))  # Convert dict to model instance
+                obj['delivery_verified'] = str_to_bool(obj.get('delivery_verified', False))  # #1
+                obj['activation_verified'] = str_to_bool(obj.get('activation_verified', False))  # #2
+                obj['is_call_forwarding'] = str_to_bool(obj.get('is_call_forwarding', False))  # #3
+                obj['is_susped_30_days'] = str_to_bool(obj.get('is_susped_30_days', False))  # #4
+                obj['is_new_device'] = str_to_bool(obj.get('is_new_device', False))  # #5
+                obj['is_remote'] = str_to_bool(obj.get('is_remote', False))  # #6
+                obj['is_insurance'] = str_to_bool(obj.get('is_insurance', False))  # #7
+                obj['is_voice_calling'] = str_to_bool(obj.get('is_voice_calling', False))  # #8
+                obj['is_international_plan'] = str_to_bool(obj.get('is_international_plan', False))  # #9
+                
+                instance = Requests(**obj)
+                instance.save()  # Save individually to trigger signals or validations
 
-            Requests.objects.bulk_create(objects, ignore_conflicts=True)
             return Response({"message": "Excel data uploaded successfully!"}, status=status.HTTP_200_OK)
 
         except Exception as e:
             print(e)
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+from ..ModelsByPage.Req import TrackingInfo
+from ..Serializers.requestser import showtrackinfoSerializer,trackinfoSerializer
+class TrackingInfoView(APIView):
+    # permission_classes = [IsAuthenticated]
 
+    def get(self, request, pk=None, *args, **kwargs):
+        if pk:
+            obj = TrackingInfo.objects.filter(request=pk)
+            ser = showtrackinfoSerializer(obj,many=True)
+            return Response({"data":ser.data},status=status.HTTP_200_OK)
+        else:
+            return Response({"message":"Request Id required"},status=status.HTTP_400_BAD_REQUEST)
+
+    def put(self, request, pk, *args, **kwargs):
+        obj = TrackingInfo.objects.filter(id=pk).first()
+        if not obj:
+            return Response({"message":"Tracking Information  not found"},status=status.HTTP_400_BAD_REQUEST)
+        ser = trackinfoSerializer(obj,data=request.data,partial=True)
+        if ser.is_valid():
+            ser.save()
+            return Response({"message":"Tracking Information  updated succesfully!","data":ser.data},status=status.HTTP_200_OK)
+        else:
+            return Response({"message":str(ser.errors)},status=status.HTTP_400_BAD_REQUEST)
+    def delete(self, request, pk, *args, **kwargs):
+        obj = TrackingInfo.objects.filter(id=pk).first()
+        if not obj:
+            return Response({"message":"Tracking Information  not found"},status=status.HTTP_400_BAD_REQUEST)
+        obj.delete()
+        return Response({"message":"Tracking Information  deleted sucessfully!"},status=status.HTTP_200_OK)
+from ..Serializers.requestser import PhoneShowSerializer
+class UniqueLineView(APIView):
+    def get(self,request, phone, *args, **kwargs):
+        if not phone:
+            return Response({"message":"Wireles number required!"},status=status.HTTP_400_BAD_REQUEST)
+        
+        sc = request.GET.get('sub_company')
+        ven = request.GET.get('vendor')
+        ban = request.GET.get('ban')
+
+        line = UniquePdfDataTable.objects.filter(viewpapered=None,viewuploaded=None).filter(sub_company=sc, vendor=ven, account_number=ban, wireless_number=phone).first()
+        if not line:
+            return Response({"message":f"Line {phone} not found!"},status=status.HTTP_400_BAD_REQUEST)
+        ser = PhoneShowSerializer(line)
+        return Response({"data":ser.data},status=status.HTTP_200_OK)

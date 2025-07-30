@@ -51,7 +51,13 @@ class VendorView(APIView):
     
     def delete(self, request, pk):
         try:
-            vendor = Vendors.objects.get(id=pk)
+            try:
+                pk = int(pk)
+                vendor = Vendors.objects.filter(id=pk).first()
+            except:
+                vendor = Vendors.objects.filter(name=pk).first()
+            if not vendor:
+                return Response({"message":"Vendor not found!"},status=status.HTTP_400_BAD_REQUEST)
             vendor.delete()
             saveuserlog(request.user, description=f'vendor deleted: {pk}')  # sav
             return Response({'message': "Vendor Deleted Successfully!"}, status=status.HTTP_200_OK)

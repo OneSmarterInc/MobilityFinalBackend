@@ -285,7 +285,6 @@ class UploadConsolidated(APIView):
 
 from OnBoard.Ban.models import UniquePdfDataTable, Lines
 from .ser import LineShowSerializer, UniqueTableShowSerializer, UniqueTableSaveSerializer, BaselineSaveSerializer
-
 class Mobiles(APIView):
     permission_classes = [permissions.IsAuthenticated]
     def get(self,request, account, *args, **kwargs):
@@ -301,7 +300,8 @@ class Mobiles(APIView):
             "mobiles": mobiles.data,
             "lines": lines.data
         }, status=status.HTTP_200_OK)
-    
+from addon import parse_until_dict
+import json
 class MobileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -309,12 +309,6 @@ class MobileView(APIView):
         com = request.GET.get('company')
         sub_com = request.GET.get('sub_company')
         lines = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(account_number=account_number, company=com, sub_company=sub_com)
-        # for line in lines:
-        #     if not line.category_object:
-        #         baseline_obj = BaselineDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(company=line.company, sub_company=line.sub_company, vendor=line.vendor, account_number=line.account_number, Wireless_number=line.wireless_number)
-        #         if baseline_obj:
-        #             line.category_object = baseline_obj[0].category_object
-        #             line.save()
         
         print("length of lines", len(lines))
         if not wireless_number:
@@ -372,6 +366,9 @@ class MobileView(APIView):
 
     def put(self, request,account_number,wireless_number, *args, **kwargs):
         data = request.data.copy()
+        co = data.get("category_object")
+        co = parse_until_dict(co) if co else None
+        data["category_object"] = json.dumps(co) if co else {}
         obj = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(account_number=account_number, wireless_number=wireless_number)
         if obj:
             obj = obj.first()

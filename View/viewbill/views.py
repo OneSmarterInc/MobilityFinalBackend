@@ -6,7 +6,7 @@ from authenticate.views import saveuserlog
 from rest_framework.permissions import IsAuthenticated
 from OnBoard.Organization.models import Organizations
 from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, BaselineDataTable, OnboardBan
-from .ser import showOrganizationSerializer, showBanSerializer, vendorshowSerializer, basedatahowSerializer, paytypehowSerializer, uniquepdftableSerializer, BaselinedataSerializer, BaselineDataTableShowSerializer, showaccountbasetable, BaselineWithOnboardedCategorySerializer
+from .ser import showOrganizationSerializer, showBanSerializer, vendorshowSerializer, basedatahowSerializer, paytypehowSerializer, uniquepdftableSerializer, BaselinedataSerializer, BaselineDataTableShowSerializer, showaccountbasetable, BaselineWithOnboardedCategorySerializer,showbaselinenotesSerializer
 from Dashboard.ModelsByPage.DashAdmin import Vendors, PaymentType
 from ..models import ViewUploadBill, PaperBill
 
@@ -102,6 +102,8 @@ class ViewBillBaseline(APIView):
         # formatted_date = datetime.strptime(date, "%B %d %Y").date()
         # print(formatted_date)
         objs = BaselineDataTable.objects.filter(banOnboarded=None,banUploaded=None).filter(vendor=vendor, account_number=account_number, sub_company=sub_company, bill_date=date)
+        base_obj = BaseDataTable.objects.filter(banUploaded=None, banOnboarded=None).filter(sub_company=sub_company, vendor=vendor, accountnumber=account_number, bill_date=date).first()
+        base_ser = showbaselinenotesSerializer(base_obj)
         wireless_numbers = objs.values_list('Wireless_number', flat=True)
         Onboardedobjects = BaselineDataTable.objects.filter(
             viewuploaded=None,
@@ -111,8 +113,9 @@ class ViewBillBaseline(APIView):
             sub_company=sub_company,
             Wireless_number__in=wireless_numbers
         )
+        print(base_ser.data)
         serializer = BaselinedataSerializer(objs, many=True, context={'onboarded_objects': Onboardedobjects})
-        return Response({"data": serializer.data}, status=status.HTTP_200_OK)
+        return Response({"data": serializer.data, "base_data":base_ser.data}, status=status.HTTP_200_OK)
     def put(self, request, pk, *args, **kwargs):
         
         try:

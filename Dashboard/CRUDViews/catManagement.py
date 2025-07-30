@@ -7,13 +7,12 @@ from ..Serializers.cat import catserializer
 
 from rest_framework.permissions import IsAuthenticated
 class CategoryView(APIView):
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
     
     def get(self, request,pk=None, *args, **kwargs):
         if pk:
-            obj = BaselineCategories.objects.filter(id=pk)
-            obj = obj.first() if obj else None 
-            if BaselineCategories.DoesNotExist():
+            obj = BaselineCategories.objects.filter(id=pk).first()
+            if not obj:
                 return Response({"message": "Category not found"}, status=status.HTTP_404_NOT_FOUND)
             ser = catserializer(obj)
         else:
@@ -23,7 +22,7 @@ class CategoryView(APIView):
     def post(self, request, *args, **kwargs):
         data = request.data
         print(data)
-        if BaselineCategories.objects.filter(name=request.data["category"]).exists():
+        if BaselineCategories.objects.filter(category=request.data["category"]).exists():
             return Response({"message": "Baseline category with this name already exists!"}, status=status.HTTP_400_BAD_REQUEST)
         try:
             ser = catserializer(data=data)

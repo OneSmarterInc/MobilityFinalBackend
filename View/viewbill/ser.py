@@ -89,6 +89,10 @@ class showaccountbasetable(serializers.ModelSerializer):
     class Meta:
         model = BaseDataTable
         fields = ('accountnumber', 'vendor', 'sub_company')
+class showbaselinenotesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BaseDataTable
+        fields = ('id','baseline_notes')
 
 class BaselineWithOnboardedCategorySerializer(serializers.ModelSerializer):
     onboarded_category = serializers.SerializerMethodField()

@@ -371,7 +371,7 @@ class BaseDataTable(models.Model):
     BillingState = models.CharField(max_length=255, null=True, blank=True, default="")
     BillingZip = models.CharField(max_length=255, null=True, blank=True, default="")
     BillingCity = models.CharField(max_length=255, null=True, blank=True, default="")
-    BillingCountry = models.CharField(max_length=255, null=True, blank=True, default="")
+    BillingCountry = models.CharField(max_length=255, null=True, blank=True, default="United States")
     BillingAtn = models.CharField(max_length=255, null=True, blank=True, default="")
     BillingDate = models.CharField(max_length=255, null=True, blank=True, default="")
 
@@ -380,7 +380,7 @@ class BaseDataTable(models.Model):
     RemittanceState = models.CharField(max_length=255, null=False, blank=False, default="")
     RemittanceZip = models.CharField(max_length=255, null=False, blank=False, default="")
     RemittanceCity = models.CharField(max_length=255, null=False, blank=False, default="")
-    RemittanceCountry = models.CharField(max_length=255, null=True, blank=True, default="")
+    RemittanceCountry = models.CharField(max_length=255, null=True, blank=True, default="United States")
     RemittanceAtn = models.CharField(max_length=255, null=True, blank=True, default="")
     RemittanceNotes = models.CharField(max_length=255, null=True, blank=True, default="")
 
@@ -428,6 +428,8 @@ class BaseDataTable(models.Model):
     Check = models.CharField(max_length=255, null=True, blank=True)
     summary_file = models.FileField(upload_to='view_summary_files/', null=True, blank=True)
     is_baseline_approved = models.BooleanField(default=False)
+    batch_approved = models.CharField(max_length=255, null=True, blank=True, default='Pending')
+    batch_approved_changer = models.CharField(max_length=255, null=True, blank=True, default='')
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True, null=True)
 
@@ -435,6 +437,9 @@ class BaseDataTable(models.Model):
 
     baseline_notes = models.TextField(null=True, blank=True)
     
+    net_amount = models.CharField(max_length=255, blank=True, null=True, default=0)
+
+    batch_file = models.FileField(upload_to='batchfiles/', null=True, blank=True, default=None)
 
     class Meta:
         db_table = 'BaseDataTable'
@@ -452,6 +457,17 @@ class UniquePdfDataTable(models.Model):
     wireless_number = models.CharField(max_length=255, blank=True, null=True, default="")
     user_name = models.CharField(max_length=255, blank=True, null=True, default="")
     plans = models.CharField(max_length=255, blank=True, null=True, default="")
+
+    #plans attributes
+
+    plan_type = models.CharField(max_length=255, blank=True, null=True)
+    data_allotment = models.CharField(max_length=255, null=True, blank=True)
+    plan_fee = models.FloatField(default=0)
+    smartphone = models.FloatField(default=0)
+    tablet_computer = models.FloatField(default=0)
+    mifi = models.FloatField(default=0)
+    wearables = models.FloatField(default=0)
+
     cost_center = models.CharField(max_length=255, blank=True, null=True, default="")
     bill_date = models.CharField(max_length=255, blank=True, null=True, default="")
     account_charges_and_credits = models.CharField(max_length=255, blank=True, null=True, default="")
@@ -484,7 +500,6 @@ class UniquePdfDataTable(models.Model):
     Devices_serial_number = models.CharField(max_length=255, blank=True, null=True, default="")
     Device_ETF = models.CharField(max_length=255, blank=True, null=True, default="")
     Plan_name = models.CharField(max_length=255, blank=True, null=True, default="")
-    plan_type = models.CharField(max_length=255, blank=True, null=True, default="")
     Plan_line_number = models.CharField(max_length=255, blank=True, null=True, default="")
     Location_address_1 = models.CharField(max_length=255, blank=True, null=True, default="")
     Location_address_2 = models.CharField(max_length=255, blank=True, null=True, default="")
@@ -537,6 +552,17 @@ class BaselineDataTable(models.Model):
     Wireless_number = models.CharField(max_length=255, blank=True, null=True, default="")
     user_name = models.CharField(max_length=255, blank=True, null=True, default="")
     plans = models.CharField(max_length=255, blank=True, null=True, default="")
+
+    #plans attributes
+
+    plan_type = models.CharField(max_length=255, blank=True, null=True)
+    data_allotment = models.CharField(max_length=255, null=True, blank=True)
+    plan_fee = models.FloatField(default=0)
+    smartphone = models.FloatField(default=0)
+    tablet_computer = models.FloatField(default=0)
+    mifi = models.FloatField(default=0)
+    wearables = models.FloatField(default=0)
+
     cost_center = models.CharField(max_length=255, blank=True, null=True, default="")
     account_charges_and_credits = models.CharField(max_length=255, blank=True, null=True, default="")
     monthly_charges = models.CharField(max_length=255, blank=True, null=True, default="")

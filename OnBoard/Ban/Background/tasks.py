@@ -31,6 +31,7 @@ from OnBoard.Ban.models import OnboardBan
 from OnBoard.Ban.models import InventoryUpload
 from OnBoard.Ban.Background.pp import ProcessPdf
 from OnBoard.Ban.Background.cp import ProcessCsv
+from sendmail import send_custom_email
 
 
 @shared_task
@@ -44,9 +45,17 @@ def process_pdf_task(buffer_data, instance_id):
         print(f"Error: OnboardBan object with ID {instance_id} not found.")
         return {"message": f"Error: OnboardBan object with ID {instance_id} not found.", "error": 1}
 
-    obj = ProcessPdf(buffer_data=buffer_data_dict, instance=instance)
-    print(buffer_data_dict)
-    obj.process_pdf_from_buffer()
+    try:
+        obj = ProcessPdf(buffer_data=buffer_data_dict, instance=instance)
+        obj.process_pdf_from_buffer()
+    except Exception as e:
+        print("Internal Server Error")
+        sub = "Internal Server Error"
+        msg = f"""Error occur during processing pdf \n
+            {e}
+        """
+        send_custom_email(receiver_mail="gauravdhale09@gmail.com", subject=sub, body=msg)
+        instance.delete()
 
 
 # @background(schedule=3600)
@@ -66,6 +75,11 @@ def process_csv(instance_id, buffer_data,type=None):
     except InventoryUpload.DoesNotExist:
         print(f"Error: InventoryUpload object with ID {instance_id} not found.")
         return {"message": f"Error: InventoryUpload object with ID {instance_id} not found.", "error": 1}
-    print(buffer_data_dict)
-    obj = ProcessCsv(buffer_data=buffer_data_dict, instance=instance,type=type)
-    obj.process_csv_from_buffer()
+    
+
+    try:
+        obj = ProcessCsv(buffer_data=buffer_data_dict, instance=instance,type=type)
+        obj.process_csv_from_buffer()
+    except Exception as e:
+        print("Internal Server Error")
+        instance.delete()

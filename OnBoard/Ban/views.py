@@ -454,6 +454,7 @@ class OnboardBanView(APIView):
                     for field in boolean_fields:
                         ed[field] = self.str_to_bool(ed.get(field, False))
                     ed['uploadBill'] = request.data.get(f'Excelfile_{i}')
+                    print(ed)
                     for k, v in ed.items():
                         if v == '' or v == "":
                             ed[k] = None
@@ -501,45 +502,6 @@ class OnboardBanView(APIView):
                         except json.JSONDecodeError:
                             print("")
                             return Response({"message": "Invalid JSON"}, status=status.HTTP_400_BAD_REQUEST)
-
-                        # with tempfile.NamedTemporaryFile(delete=False) as temper_file:
-                        #         for chunk in obj.uploadBill.chunks():
-                        #             temper_file.write(chunk)
-                        #         path = temper_file.name
-                        
-                        # df_csv = pd.read_excel(path)
-                        # df_csv.columns = df_csv.columns.str.strip()
-                        # df_csv.columns = df_csv.columns.str.strip().str.replace('-', '').str.replace(r'\s+', ' ', regex=True).str.replace(' ', '_')
-
-                        # latest_entry_dict = mapping_json
-                        # for key, value in latest_entry_dict.items():
-                        #     latest_entry_dict[key] = str(value).replace(' ', '_')
-                        # column_mapping = {v: k for k, v in latest_entry_dict.items()}
-                        # filtered_mapping = {key: value for key, value in column_mapping.items() if key != 'NA'}
-                        #         # missing_columns = [col for col in filtered_mapping.keys() if col not in df_csv.columns]
-                        # for key, value in latest_entry_dict.items():
-                        #     if value == "NA":
-                        #         latest_entry_dict[key] = key
-                        # columns_to_keep = [col for col in latest_entry_dict.values() if col in df_csv.columns]
-                        # df_csv = df_csv[columns_to_keep]
-                        # df_csv.rename(columns=filtered_mapping, inplace=True)
-                        # print("dffffff",df_csv.columns)
-                        # account_number = df_csv['account_number'].iloc[0]
-                        # print("account_number",account_number)
-                        # from .models import BaseDataTable
-                        # try:
-                        #     instance = BaseDataTable.objects.get(accountnumber=account_number)
-                        # except:
-                        #     instance =False    
-                        
-                        # print("instaaaa", instance)
-                        
-                        # if instance:
-                        #     obj.delete()
-                        #     return Response(
-                        #         {'message': 'File already exists in the database upload another'}, status=status.HTTP_400_BAD_REQUEST
-                        #     )
-                        # else:
 
                         ma = None
                         if obj.masteraccount:
@@ -784,7 +746,7 @@ class InventoryUploadView(APIView):
                 #     new_data=json.dumps(new_data_log) if new_data_log else ""
                 # )
                 saveuserlog(request.user, f"Inventory upload with account number {obj.ban} created successfully!")
-
+                
                 buffer_data = json.dumps({
                     'csv_path': obj.uploadFile.path,
                     'company': obj.organization.company.Company_name,
@@ -797,7 +759,7 @@ class InventoryUploadView(APIView):
                 print("Starting CSV process...")
                 process_csv(instance_id=obj.id, buffer_data=buffer_data,type='inventory')
 
-                return Response({"message" : "Inventory added successfully!", "data" : mutable_data}, status=status.HTTP_201_CREATED)
+                return Response({"message" : "Inventory added successfully!", "data" : mutable_data}, status=status.HTTP_200_OK)
             else:
                 return Response({"message": f"{message if message else ''}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -893,6 +855,8 @@ class InventoryProcess:
                     new_data_log.append(self.clean_data_for_json(new_row.to_dict()))
             obj1 = new_data_log[0]
             print(obj1)
+            if not 'account_number' in obj1:
+               return False, previous_data_log, new_data_log, f"Account number not found!"  
             print(obj1['account_number'], self.ban)
             if 'sub_company' in obj1 and self.org != obj1['sub_company']:
                 return False, previous_data_log, new_data_log, f"The sub_company {self.org} not matched!"
@@ -917,6 +881,7 @@ class InventoryProcess:
                 cleaned_data[key] = value
         return cleaned_data
 
+from checkbill import check_tmobile_type
 import os
 import zipfile
 from io import BytesIO, StringIO
@@ -976,7 +941,26 @@ class ProcessPdf:
         acc_info = None
         bill_date_info = None
         if 'mobile' in str(self.vendor).lower():
-            pass
+            first_page_data = []
+            with pdfplumber.open(self.path) as pdf:
+                pages_data = [page.extract_text() for page in pdf.pages[:1]]
+                text = '\n'.join(pages_data)
+                lines = text.strip().split("\n")
+                first_page_data.extend(lines)
+            t_type = check_tmobile_type(self.path)
+            if t_type == 1:
+                for line in first_page_data:
+                    if re.match(r'Account Number:\s*(\d+)',line):
+                        acc_info = str(line).split(":")[-1].replace(" ","")
+                        break
+            elif t_type == 2:
+                line_2 = lines[1].split(" ")
+                for item in line_2:
+                    try: item = int(item)
+                    except: item = item
+                    if isinstance(item,int) and len(str(item)) > 6: acc_info = item
+                    
+                
         elif 'verizon' in str(self.vendor).lower():
             accounts = []
             dates = []
@@ -1057,7 +1041,6 @@ class ProcessPdf:
             'error': 0,
         }
 
-from checkbill import check_tmobile_type
 
 class ProcessZip:
     def __init__(self, instance,usermail, **kwargs):
@@ -1117,6 +1100,9 @@ class ProcessZip:
 
             if self.path.endswith('.zip'):
                 data_base, data_pdf,detailed_df,required_df = self.extract_rdd_data(self.path,self.org)
+                pattern = r'\d{3}[-.]\d{3}[-.]\d{4}'
+                data_pdf = data_pdf[data_pdf['wireless_number'].astype(str).str.match(pattern, na=False)]
+                detailed_df = detailed_df[detailed_df['Wireless Number'].astype(str).str.match(pattern, na=False)]
                 data_base['company'] = self.company
                 data_base['Entry_type'] = self.entrytype
                 data_base['vendor'] = self.vendor

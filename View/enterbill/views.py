@@ -32,6 +32,7 @@ class UploadedBillView(APIView):
             billdate = request.GET.get('billdate')
             formatted_billdate = format_date(billdate) if billdate else None
             duedate = request.GET.get('duedate')
+            formatted_duedate = format_date(duedate) if duedate else None
             base = BaseDataTable.objects.filter(banOnboarded=None,banUploaded=None).filter(sub_company=org, vendor=vendor, accountnumber=ban)
             if not base.exists():
                 return Response({"message": f"No baseline found for account number {ban}"}, status=status.HTTP_404_NOT_FOUND)
@@ -40,11 +41,16 @@ class UploadedBillView(APIView):
                 base = base.filter(invoicenumber=invoice_number)
                 if not base.exists():
                     return Response({"message": f"No baseline found for invoice {invoice_number}"}, status=status.HTTP_404_NOT_FOUND)
-            if billdate:
-                base = base.filter(bill_date=formatted_billdate)
+            if formatted_billdate:
+                print(formatted_billdate)
+                month = formatted_billdate.split()[0]
+                year = formatted_billdate.split()[2]
+                base = base.filter(month=month,year=year)
                 if not base.exists():
                     return Response({"message": f"No baseline found for bill date {billdate}"}, status=status.HTTP_404_NOT_FOUND)
-            if duedate:
+            if formatted_billdate and formatted_duedate:
+                month = formatted_duedate.split()[0]
+                year = formatted_duedate.split()[2]
                 base = base.filter(due_date=duedate)
                 if not base.exists():
                     return Response({"message": f"No baseline found for bill date {duedate}"}, status=status.HTTP_404_NOT_FOUND)
@@ -228,7 +234,7 @@ class DraftView(APIView):
     def delete(self, request, pk, *args, **kwargs):
         pass
 
-from ..models import ViewUploadBill
+from ..models import ViewUploadBill, ProcessedWorkbook
 from OnBoard.Ban.models import MappingObjectBan
 import ast
 import pdfplumber
@@ -292,6 +298,7 @@ class UploadfileView(APIView):
             org = request.data.get('sub_company')
             vendor = request.data.get('vendor')
             ban = request.data.get('ban')
+            print("ban==",ban)
             month  = request.data.get('month')
             year  = request.data.get('year')
             found = ViewUploadBill.objects.filter(
@@ -492,51 +499,50 @@ def parse_until_dict(data):
         except json.JSONDecodeError:
             break
     return data
+from addon import get_close_match_key
 def tagging(baseline_data, bill_data):
-    baseline_data = parse_until_dict(baseline_data) if isinstance(baseline_data, str) else baseline_data
-    bill_data = parse_until_dict(bill_data) if isinstance(bill_data,str) else bill_data
+    baseline_data = parse_until_dict(baseline_data)
+    bill_data = parse_until_dict(bill_data)
     def compare_and_tag(base, bill):
-        def normalize(key):
-            return key.strip().lower()
-        
-        base_keys_normalized = {normalize(k): k for k in base.keys()}
-
-        for bill_key in list(bill.keys()):
-            norm_key = normalize(bill_key)
-            if norm_key not in base_keys_normalized:
-                bill[bill_key] = {"amount": f'{str(bill[bill_key]).strip().replace("$","")}', "approved": True}
+        for key in list(bill.keys()):
+            closely_matched = get_close_match_key(key,list(base.keys()))
+            if not closely_matched:
+                print("not closely matched!",key)
+                bill[key] = {"amount": f'{str(bill[key]).strip().replace("$","")}', "approved": False}
                 continue
-
-            base_key = base_keys_normalized[norm_key]
-            base_val = base[base_key]
-            bill_val = bill[bill_key]
+            base_val = base[closely_matched]
+            bill_val = bill[key]
 
             if isinstance(bill_val, dict) and isinstance(base_val, dict):
                 compare_and_tag(base_val, bill_val)
             else:
                 try:
-                    base_val = str(base_val).replace('$', '').replace('-', '')
-                    bill_val_init = str(bill_val).replace('$', '')
-                    bill_val = bill_val_init.replace('-', '')
+                    base_val = str(base_val).replace('$','').replace('-','')
+                    bill_val_init = str(bill_val).replace('$','')
+                    bill_val = bill_val_init.replace('-','')
                     base_float = float(base_val)
                     bill_float = float(bill_val)
                     if base_float == 0 and bill_float == 0:
-                        bill[bill_key] = {"amount": f'{bill_val}', "approved": True}
+                        bill[key] = {"amount": f'{bill_val}', "approved": True}
                     if base_float != 0:
-                        low_range = bill_float - (5 / 100 * bill_float)
-                        high_range = bill_float + (5 / 100 * bill_float)
-                        tag = low_range < base_float < high_range
-                        if '-' in bill_val_init:
-                            bill[bill_key] = {"amount": f'-{bill_val}', "approved": tag}
+                        low_range = bill_float - (5/100 * bill_float)
+                        high_range = bill_float + (5/100 * bill_float)
+                        if ((base_float < high_range) and (base_float > low_range)):
+                            tag = True
                         else:
-                            bill[bill_key] = {"amount": bill_val, "approved": tag}
+                            tag = False
+                        if '-' in bill_val_init:
+                            bill[key] = {"amount":f'-{bill_val}', "approved":tag}
+                        else:
+                            bill[key] = {"amount":bill_val, "approved":tag}
                 except (ValueError, TypeError):
                     print("error")
-                    bill[bill_key] = {"amount": bill_val, "approved": False}
+                    bill[key] = {"amount":bill_val, "approved":False}
 
     compare_and_tag(baseline_data, bill_data)
     json_string = json.dumps(bill_data)
     return json_string
+
 
 
 # from .tasks import process_view_bills
@@ -644,7 +650,6 @@ class ProcessPdf:
                     first_page_data_dict["bill_cycle_date"] = line.split(": ")[-1]
                 elif "Account number:" in line:
                     first_page_data_dict["account_number"] = line.split(": ")[-1]
-            print(first_page_data_dict)
             acc_info = first_page_data_dict["account_number"]
             bill_date_info = first_page_data_dict["bill_cycle_date"]
 
@@ -652,10 +657,9 @@ class ProcessPdf:
 
         acc_no = acc_info
         bill_date_pdf = bill_date_info.replace(',','')
-        print(acc_no, bill_date_pdf)
-        
-        print(acc_no, self.org, self.company)
-        print("bill_date_pdf new", bill_date_pdf)
+
+        print(acc_no)
+        print(bill_date_pdf)
 
         bill_date_pdf = bill_date_pdf.split(" ")
         if acc_no != self.account_number:
@@ -677,8 +681,10 @@ class ProcessPdf:
             'error': 0,
         }
     
+from django.conf import settings
+from django.core.files import File
 
-
+import io
 class ProcessZip:
     def __init__(self, instance, **kwargs):
         self.instance = instance
@@ -696,8 +702,48 @@ class ProcessZip:
         self.types = None
         self.ban = instance.ban
         self.account_number = None
+        self.net_amount = None
+    def get_cust_data_from_db(self, acc_no,Eid):
+        print("def get_cust_data_from_db")
+        account_number = acc_no
 
+        # Fetch data using Django ORM
+        data = list(UniquePdfDataTable.objects.filter(viewuploaded=Eid).filter(account_number=account_number)
+                    .values('wireless_number', 'user_name', 'cost_center', 'total_charges'))
 
+        # Create DataFrame
+        columns = ['wireless_number', 'user_name', 'cost_center', 'total_charges']
+        df = pd.DataFrame(data, columns=columns)
+
+        if df['cost_center'].isnull().all():
+            df = df.drop('cost_center', axis=1)
+            return df
+        else:
+            df['total_charges'] = df['total_charges'].replace('[\$,]', '', regex=True).astype(float)
+
+            # Group by cost_center and sum total_charges
+            grouped_df = df.groupby('cost_center')['total_charges'].sum().reset_index()
+            grouped_df.columns = ['cost_center', 'sum_of_total_current_charges']
+
+            # Merge grouped data with original DataFrame
+            result_df = pd.merge(df, grouped_df, on='cost_center', how='left')
+            result_df['Row_labels'] = result_df['cost_center']
+            result_df = result_df[['wireless_number', 'user_name', 'cost_center', 'total_charges', 'Row_labels', 'sum_of_total_current_charges']]
+
+            return result_df
+    def generate_excel(self, s1,s2,s3,s4):
+        s1.rename(columns={'sub_company':'Sub Company',},inplace=True)
+        s2.rename(columns={'sub_company':'Sub Company',},inplace=True)
+        s3.rename(columns={'sub_company':'Sub Company',},inplace=True)
+        s4.rename(columns={'sub_company':'Sub Company',},inplace=True)
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            s1.to_excel(writer, sheet_name='Sheet1', index=False)
+            s2.to_excel(writer, sheet_name='Sheet2', index=False)
+            s3.to_excel(writer, sheet_name='Sheet3', index=False)
+            s4.to_excel(writer, sheet_name='Sheet4', index=False)
+        output.seek(0)
+        return output
     def startprocess(self):
         print("start process")
         try:
@@ -720,6 +766,14 @@ class ProcessZip:
             if self.path.endswith('.zip'):
                 
                 data_base, data_pdf,detailed_df,required_df = self.extract_rdd_data(self.path,self.org)
+                print(data_pdf)
+                print(detailed_df)
+                print(required_df)
+                pattern = r'\d{3}[-.]\d{3}[-.]\d{4}'
+                data_pdf = data_pdf[data_pdf['wireless_number'].astype(str).str.match(pattern, na=False)]
+
+
+                detailed_df = detailed_df[detailed_df['Wireless Number'].astype(str).str.match(pattern, na=False)]
                 data_base['company'] = self.company
                 data_base['vendor'] = self.vendor
                 data_base['sub_company'] = self.org
@@ -727,6 +781,7 @@ class ProcessZip:
                 data_base['Total_Current_Charges'] = list(required_df['Total Current Charges'])[0]
                 data_base['RemittanceAdd'] = list(required_df['Remittance Address'])[0]
                 data_base['BillingName'] = list(required_df['Bill Name'])[0]
+                self.net_amount = list(required_df['Total Amount Due'])[0]
                 data_base['Total_Amount_Due'] = list(required_df['Total Amount Due'])[0]
 
                 v, t = None, None
@@ -742,7 +797,6 @@ class ProcessZip:
                 acc_no = data_base['accountnumber']
                 bill_date = data_base.pop('bill_date').replace(",","").split(" ")
                 data_base['bill_date'] = " ".join(bill_date)
-                print("init base data",data_base)
                 if acc_no != self.ban:
                     self.instance.delete()
                     return {'message' : f'Account number from the RDD file did not matched with input ban', 'error' : -1}
@@ -756,7 +810,7 @@ class ProcessZip:
                     self.instance.delete()
                     return {'message' : f'Bill already exists for account number {acc_no}', 'error' : -1}
                 else:
-                    obj = BaseDataTable.objects.create(viewuploaded=self.instance,month=self.month, year=self.year, **data_base)
+                    obj = BaseDataTable.objects.create(viewuploaded=self.instance,month=self.month, year=self.year,net_amount=self.net_amount, **data_base)
                     print("saved to base data table")
                     self.account_number = obj.accountnumber
                     obj.save()
@@ -768,29 +822,28 @@ class ProcessZip:
                 self.save_to_batch_report(data_base, self.vendor)
                 print('saved to batch report')
                 self.save_to_unique_pdf_data_table(data_pdf, v, t,obj)
+
                 print('saved to unique pdf data table')
                 from collections import defaultdict
                 wireless_data = defaultdict(lambda: defaultdict(dict))
                 tmp_df = detailed_df
                 tmp_df.rename(columns={'Item Category':'Item_Category','Item Description':'Item_Description','Wireless Number':'Wireless_number'},inplace=True)
                 for idx, row in tmp_df.iterrows():
-                            wireless_number = row['Wireless_number']
-                            item_category = str(row['Item_Category']).strip().upper()
-                            item_description = str(row['Item_Description']).strip().upper()
-                            charges = str(row['Charges']).replace("$",'')
-                            if pd.notna(item_category) and pd.notna(item_description) and pd.notna(charges):
-                                wireless_data[wireless_number][item_category][item_description] = charges
+                    wireless_number = row['Wireless_number']
+                    item_category = str(row['Item_Category']).strip().upper() if 'Item_Category' in row else None
+                    item_description = str(row['Item_Description']).strip().upper() if 'Item_Description' in row else None
+                    charges = str(row['Charges']).replace("$",'')
+                    if pd.notna(item_category) and pd.notna(item_description) and pd.notna(charges):
+                        wireless_data[wireless_number][item_category][item_description] = charges
+                    
                 result_list = [dict(wireless_data)]
                 udf = pd.DataFrame(data_pdf)
                 wireless_numbers = []
                 charges_objects = []
-                print("3rd result=========", result_list)
                 for entry in result_list:
-                        
-                        for number, charges in entry.items():
-                            wireless_numbers.append(number)
-                            charges_objects.append(charges)  # Convert dictionary to JSON string for storage
-                    # Create the DataFrame with two columns: Wireless_number and Charges_Object
+                    for number, charges in entry.items():
+                        wireless_numbers.append(number)
+                        charges_objects.append(charges) 
                 obj_df = pd.DataFrame({
                         'Wireless_number': wireless_numbers,
                         'category_object': charges_objects
@@ -801,29 +854,65 @@ class ProcessZip:
                 lambda x: {"NAN": "NAN"} if pd.isna(x) or x == '' else x
                 )
                 category_data = category_obj_df.to_dict(orient='records')
-                
                 for entry in category_data:
                     entry['company'] = self.company
                     entry['vendor'] = self.vendor
                 self.save_to_baseline_data_table(category_data, self.vendor,date=" ".join(bill_date) if isinstance(bill_date,list) else bill_date, types=self.types,baseobj=obj)
                 print("saved to baseline data table")
+                cusdf = self.get_cust_data_from_db(self.account_number, bill_main_id)
+                workbook = self.generate_excel(s1=required_df,s2=data_pdf,s3=detailed_df,s4=cusdf)
+                workbook_name = str(self.path).split("/")[-1].replace(".zip", ".xlsx")
+
+                output_dir = os.path.join(settings.MEDIA_ROOT, "ViewUploadedBills")
+                os.makedirs(output_dir, exist_ok=True)
+                output_file_path = os.path.join(output_dir, workbook_name)
+                try:
+                    with open(output_file_path, "wb") as f:
+                        f.write(workbook.getvalue())
+
+                    # Create ProcessedWorkbook instance (WITHOUT setting the FileField yet)
+                    processed_workbook = ProcessedWorkbook(
+                        uploadbill=self.instance,
+                        account_number=self.account_number,
+                        vendor_name=self.vendor,
+                        company_name=self.company,
+                        sub_company_name=self.org,
+                        workbook_name=workbook_name,
+                        bill_date_info=obj.bill_date
+                    )
+                    
+                    # Open the saved file and keep it open for Django
+                    f = open(output_file_path, "rb")  # DO NOT USE `with open(...)`
+                    django_file = File(f, name=workbook_name)
+
+                    processed_workbook.output_file = django_file
+                    self.instance.output_file = django_file
+                    
+                    processed_workbook.save()
+                    self.instance.save()
+                    obj.workbook_path = processed_workbook.output_file.url
+                    obj.save()
+
+                    f.close()
+
+                except Exception as e:
+                    print(e)
                 self.reflect_uniquetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id)
                 self.reflect_baselinetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id)
                 self.add_tag_to_dict(bill_main_id)
                 self.reflect_category_object(bill_main_id)
                 self.check_baseline_approved(UniquePdfDataTable, bill_main_id)
                 self.check_baseline_approved(BaselineDataTable, bill_main_id)
-
-                account_obj = BaselineDataTable.objects.filter(sub_company=self.org, vendor=self.vendor, account_number=self.account_number).filter(viewuploaded=self.instance)
-                approved_wireless_list = account_obj.values_list('is_baseline_approved', flat=True)
-                print(list(approved_wireless_list))
-                print(len(approved_wireless_list))
-                print(False in approved_wireless_list)
-                obj.is_baseline_approved = False if False in list(approved_wireless_list) else True
                 
+                
+                account_obj = BaselineDataTable.objects.filter(viewuploaded=self.instance).filter(sub_company=self.org, vendor=self.vendor, account_number=self.account_number)
+                approved_wireless_list = account_obj.values_list('is_baseline_approved', flat=True)
+                obj.is_baseline_approved = False if False in list(approved_wireless_list) else True
+                obj.save()                
                 return {'message' : 'RDD uploaded successfully!', 'error' : 1}
         except Exception as e:
             print(f'Error occurred while processing zip file: {str(e)}')
+            self.instance.delete()
             return {'message' : f'Error occurred while processing zip file: {str(e)}', 'error' : -1}
     
             
@@ -935,7 +1024,6 @@ class ProcessZip:
                 new_obj = BaselineDataTable.objects.create(**new_obj_data)
                 
                 new_obj.save()
-                print(new_obj.id)
 
 
 
@@ -1275,7 +1363,7 @@ class ProcessZip:
             'bill_date': 'Invoice_Date',
             'Remidence_Address': 'Vendor_Address_1',
             'Billing_Name': 'Cust_Id',
-            'Total_Charges': 'Net_Amount',
+            'Total_Current_Charges': 'Net_Amount',
             'vendor': 'Vendor_Name_1',
             'company_name': 'company',
             'Vendor_City': 'Vendor_City',
@@ -1375,7 +1463,7 @@ class ProcessZip:
             existing_data.Net_Amount = renamed_data['Net_Amount']
             existing_data.save()
         else:
-            new_entry = BatchReport.objects.create(viewuploaded=self.instance, **renamed_data)
+            BatchReport.objects.create(viewuploaded=self.instance, **renamed_data)
 
             if 'new_location_code' in locals() and new_location_code:
                 BatchReport.objects.filter(
@@ -1669,21 +1757,21 @@ class ApproveView(APIView):
             return Response({"message":"Incomplete paylod"}, status=status.HTTP_400_BAD_REQUEST)
         
         main_object = data.pop('main_object')
-        print(main_object)
 
         main_uploaded_id = BaselineDataTable.objects.filter(id=id).first()
-        print("man uploded id==", main_uploaded_id)
         if not main_uploaded_id:
             return Response({"message":"object not found!"},status=status.HTTP_400_BAD_REQUEST)
         
         try:
             enter_bill_baseline_objs = BaselineDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered=main_uploaded_id.viewpapered)
+
             onboard_baseline_objs = BaselineDataTable.objects.filter(viewuploaded=None,viewpapered=None, vendor=vendor, account_number=ban)
 
             if not onboard_baseline_objs.exists():
                 return Response({"message":"Baseline data for given attributes Not found!"}, status=status.HTTP_400_BAD_REQUEST)
 
             enter_bill_unique_objs = UniquePdfDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered=main_uploaded_id.viewpapered)
+            
             onboard_unique_objs = UniquePdfDataTable.objects.filter(viewuploaded=None,viewpapered=None, vendor=vendor, account_number=ban)
             if not enter_bill_unique_objs.exists():
                 return Response({"message":"Unique data for given attributes Not found!"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1691,13 +1779,15 @@ class ApproveView(APIView):
             # update baseline
             baseline = main_object['baseline']
             new_baseline = json.dumps(baseline)
-
+            print(new_baseline)
             _obj = onboard_baseline_objs.filter(Wireless_number=wn).first()
+            print(_obj.id)
             if _obj:
                 _obj.category_object = new_baseline
                 _obj.save()  
 
             u_obj = onboard_unique_objs.filter(wireless_number=wn).first()
+            print(u_obj.id)
             if u_obj:
                 u_obj.category_object = new_baseline
                 u_obj.save() 
@@ -1708,7 +1798,6 @@ class ApproveView(APIView):
             new_approved = json.dumps(approve)
 
             _obj = enter_bill_baseline_objs.filter(Wireless_number=wn).first()
-            print(_obj.id)
             if _obj:
                 _obj.category_object = new_approved
                 _obj.is_baseline_approved = check_true_false(_obj.category_object)

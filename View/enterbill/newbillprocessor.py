@@ -55,8 +55,11 @@ class ProcessBills:
         logger.info(f'Processing PDF from buffer: {self.pdf_path}, {self.company_name}, {self.vendor_name}, {self.pdf_filename}')
 
         self.instance = instance
+        self.net_amount = None
         self.check = True
         self.account_number = self.buffer_data['account_number'] if 'account_number' in self.buffer_data else None
+
+        self.billing_address = {}
     def check_tmobile_type(self):
         print("def check_tmobile_type")
         Lines = []
@@ -127,6 +130,8 @@ class ProcessBills:
             data = extractor.get_result_df()
             acc_info = extractor.get_accounts_info()
             bill_date_info = extractor.get_bill_date()
+            self.net_amount = extractor.get_net_amount()
+            self.billing_address = extractor.get_billing_address()
             data_dict = data.to_dict(orient='records')
 
             for entry in data_dict:
@@ -147,6 +152,7 @@ class ProcessBills:
             data_dict = first_obj.first_page_data_func()
             acc_info = first_obj.get_acc_info()
             bill_date_info = first_obj.get_bill_date_info()
+            self.billing_address = first_obj.get_billing_info()
             data_dict['company'] = self.company_name
             data_dict['vendor'] = self.vendor_name
             data_dict['pdf_path'] = self.pdf_path
@@ -155,12 +161,13 @@ class ProcessBills:
             data_dict['year'] = self.year
             data_dict['sub_company'] = self.sub_company
             data_dict['entry_type'] = self.entry_type
+            self.net_amount = first_obj.get_net_amount()
 
             data_dict['location'] = self.location
             data_dict['master_account'] = self.master_account
 
         return data_dict,acc_info,bill_date_info
-    def save_to_base_data_table(self, data,remittance_address):
+    def save_to_base_data_table(self, data,onboarded):
     
         print("def save_to_base_data_table")
         from django.db import transaction
@@ -175,14 +182,23 @@ class ProcessBills:
             "Client_Address":"Remidence_Address",
             "entry_type":"Entry_type",
         }
-
+        add_data = {
+            "net_amount":self.net_amount
+        }
+        billing = {
+            "BillingName" : self.billing_address["name"] if "name" in self.billing_address else None,
+            "BillingAdd": self.billing_address["address"] if "address" in self.billing_address else None,
+            "BillingAtn" : self.billing_address["attn"] if "attn" in self.billing_address else None,
+        }
         if type(data) == dict:
             updated_data = {mapping.get(k, k): v for k, v in data.items()}
             updated_data.pop("foundation_account") if 'foundation_account' in updated_data else None
             filtered_data = remove_filds(BaseDataTable, updated_data)
-       
+            
             bill_date = filtered_data.pop('bill_date').replace(',','')
-            obj = BaseDataTable.objects.create(viewuploaded=self.instance,bill_date=bill_date,RemittanceAdd=remittance_address, **filtered_data)
+            obj = BaseDataTable.objects.create(
+                viewuploaded=self.instance,bill_date=bill_date,**add_data,**billing,**filtered_data
+                )
             self.account_number = obj.accountnumber
             obj.save()
         elif type(data) == list:
@@ -190,7 +206,7 @@ class ProcessBills:
                 updated_data = {mapping.get(k, k): v for k, v in item.items()}
                 filtered_data = filtered_data = remove_filds(BaseDataTable, updated_data)
                 bill_date = filtered_data.pop('bill_date').replace(',','')
-                obj = BaseDataTable.objects.create(viewuploaded=self.instance,bill_date=bill_date,RemittanceAdd=remittance_address, **filtered_data)
+                obj = BaseDataTable.objects.create(viewuploaded=self.instance,bill_date=bill_date,**add_data,**billing, **filtered_data)
                 self.account_number = obj.accountnumber
                 obj.save()
         return obj
@@ -198,9 +214,6 @@ class ProcessBills:
     
     def extract_total_pdf_data(self,acc_info):
         print("def extract_total_pdf_data")
-        at_vendor_list = ['AT&T','AT n T','ATT','at&t','att','at n t']
-        t_mobile_list = ['T_Mobile','t-mobile','T-mobile','t_mobile']
-        total_dict = None
         result_df = None
         duplicate_df = None
 
@@ -507,12 +520,12 @@ class ProcessBills:
             result_df = unique_df
             duplicate_df = final_df
         return result_df,duplicate_df
-    def get_cust_data_from_db(self, acc_no):
+    def get_cust_data_from_db(self, acc_no,Eid):
         print("def get_cust_data_from_db")
         account_number = acc_no
 
         # Fetch data using Django ORM
-        data = list(UniquePdfDataTable.objects.filter(account_number=account_number)
+        data = list(UniquePdfDataTable.objects.filter(viewuploaded=Eid).filter(account_number=account_number)
                     .values('wireless_number', 'user_name', 'cost_center', 'total_charges'))
 
         # Create DataFrame
@@ -524,6 +537,7 @@ class ProcessBills:
             df = df.drop('cost_center', axis=1)
             return df
         else:
+            print(df['total_charges'])
             df['total_charges'] = df['total_charges'].replace('[\$,]', '', regex=True).astype(float)
 
             # Group by cost_center and sum total_charges
@@ -559,7 +573,6 @@ class ProcessBills:
                 print('got first')
                 print('>>>>>>>>>>>>><<<<<<<<<<<<<<>>>>>>>>>>>>><<<<<<<<<<<>>>>>>>>>>>')
                 base_data_df,pdf_df,tmp_df,in_valid_df,usage_df,dates,acc_nos = get_all_dataframes_type_1(self.pdf_path)
-                print('>>>>>>>>>>>>>>>qwertyui<<<<<<<<<<<<')
                 pdf_df['account_number'] = acc_info
                 total_dict = pdf_df.to_dict(orient='records')
                 result_df = pdf_df
@@ -687,6 +700,7 @@ class ProcessBills:
             viewuploaded=None,
             viewpapered=None
         )
+
         current_bill = BaselineDataTable.objects.filter(
             company=self.company_name,
             sub_company=self.sub_company,
@@ -980,7 +994,7 @@ class ProcessBills:
 
         onboarded = BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(sub_company=self.sub_company, vendor=self.vendor_name, accountnumber=self.account_number).first()
 
-        baseinstance = self.save_to_base_data_table(xlsx_first_dict, remittance_address=onboarded.RemittanceAdd)
+        baseinstance = self.save_to_base_data_table(xlsx_first_dict, onboarded)
         
 
         bill_main_id = baseinstance.viewuploaded.id
@@ -992,15 +1006,12 @@ class ProcessBills:
         xlsx_unique, xlsx_duplicate = self.extract_total_pdf_data(acc_info)
 
         bill_date_info = bill_date_info.replace(",","")
-        print(len(xlsx_unique))
-        print(xlsx_unique.columns)
-        print(len(xlsx_duplicate))
-        print(xlsx_duplicate.columns)
-        print("accc=====>", acc_info, type(acc_info))
+        print("xlsx unique===",xlsx_unique)
+        print("xlsx unique length===",len(xlsx_unique))
         if isinstance(acc_info, list):
             acc_info = acc_info[0]
     
-        cust_data_df = self.get_cust_data_from_db(acc_info)
+        cust_data_df = self.get_cust_data_from_db(acc_info,bill_main_id)
         pdf_data, unique_pdf_data,tmp_df = self.extract_for_lines(acc_info, bill_date_info)
         print(type(pdf_data), type(unique_pdf_data),type(tmp_df))
         wireless_data = defaultdict(lambda: defaultdict(dict))
@@ -1064,11 +1075,8 @@ class ProcessBills:
             xlsx_first_df = pd.DataFrame(xlsx_first_dict)
         except Exception:
             xlsx_first_df = pd.DataFrame(xlsx_first_dict, index=[0])
-        print()
         workbook = self.dataframe_to_excel(xlsx_first_df, xlsx_unique, xlsx_duplicate, cust_data_df)
-        print(self.pdf_filename)
         workbook_name = str(self.pdf_filename).split("/")[-1].replace(".pdf", ".xlsx")
-        print(workbook_name)
         
         # Define file path inside MEDIA_ROOT
         output_dir = os.path.join(settings.MEDIA_ROOT, "ViewUploadedBills")
@@ -1077,7 +1085,7 @@ class ProcessBills:
         if self.entry_type != "Master Account":
             pass
         
-        # self.reflect_non_bill_data(onboarded_id,bill_main_id)
+       # self.reflect_non_bill_data(onboarded_id,bill_main_id)
         self.reflect_uniquetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id)
         self.reflect_baselinetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id)
         self.add_tag_to_dict(bill_main_id)
@@ -1089,6 +1097,7 @@ class ProcessBills:
         approved_wireless_list = account_obj.values_list('is_baseline_approved', flat=True)
 
         baseinstance.is_baseline_approved = False if False in list(approved_wireless_list) else True
+        baseinstance.save()
         try:
             with open(output_file_path, "wb") as f:
                 f.write(workbook.getvalue())
@@ -1155,16 +1164,18 @@ def remove_filds(model, data):
 
     return filtered_data
 
-from addon import parse_until_dict
+from addon import parse_until_dict, get_close_match_key
 def tagging(baseline_data, bill_data):
     baseline_data = parse_until_dict(baseline_data)
     bill_data = parse_until_dict(bill_data)
     def compare_and_tag(base, bill):
         for key in list(bill.keys()):
-            if key not in base:
-                bill[key] = {"amount": f'{str(bill[key]).strip().replace("$","")}', "approved": True}
+            closely_matched = get_close_match_key(key,list(base.keys()))
+            if not closely_matched:
+                print("not closely matched!")
+                bill[key] = {"amount": f'{str(bill[key]).strip().replace("$","")}', "approved": False}
                 continue
-            base_val = base[key]
+            base_val = base[closely_matched]
             bill_val = bill[key]
 
             if isinstance(bill_val, dict) and isinstance(base_val, dict):

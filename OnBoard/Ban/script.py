@@ -10,7 +10,7 @@ c.execute(q)
 rows = c.fetchall()
 df = pd.DataFrame(rows)
 print(df[10:20])
-q = "SELECT * FROM UniquePdfDataTable WHERE account_number='342125539-00001'"
+q = "SELECT * FROM UniquePdfDataTable WHERE account_number='836086478'"
 
 df = pd.read_sql_query(q, conn)
 print(df)

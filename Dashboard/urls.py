@@ -139,8 +139,8 @@ urlpatterns.extend(profilepermissions)
 
 from .CRUDViews.Inventory import InventoryView
 inventory = [
-    path("inventory/", InventoryView().as_view(), name='inventory-list-create'),
-    path("inventory/<pk>/", InventoryView().as_view(), name='inventory-detail'),
+    path("inventory/<org>/", InventoryView().as_view(), name='inventory-list-create'),
+    path("inventory/<org>/<pk>/", InventoryView().as_view(), name='inventory-detail'),
 ]
 urlpatterns.extend(inventory)
 
@@ -152,7 +152,7 @@ addnew = [
 urlpatterns.extend(addnew)
 
 downloadexcel = [
-    path("inventory/download-excel/<org>/", DownloadInventoryExcel().as_view(), name='download-excel'),
+    path("download-inventory-excel/<org>/", DownloadInventoryExcel().as_view(), name='download-excel'),
 ]
 urlpatterns.extend(downloadexcel)
 from .CRUDViews.vendors import VendorsView
@@ -176,11 +176,12 @@ forgot = [
 ]
 urlpatterns.extend(forgot)
 
-from .CRUDViews.requests import RequestsView, OnlineFormView, RequestLogsView, RequestExcelUploadView
+from .CRUDViews.requests import RequestsView, OnlineFormView, RequestLogsView, RequestExcelUploadView, UniqueLineView
 
 requests = [
     path("requests-management/", RequestsView().as_view(), name='requests-list-create'),
     path("requests-management/<pk>/", RequestsView().as_view(), name='requests-detail'),
+    path("unique-line/<phone>/",UniqueLineView.as_view(),name='unique')
 ]
 
 urlpatterns.extend(requests)
@@ -197,3 +198,60 @@ requestslogs = [
 ]
 urlpatterns.extend(requestslogs)
 
+from .CRUDViews.devices import DevicesView
+
+devicesurl = [
+    path("devices/",view=DevicesView.as_view(), name='devices'),
+    path("devices/<int:pk>/",view=DevicesView.as_view(),name='devices-update')
+]
+urlpatterns.extend(devicesurl)
+
+from .CRUDViews.makemodels import MakeModelView
+
+devicemodelsurl = [
+    path("device-models/",view=MakeModelView.as_view(), name='device-models'),
+    path("device-models/<int:pk>/",view=MakeModelView.as_view(),name='device-models-update')
+]
+urlpatterns.extend(devicemodelsurl)
+
+from .CRUDViews.vendor_devices import VendorDeviceView
+
+vendordeviceurl = [
+    path("vendor-device/",view=VendorDeviceView.as_view(), name='vendor-device-list'),
+    path("vendor-device/<int:pk>/",view=VendorDeviceView.as_view(),name='vendor-device-update')
+]
+urlpatterns.extend(vendordeviceurl)
+
+from .CRUDViews.vendor_information import VendorInformationView,getBansView,ReplacePlanView
+
+vendorinfourl = [
+    path("vendor-information/",view=VendorInformationView.as_view(), name='vendor-device-list'),
+    path("vendor-information/<int:pk>/",view=VendorInformationView.as_view(),name='vendor-device-update'),
+    path("vendor-information/get-bans/<org>/",view=getBansView.as_view(),name='vendor-get-bans'),
+    path("vendor-information/replace-plan/<int:pk>/",view=ReplacePlanView.as_view(),name='replace-plan'),
+]
+urlpatterns.extend(vendorinfourl)
+
+from .CRUDViews.costcenters import CostCentersView, BulkCostCenterUpload
+
+costcenterurl = [
+    path("cost-centers/<org>/",view=CostCentersView.as_view(), name='cost-centers'),
+    path("cost-centers/<org>/<int:pk>/",view=CostCentersView.as_view(),name='cost-centers-update'),
+    path("cost-centers/bulk-upload/<int:sub_company>/<int:vendor>/<ban>/",view=BulkCostCenterUpload.as_view(),name='cost-centers-bulk-upload')
+]
+
+urlpatterns.extend(costcenterurl)
+
+from .CRUDViews.vendor_plan import VendorPlanView
+vendorplanurl = [
+    path("vendor-plan/", view=VendorPlanView.as_view(), name='vendor-plan-list-create'),
+    path("vendor-plan/<int:pk>/", view=VendorPlanView.as_view(), name='vendor-plan-detail'),
+]
+urlpatterns.extend(vendorplanurl)
+
+from .CRUDViews.requests import TrackingInfoView
+trakingurls = [
+    path("request-tracking/", view=TrackingInfoView.as_view(), name='request-tracking'),
+    path("request-tracking/<int:pk>/", view=TrackingInfoView.as_view(), name='request-tracking-detail'),
+]
+urlpatterns.extend(trakingurls)

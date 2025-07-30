@@ -90,7 +90,7 @@ class Requests(models.Model):
     request_submitted_date = models.CharField(max_length=255, null=True, blank=True)
     request_entered_date = models.CharField(max_length=255, null=True, blank=True)
     shipped_date = models.CharField(max_length=255, null=True, blank=True)
-    tracking_id = models.CharField(max_length=255, null=True, blank=True)
+    
     estimated_delivery_date = models.CharField(max_length=255, null=True, blank=True)
     delivery_date = models.CharField(max_length=255, null=True, blank=True)
     delivery_verified = models.BooleanField(default=False)
@@ -115,7 +115,20 @@ class Requests(models.Model):
     contact_number=models.CharField(max_length=255, null=True, blank=True)
     contact_description=models.CharField(max_length=255, null=True, blank=True)
     resume_date=models.CharField(max_length=255, null=True, blank=True)
+    remark=models.CharField(max_length=255, null=True, blank=True)
 
+    mail_date = models.DateTimeField(null=True, blank=True)
+    comment = models.TextField(null=True, blank=True)
+
+    # Remote location
+    rl_address1 = models.CharField(max_length=255, null=True, blank=True)
+    rl_address2 = models.CharField(max_length=255, null=True, blank=True)
+    rl_city = models.CharField(max_length=255, null=True, blank=True)
+    rl_state = models.CharField(max_length=255, null=True, blank=True)
+    rl_zipcode = models.CharField(max_length=255, null=True, blank=True)
+
+    transfer_type = models.CharField(max_length=255, null=True, blank=True)
+    cost_center_add = models.CharField(max_length=255, null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True, null=True)
     updated= models.DateTimeField(auto_now=True,null=True)
 
@@ -125,4 +138,178 @@ class Requests(models.Model):
 
 
     def __str__(self):
-        return self.mobile
+        return self.request_type
+    
+
+class TrackingInfo(models.Model):
+    request = models.ForeignKey('Requests',on_delete=models.CASCADE, related_name='request_tracking_info')
+    shipment_vendor = models.CharField(max_length=255,null=True,blank=True)
+    tracking_id = models.CharField(max_length=255,null=True,blank=True,unique=True)
+    receipt_details = models.CharField(max_length=255, null=True, blank=True)
+    receipt_file = models.FileField(upload_to='request_tracking_files',null=True,blank=True)
+    wipe_reset_firmware = models.CharField(max_length=255, null=True, blank=True)
+    name_change = models.CharField(max_length=255, null=True, blank=True)
+    plan_activity = models.CharField(max_length=255, null=True, blank=True)
+    device_status = models.CharField(max_length=255, default=False, null=False)
+
+    created = models.DateTimeField(auto_now_add=True, null=True)
+    updated= models.DateTimeField(auto_now=True,null=True)
+
+    class Meta:
+        db_table = 'TrackingInfo'
+
+    
+class CostCenters(models.Model):
+    sub_company = models.ForeignKey(Organizations, on_delete=models.CASCADE,null=False,related_name="sub_company_costcenters")
+    vendor = models.ForeignKey(Vendors, related_name="vendor_costcenters", null=False,on_delete=models.CASCADE)
+    ban = models.CharField(max_length=255, null=False)
+    cost_center = models.CharField(max_length=255, null=False)
+    created = models.DateTimeField(auto_now_add=True, null=True)
+    updated= models.DateTimeField(auto_now=True,null=True)
+
+    class Meta:
+        db_table = 'CostCenters'
+        constraints = [
+            models.UniqueConstraint(fields=['sub_company', 'vendor', 'ban', 'cost_center'], name='unique_cost_center')
+        ]
+
+
+
+class Device(models.Model):
+    sub_company = models.ForeignKey(Organizations, on_delete=models.CASCADE,null=False,related_name="sub_company_devices")
+    DEVICE_CHOICES = [
+        ("Tablet", "Tablet"),
+        ("Smartphone", "Smartphone"),
+    ]
+    device_type = models.CharField(max_length=255,choices=DEVICE_CHOICES)
+    model = models.ForeignKey('MakeModel', on_delete=models.CASCADE, null=False, related_name='models')
+    amount = models.FloatField(default=0)
+    is_older_model = models.BooleanField(default=False)
+    is_default = models.BooleanField(default=False)
+
+    # approved
+    is_approved = models.BooleanField(default=False)
+    stock_quantity = models.IntegerField(default=0)
+
+    # end of life
+    is_expired = models.BooleanField(default=False)
+    # damaged
+    is_damaged = models.BooleanField(default=False)
+    repair_cost = models.FloatField(default=0)
+
+    # individual purchase
+
+    is_individual_purchase = models.BooleanField(default=False)
+
+    # bulk purchase
+
+    order_quantity = models.IntegerField(default=0)
+    reorder_quantity = models.IntegerField(default=0)
+
+
+    created = models.DateTimeField(auto_now_add=True, null=True)
+    updated= models.DateTimeField(auto_now=True,null=True)
+
+
+    class Meta:
+        db_table = 'Device'
+
+
+    def __str__(self):
+        return f'{self.device_type}-{self.model}'
+    
+class MakeModel(models.Model):
+    sub_company = models.ForeignKey(Organizations, on_delete=models.CASCADE,null=False,related_name="sub_company_models")
+    device_type = models.CharField(max_length=255,null=False)
+    name = models.CharField(max_length=255, null=False)
+    os = models.CharField(max_length=255, null=True,blank=True)
+    storage = models.CharField(max_length=10, null=True, blank=True)
+    color = models.CharField(max_length=10, null=True, blank=True)
+    manufacturer = models.CharField(max_length=10, null=True, blank=True)
+    created = models.DateTimeField(auto_now_add=True, null=True)
+    updated= models.DateTimeField(auto_now=True,null=True)
+
+
+    class Meta:
+        db_table = 'MakeModel'
+        constraints = [
+            models.UniqueConstraint(fields=['sub_company', 'device_type', 'name'], name='unique_model')
+        ]
+
+
+class VendorDevice(models.Model):
+    sub_company = models.ForeignKey(Organizations, on_delete=models.CASCADE,null=False,related_name="sub_company_vendor_devices")
+    model = models.ForeignKey('MakeModel', on_delete=models.CASCADE, null=False, related_name='vendor_device_models')
+    vendor = models.ForeignKey(Vendors, related_name="vendor_devices", null=False,on_delete=models.CASCADE)
+    retail_price = models.FloatField(default=0)
+    discounted_price = models.FloatField(default=0)
+    is_payment_plan = models.BooleanField(default=False)
+    created = models.DateTimeField(auto_now_add=True, null=True)
+    updated= models.DateTimeField(auto_now=True,null=True)
+
+
+    class Meta:
+        db_table = 'VendorDevice'
+
+class VendorPlan(models.Model):
+    sub_company = models.ForeignKey(Organizations, on_delete=models.CASCADE,null=False,related_name="sub_company_vendor_plans")
+    vendor = models.ForeignKey(Vendors, related_name="vendor_plans", null=False,on_delete=models.CASCADE)
+    ban = models.CharField(max_length=20, null=False)
+    plan = models.CharField(max_length=255, null=False)
+    plan_type = models.CharField(max_length=255, null=True, blank=True)
+    data_allotment = models.CharField(max_length=255, null=True, blank=True)
+    plan_fee = models.FloatField(default=0)
+    smartphone = models.FloatField(default=0)
+    tablet_computer = models.FloatField(default=0)
+    mifi = models.FloatField(default=0)
+    wearables = models.FloatField(default=0)
+
+    created = models.DateTimeField(auto_now_add=True, null=True)
+    updated= models.DateTimeField(auto_now=True,null=True)
+
+    class Meta:
+        db_table = 'VendorPlan'
+        constraints = [
+            models.UniqueConstraint(fields=['sub_company', 'vendor', 'ban','plan'], name='unique_vendor_plan')
+        ]
+
+    
+
+class VendorInformation(models.Model):
+    sub_company = models.ForeignKey(Organizations, on_delete=models.CASCADE,null=False,related_name="sub_company_vendor_info")
+    vendor = models.ForeignKey(Vendors, related_name="vendor_information", null=False,on_delete=models.CASCADE)
+    ban = models.CharField(max_length=20, null=False)
+
+    # either existing plan or vendor plan
+    existing_plan = models.CharField(max_length=255, null=True, blank=True)
+    vendor_plan = models.ForeignKey(VendorPlan, related_name="vendor_information_plans",null=True, on_delete=models.SET_NULL)
+
+    code = models.CharField(max_length=255, null=True, blank=True)
+    sales_rep_name = models.CharField(max_length=255, null=True, blank=True)
+    sales_rep_email = models.EmailField(max_length=255, null=True, blank=True)
+    sales_rep_phone = models.CharField(max_length=12, null=True, blank=True)
+    tech_support_phone = models.CharField(max_length=12, null=True, blank=True)
+    tech_support_email = models.EmailField(max_length=255, null=True, blank=True)
+    order_support_phone = models.CharField(max_length=12, null=True, blank=True)
+    created = models.DateTimeField(auto_now_add=True, null=True)
+    updated= models.DateTimeField(auto_now=True,null=True)
+    single_point_contact = models.CharField(max_length=255, null=True, blank=True)
+    is_international_plan = models.BooleanField(default=False)
+    is_voip_calling = models.BooleanField(default=False)
+    is_insurance = models.BooleanField(default=False)
+    is_default = models.BooleanField(default=False)
+    baseline_object = models.JSONField(default=list)
+
+    plan_replaced_with = models.CharField(max_length=255, null=True, blank=True)
+
+    request_type = models.CharField(max_length=255, null=True, blank=True)
+    request_file = models.FileField(upload_to='vendor_information_files', null=True, blank=True)
+
+    created = models.DateTimeField(auto_now_add=True, null=True)
+    updated= models.DateTimeField(auto_now=True,null=True)
+
+    class Meta:
+        db_table = 'VendorInformation'
+        constraints = [
+            models.UniqueConstraint(fields=['sub_company', 'vendor', 'ban','vendor_plan'], name='unique_vendor_information')
+        ]

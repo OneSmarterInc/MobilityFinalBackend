@@ -1,4 +1,3 @@
-print("ATT")
 
 import re
 import pdfplumber
@@ -11,11 +10,17 @@ class first_page_extractor:
         self.input_path = input_file
         self.Lines_1 = None
         pages_data = []
+        self.billing_address = {}
+        try:
+            self.trim_billing_info()
+        except:
+            self.billing_address = {}
         with pdfplumber.open(self.input_path) as pdf:
             num_of_pages = len(pdf.pages)
         if num_of_pages < 3500:
             with pdfplumber.open(self.input_path) as pdf:
-                pages_data = [page.extract_text() for page in pdf.pages[:2]]
+                pages_data = [page.extract_text() for page in pdf.pages[:3]]
+                
             for page_data in pages_data:
                 first_page_data = page_data
                 break
@@ -29,7 +34,17 @@ class first_page_extractor:
                 "Billing_Address":None,
                 "Remidence_Address":None}
             
-        for line in first_page_data.splitlines():
+        for i, line in enumerate(first_page_data.splitlines()):
+            if "total" in line.lower() and "$" in line:
+                match = re.search(r'Total\s+due\s*\$([\d,]+\.\d{2})', line)
+            elif "autopay" in line.lower() and "$" in line:
+                match = re.search(r'AutoPay\s+of\s*\$([\d,]+\.\d{2})', line)
+            else:
+                match = None
+            
+            if match:
+                amount = match.group(1)
+                self.first_page_data_dict["NetAmount"] = amount
             if line.startswith("Issue Date:"):
                 self.first_page_data_dict["Bill_Date"] = line.split(": ")[-1]
             elif line.startswith("Account Number:") or "Account Number" in line:
@@ -43,6 +58,28 @@ class first_page_extractor:
             self.first_page_data_dict['Billing_Address'] = re.search(r"\n(.*?)\n", first_page_data).group(1)
             self.first_page_data_dict['Remidence_Address'] = "PO Box 6463 Carol Stream, IL 60197-646"
 
+    def trim_billing_info(self):
+        with pdfplumber.open(self.input_path) as pdf:
+            self.page_no = 1
+            data = []
+            data = [page.extract_text() for page in pdf.pages[:1]]
+            if "your bill details begin on the next page" in data[0].lower():
+                self.page_no = 3
+            print(self.page_no)
+            page = pdf.pages[self.page_no-1]
+            print(page.width, page.height)
+            crop_box = (120,0,page.width - 230,page.height-700)
+            cropped_page = page.crop(crop_box)
+
+            text = cropped_page.extract_text().splitlines()
+            self.billing_address["name"] = text[0].split(",")[0]
+            for i,line in enumerate(text):
+                print(line)
+                if line.lower().startswith("attn:"):
+                    self.billing_address["attn"] = line.split(":")[1].replace(" ","")
+                if re.search(r'.*\b\d{5}-\d{4}$', line):
+                    self.billing_address["address"] = f'{text[i-1]} {line}'
+            # cropped_page.to_image().save("cropped_output.png")
     def first_page_data_func(self):
         print("def first_page_data_func")
         return self.first_page_data_dict
@@ -55,6 +92,11 @@ class first_page_extractor:
         return self.first_page_data_dict['InvoiceNumber']
     def get_foundation_account(self):
         return self.first_page_data_dict['foundation_account']
+    def get_net_amount(self):
+        return self.first_page_data_dict['NetAmount']
+    def get_billing_info(self):
+        return self.billing_address
+    
 
 class Att:
     def __init__(self, input_file):
@@ -202,6 +244,7 @@ class Att:
         unit_list = []
         num_list = []
         usage_num_list = []
+
         plan_list = []
         # Define regular expressions to identify wireless numbers, usage categories, and relevant patterns
         phone_number_pattern = re.compile(r'\b(\d{3}\.\d{3}\.\d{4})\b')
@@ -665,7 +708,7 @@ def process_all(uploaded_file):
     y = data_list.data_manage_part2()
     intital_df = data_list.to_csv(y)
     final_df = pd.merge(intital_df,plan_price_df,on='Group_Number',how='inner')
-    if no_of_pages <= 100:
+    if no_of_pages == 0:
         new_df = pd.merge(unique_df,usage_df,on='Wireless_number',how='left')
         unique_df = new_df
     else:
@@ -719,5 +762,13 @@ def process_all(uploaded_file):
         new_df['Data Usage'] = new_df.apply(insert_zeros,axis=1)
         unique_df = new_df
         final_df = new_df
+    
+    pattern = r'\d{3}[-.]\d{3}[-.]\d{4}'
+
+    unique_df = unique_df[unique_df['Wireless_number'].astype(str).str.match(pattern, na=False)]
+    final_df = final_df[final_df['Wireless_number'].astype(str).str.match(pattern, na=False)]
+    usage_df = usage_df[usage_df['Wireless_number'].astype(str).str.match(pattern, na=False)]
+    intital_df = intital_df[intital_df['Wireless_number'].astype(str).str.match(pattern, na=False)]
     return unique_df,final_df,usage_df,intital_df
 
+# df_unique,final_df,usage_df,intital_df = process_all('Bills/media/BanUploadBill/mob_1646_287021439454_20250425_F.pdf')

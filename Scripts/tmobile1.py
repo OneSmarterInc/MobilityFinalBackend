@@ -492,10 +492,14 @@ def get_all_dataframes_type_1(file):
     for col in empty_columns:
         final_merged_df[col] = ''
         first_merged_df[col] = ''
+    
+    first_merged_df = first_merged_df[first_merged_df['wireless number'].astype(str).str.match(r'\d{3}[-.]\d{3}[-.]\d{4}', na=False)]
+    
     first_merged_df['item category'] = 'Monthly Charges'
     first_merged_df['item description'] = dtr_req['Data Plan']
     first_merged_df['bill_date'] = final_merged_df['date'].iloc[0]
     final_merged_df = final_merged_df.replace('NA', '')
+    print("first_merged_df===",first_merged_df['item description'])
     final_merged_df = pd.concat([new_row, final_merged_df], ignore_index=True)
     # first_merged_df = pd.concat([new_first_row, first_merged_df], ignore_index=True)
     charges_columns = ['Total Current Charges']
@@ -504,8 +508,10 @@ def get_all_dataframes_type_1(file):
     final_merged_df.loc[0, charges] = first_row_charges.values
     final_merged_df = final_merged_df[final_merged_df['item description'] != 'One Time Charges']
     # first_merged_df.loc[0, charges_columns] = first_row_charges.values
+
+    print("final_merged_df===", final_merged_df['item description'])
     def process_charges(df):
-    # Create output directory
+        # Create output directory
         # output_dir = 'output_test_dir'
         # os.makedirs(output_dir, exist_ok=True)
         
@@ -524,26 +530,28 @@ def get_all_dataframes_type_1(file):
             for index, row in subset.iterrows():
                 if row['item description'] == 'Total Charges':
                     total_charges_row = row
-                    break  # Once 'Total Charges' row is found, break the loop
+                    break
                 try:
                     charges_sum += float(row['charges'])
                 except ValueError:
                     continue
             
-            # Compare the calculated sum with the total charges
             charges_sum = round(charges_sum, 2)
             if total_charges_row is not None and charges_sum != float(total_charges_row['charges']):
                 valid_rows = subset.dropna(subset=['item description', 'account number', 'item category'], how='all')
                 discrepancies = pd.concat([discrepancies, valid_rows])
-                # discrepancies = pd.concat([discrepancies, subset])
         
-        # Save discrepancies to a separate Excel sheet
         descrepancies_cleaned = discrepancies[(discrepancies['item category'] != None) & (discrepancies['item description'] != None)]
         return descrepancies_cleaned
     
     
     descrepancies = process_charges(final_merged_df)
+
+    print("descrepancies===", descrepancies['item description'])
+
     final_merged_df = final_merged_df[final_merged_df['item description'] != 'Total Charges']
+
+    print("final_merged==",final_merged_df.to_dict(orient='records')[4])
     final_merged_df.to_csv(f'{output_dir}/ {excelname}_DETAILED_new.csv', index=False)
     first_merged_df.to_csv(f'{output_dir}/ {excelname}_SUMMARY_new.csv', index=False)
     descrepancies.to_csv(f'{output_dir}/ {excelname}_Faultyxyxzzz_news.csv',index=False)
