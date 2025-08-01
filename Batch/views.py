@@ -67,6 +67,7 @@ class BatchView(APIView):
             else:
                 base_ids = BaseDataTable.objects.filter(id__in=ids)
 
+            base_ids = base_ids.exclude(batch_approved="Pending")
             df = pd.DataFrame.from_records(base_ids.values())
             df = df.drop(columns=['created', 'updated','auto_pay_enabled','Entry_type','master_account', 'website', 'Total_Current_Charges','plans','charges', 'location','duration','id', 'banUploaded_id','Total_Amount_Due', 'banOnboarded_id', 'viewuploaded_id','viewpapered_id', 'inventory_id','costcenterlevel', 'costcentertype','costcenterstatus', 'CostCenter', 'CostCenterNotes', 'PO','Displaynotesonbillprocessing', 'POamt', 'FoundAcc', 'bantype','invoicemethod', 'vendorCS', 'vendor_alias', 'month', 'year',
             'pdf_filename', 'pdf_path', 'remarks', 'account_password','payor', 'GlCode', 'ContractTerms', 'ContractNumber', 'Services','Billing_cycle', 'BillingDay', 'PayTerm', 'AccCharge','CustomerOfRecord', 'contract_name', 'contract_file', 'paymentType',

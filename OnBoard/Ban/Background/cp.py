@@ -56,7 +56,6 @@ class ProcessCSVOnboard:
 
     def process_excel_csv_data(self):
         df_csv = pd.read_excel(self.excel_csv_path)
-        print(df_csv)
         df_csv.columns = df_csv.columns.str.strip()
         df_csv.columns = df_csv.columns.str.strip().str.replace('-', '').str.replace(r'\s+', ' ', regex=True).str.replace(' ', '_')
 
@@ -77,8 +76,8 @@ class ProcessCSVOnboard:
         
         rw = df_csv.iloc[0]
         base_dict = rw.to_dict()
-        print("base_dict======", base_dict)
-
+        if not 'account_number' in base_dict:
+            return {"message":f"Account number is necessary to onboard!", 'code':1}
         file_vendor = base_dict.get('vendor')
         file_account_number = base_dict.get('account_number')
 
@@ -86,7 +85,6 @@ class ProcessCSVOnboard:
             return {"message":f"Input vendor {self.vendor} not matched with excel vendor {file_vendor}!", 'code':1}
         print("vendor checked")
 
-        print(file_account_number, self.account_number)
         
         if BaseDataTable.objects.filter(sub_company=self.sub_company,vendor=self.vendor,accountnumber=file_account_number).exists():
             return {'code':1, 'account_number':file_account_number, 'message':'account number already exists!'}
@@ -94,7 +92,7 @@ class ProcessCSVOnboard:
         # if str(file_account_number) != str(self.account_number):
         #     return {"message":f"Input account number {self.account_number} not matched with excel account number {file_account_number}!", 'code':1}
         print("existance checked")
-        print("base_dict",base_dict)
+    
         base_dict['company'] = self.company
         base_dict['vendor'] = self.vendor
         base_dict['sub_company'] = self.sub_company
@@ -106,14 +104,11 @@ class ProcessCSVOnboard:
         keys_to_keep = ['company', 'vendor', 'sub_company', 'accountnumber', 'Entry_type', 'location', 'master_account']
         b_dict = {key: base_dict[key] for key in keys_to_keep if key in base_dict}
 
-        print("b_dict",b_dict)
         BaseDataTable.objects.create(banOnboarded=self.instance,**b_dict)
-        print("df_csv",df_csv)
         print("Data added to BaseDataTable")
         self.account_number = file_account_number
         df_csv['wireless_number'] = df_csv['wireless_number'].apply(self.format_wireless_number)
         df_csv_dict = df_csv.to_dict(orient='records')
-        print(df_csv)
         for item in df_csv_dict:
             item['company'] = self.company
             item['vendor'] = self.vendor

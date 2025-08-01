@@ -38,7 +38,7 @@ class CostCentersView(APIView):
         except : data['vendor'] = Vendors.objects.filter(name=data['vendor']).first().id
 
         if CostCenters.objects.filter(sub_company=data['sub_company'], vendor=data['vendor'], ban=data['ban'], cost_center=data['cost_center']).exists():
-            return Response({"message": "Cost Center already exists for this sub-company and vendor."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Cost Center already exists for this ban."}, status=status.HTTP_400_BAD_REQUEST)
         ser = CostCentersSaveSerializer(data=data)
         if ser.is_valid():
             ser.save()
@@ -57,7 +57,7 @@ class CostCentersView(APIView):
         else:
             return Response({"message": str(ser.errors)}, status=status.HTTP_400_BAD_REQUEST)
 
-    def delete(self, request, pk, *args, **kwargs):
+    def delete(self, request,org, pk, *args, **kwargs):
         obj = CostCenters.objects.filter(id=pk).first()
         if not obj:
             return Response({"message": "Cost Center not found"}, status=status.HTTP_400_BAD_REQUEST)

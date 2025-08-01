@@ -17,7 +17,7 @@ class RequestsView(APIView):
     # permission_classes = [IsAuthenticated]
     def get(self, request,pk=None, *args, **kwargs):
         if pk==None:
-            all_objs = Requests.objects.all()
+            all_objs = Requests.objects.all().order_by('-created')
             ser = showRequestSerializer(all_objs, many=True)
         else:
             obj = Requests.objects.get(id=pk)
@@ -109,7 +109,7 @@ class RequestLogsView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request,pk=None, *args, **kwargs):
         if pk==None:
-            all_objs = Requests.objects.all()
+            all_objs = Requests.objects.all().order_by('-created')
             ser = showRequestSerializer(all_objs, many=True)
         else:
             obj = Requests.objects.get(id=pk)

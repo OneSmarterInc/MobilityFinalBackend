@@ -513,23 +513,6 @@ class OnboardBanView(APIView):
                         buffer_data = json.dumps({'excel_csv_path': obj.uploadBill.path,'company':obj.organization.company.Company_name,'sub_company':obj.organization.Organization_name,'vendor':obj.vendor.name,'entry_type':obj.entryType.name,"mapping_json":mapping_json,'location':site,'master_account':ma,'email':request.user.email
                         })
 
-                        # if obj.location:
-                        #     AllUserLogs.objects.create(
-                        #         user_email=request.user.email,
-                        #         description=(
-                        #             f"User Onboarded excel file for {obj.organization.company.Company_name} - {obj.organization.Organization_name} "
-                        #             f"with location {obj.location.site_name} and vendor - {obj.vendor.name}. "
-                        #         )
-                        #     )
-                        # else:
-                        #     AllUserLogs.objects.create(
-                        #         user_email=request.user.email,
-                        #         description=(
-                        #             f"User Onboarded excel file for {obj.organization.company.Company_name} - {obj.organization.Organization_name} "
-                        #             f"with vendor - {obj.vendor.name}. "
-                        #         )
-                        #     )
-
                         print("process_csv")
                         # process_csv.delay(instance_id=obj.id, buffer_data=buffer_data)
                         classobject = ProcessCSVOnboard(instance=obj, buffer_data=buffer_data)
@@ -669,6 +652,93 @@ class OnboardBanView(APIView):
 from .models import InventoryUpload, BaseDataTable
 from .ser import InventoryUploadSerializer
 from .InSer.ser import OrganizationShowSerializer, showBaseDataSerializer, BanShowSerializer
+class ExcelUploadView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    def str_to_bool(self, value):
+        return str(value).strip().lower() == 'true' or str(value).strip().lower() == 'yes'
+    def post(self, request,*args, **kwargs):
+        excel_Data_str = request.data.get('Excelfiles').replace('null', 'None')
+        excel_file = request.data.get(f'Excelfile_{0}')
+        if not excel_file:
+          return Response({"message":"Excel file not found!"},status=status.HTTP_400_BAD_REQUEST)  
+        try:
+            ed = ast.literal_eval(excel_Data_str)
+        except (ValueError, SyntaxError) as e:
+            print(f"Error in literal_eval: {e}")
+        ed = ed[0]
+        if not ed['organization']:
+            return Response({"message":"Organization must not be empty"},status=status.HTTP_400_BAD_REQUEST)
+        org = Organizations.objects.filter(Organization_name=ed.pop('organization', None)).first()
+        if not org:
+            return Response({"message":"Organization not found!"},status=status.HTTP_400_BAD_REQUEST)
+        boolean_fields = ["is_it_consolidatedBan", "addDataToBaseline"]
+        for field in boolean_fields:
+            ed[field] = self.str_to_bool(ed.get(field, False))
+        ed['uploadBill'] = excel_file
+        for k, v in ed.items():
+            if v == '' or v == "":
+                ed[k] = None
+            if k == 'mapping_object':
+                for key, value in v.items():
+                    if value == '' or value == "":
+                        v[key] = None
+        print("ed=", ed)
+        loc_value = ed.pop('location', None)
+        if loc_value is None:
+            loc = None
+        else:
+            # loc = get_object_or_404(Location, site_name=loc_value,organization=org)
+            loc = Location.objects.filter(site_name=loc_value, organization=org)[0]
+        master_account_value = ed.pop('masteraccount', None)
+        if master_account_value is None:
+            masteraccount = None 
+        else:
+            masteraccount = get_object_or_404(UploadBAN, account_number=master_account_value)
+        etype = ed.pop('entryType', None)
+        if etype is None:
+            etype = None
+        else:
+            etype = get_object_or_404(EntryType, name=etype)
+        obj = OnboardBan.objects.create(
+            organization=org,
+            vendor=get_object_or_404(Vendors, name=ed.pop('vendor', None)),
+            entryType=etype,
+            location=loc,
+            masteraccount=masteraccount,
+            addDataToBaseline = False if etype.name == "Master Account" else ed.pop('baselineCheck', False),
+            is_it_consolidatedBan = ed.pop('is_it_consolidatedBan', False),
+            uploadBill = ed.pop('uploadBill', None),
+        )
+        obj.save()
+        map = ed.pop('mapping_object', None)
+        mobj = MappingObjectBan.objects.create(onboard=obj, **map)
+        mobj.save()
+        mapping_obj = model_to_dict(MappingObjectBan.objects.get(onboard=obj)) or {}
+        if mapping_obj:
+            try:
+                mapping_json = mapping_obj
+            except json.JSONDecodeError:
+                print("")
+                return Response({"message": "Invalid JSON"}, status=status.HTTP_400_BAD_REQUEST)
+
+            ma = None
+            if obj.masteraccount:
+                ma = obj.masteraccount.account_number
+            site = None
+            if obj.location:
+                site = obj.location.site_name
+            buffer_data = json.dumps({'excel_csv_path': obj.uploadBill.path,'company':obj.organization.company.Company_name,'sub_company':obj.organization.Organization_name,'vendor':obj.vendor.name,'entry_type':obj.entryType.name,"mapping_json":mapping_json,'location':site,'master_account':ma,'email':request.user.email
+                        })
+
+            classobject = ProcessCSVOnboard(instance=obj, buffer_data=buffer_data)
+            process = classobject.process_excel_csv_data()
+            print(process)
+            if process['code'] != 0:
+                return Response({"message":f"{process['message']}"},status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({"message":"Excel uploaded successfully!"},status=status.HTTP_200_OK)
+        else:
+            return Response({"message":"Mapping not found!"},status=status.HTTP_400_BAD_REQUEST)
 
 class InventoryUploadView(APIView):
     permission_classes = [permissions.IsAuthenticated]

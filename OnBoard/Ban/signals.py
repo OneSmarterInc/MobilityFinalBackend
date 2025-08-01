@@ -1,6 +1,7 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from .models import BaseDataTable
+from Dashboard.ModelsByPage.Req import CostCenters
 
 @receiver(post_save, sender=BaseDataTable)
 def remittance_format_after_save(sender, instance, created, **kwargs):
@@ -26,6 +27,14 @@ def remittance_format_after_save(sender, instance, created, **kwargs):
             instance.RemittanceState = addlst[-2]
             instance.RemittanceAdd = " ".join(addlst[0:3])
             instance.RemittanceCity = " ".join(addlst[3:-2])
+            instance.save()
+    if created and (instance.banOnboarded or instance.banUploaded):
+        print("onboarded")
+        main = instance.banOnboarded or instance.banUploaded
+        vendor = main.Vendor if instance.banUploaded else main.vendor
+        cc = instance.CostCenter
+        if cc:
+            CostCenters.objects.create(sub_company=main.organization, vendor=vendor,ban=instance.accountnumber,cost_center=cc)
             instance.save()
     elif created and (instance.viewuploaded or instance.viewpapered):
         print("entered")

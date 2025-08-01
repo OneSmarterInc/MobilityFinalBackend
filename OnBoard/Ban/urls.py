@@ -10,12 +10,13 @@ uploadbanurls = [
     path("upload-ban/<str:pk>/", UploadBANView.as_view(), name='upload-ban-detail'),
 ]
 
-from .views import OnboardBanView
+from .views import OnboardBanView, ExcelUploadView
 
 
 onboardbanurls = [
     path("onboard-ban/", OnboardBanView.as_view(), name='onboard-ban-list-create'),
     path("onboard-ban/<str:pk>/", OnboardBanView.as_view(), name='onboard-ban-detail'),
+    path("onboard-excel/", ExcelUploadView.as_view(), name='onboard-excel-detail'),
 ]
 
 from .views import InventoryUploadView

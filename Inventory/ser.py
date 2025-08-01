@@ -146,7 +146,7 @@ class CompanyShowOnboardSerializer(serializers.ModelSerializer):
 class BaseDataTableShowSerializer(serializers.ModelSerializer):
     class Meta:
         model = BaseDataTable
-        fields = ('company', 'sub_company', 'location','vendor','accountnumber','Entry_type')
+        fields = ('company', 'sub_company', 'location','vendor','accountnumber','Entry_type','banUploaded','banOnboarded')
 
 class BaseDataTableAllShowSerializer(serializers.ModelSerializer):
     class Meta:
