@@ -38,7 +38,8 @@ class VendorView(APIView):
         except Vendors.DoesNotExist:
             return Response({"message": 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
         data = request.data
-            
+        print(vendor)
+        print(data)
         ser = VendorsOperationSerializer(vendor, data=data, partial=True)
         
         if ser.is_valid():

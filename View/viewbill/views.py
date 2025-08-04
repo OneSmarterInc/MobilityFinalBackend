@@ -13,21 +13,30 @@ from ..models import ViewUploadBill, PaperBill
 class ViewBill(APIView):
     permission_classes = [IsAuthenticated]
 
+    def __init__(self, **kwargs):
+        self.basedata = None
+        self.uniquedata = None
+        self.baseaccounts = None
+
     def get(self, request, *args, **kwargs):
         objs = Organizations.objects.all()
         ser = showOrganizationSerializer(objs, many=True)
-        uniquedata = uniquepdftableSerializer(UniquePdfDataTable.objects.filter(banOnboarded=None,banUploaded=None), many=True)
         vendors = vendorshowSerializer(Vendors.objects.all(), many=True)
-        baseaccounts = showaccountbasetable(BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None), many=True)
-        basedata = basedatahowSerializer(BaseDataTable.objects.filter(banOnboarded=None,banUploaded=None), many=True)
         paytypes = paytypehowSerializer(PaymentType.objects.all(), many=True)
+        
+        
+        org = request.GET.get("sub_company",None)
+        if org:
+            self.uniquedata = uniquepdftableSerializer(UniquePdfDataTable.objects.filter(sub_company=org).filter(banOnboarded=None,banUploaded=None), many=True)
+            self.baseaccounts = showaccountbasetable(BaseDataTable.objects.filter(sub_company=org).filter(viewuploaded=None, viewpapered=None), many=True)
+            self.basedata = basedatahowSerializer(BaseDataTable.objects.filter(sub_company=org).filter(banOnboarded=None,banUploaded=None), many=True)
         return Response({
             "data" : ser.data,
             "vendors" : vendors.data,
-            "basedata" : basedata.data,
+            "basedata" : self.basedata.data if self.basedata else None,
             "paytypes" : paytypes.data,
-            "uniquedata" : uniquedata.data,
-            "baseaccounts": baseaccounts.data
+            "uniquedata" : self.uniquedata.data if self.uniquedata else None,
+            "baseaccounts": self.baseaccounts.data if self.baseaccounts else None
 
         }, status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
@@ -101,7 +110,7 @@ class ViewBillBaseline(APIView):
         date = request.GET.get('bill_date')
         # formatted_date = datetime.strptime(date, "%B %d %Y").date()
         # print(formatted_date)
-        objs = BaselineDataTable.objects.filter(banOnboarded=None,banUploaded=None).filter(vendor=vendor, account_number=account_number, sub_company=sub_company, bill_date=date)
+        objs = BaselineDataTable.objects.filter(banOnboarded=None,banUploaded=None).filter(vendor=vendor, account_number=account_number, sub_company=sub_company, bill_date=date).filter(is_draft=False, is_pending=False)
         base_obj = BaseDataTable.objects.filter(banUploaded=None, banOnboarded=None).filter(sub_company=sub_company, vendor=vendor, accountnumber=account_number, bill_date=date).first()
         base_ser = showbaselinenotesSerializer(base_obj)
         wireless_numbers = objs.values_list('Wireless_number', flat=True)

@@ -51,13 +51,14 @@ class UploadedBillView(APIView):
             if formatted_billdate and formatted_duedate:
                 month = formatted_duedate.split()[0]
                 year = formatted_duedate.split()[2]
-                base = base.filter(due_date=duedate)
+                base = base.filter(date_due=duedate)
                 if not base.exists():
                     return Response({"message": f"No baseline found for bill date {duedate}"}, status=status.HTTP_404_NOT_FOUND)
 
-            baseline = BaselineDataTable.objects.filter(banOnboarded=None,banUploaded=None).filter(account_number=base[0].accountnumber).filter(is_draft=False, is_pending=False)
             if len(base) == 1:
-                baseline = baseline.filter(viewuploaded=base[0].viewuploaded)
+                baseline = BaselineDataTable.objects.filter(viewuploaded=base[0].viewuploaded,viewpapered=base[0].viewpapered).filter(is_draft=False, is_pending=False)
+            else:
+                return Response({"message":"Internal Server Error"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             wireless_numbers = baseline.values_list('Wireless_number', flat=True)
             Onboardedobjects = BaselineDataTable.objects.filter(
                 viewuploaded=None,
@@ -315,8 +316,7 @@ class UploadfileView(APIView):
             else:
                 company = Company.objects.filter(Company_name=company)[0]
 
-            found = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban)
-            print(found, len(list(found)))
+            found = BaseDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(sub_company=org, vendor=vendor, accountnumber=ban)
             if not found.exists():
                 return Response({"message":f"ban with account number {ban} not found!"},status=status.HTTP_400_BAD_REQUEST)
             if found.exists():
@@ -347,12 +347,14 @@ class UploadfileView(APIView):
                     obj.types ='second'
                 else:
                     obj.types = None
+                    
             if str(file.name).endswith('.pdf'):
                 addon = ProcessPdf(instance=obj, user_mail=request.user.email)
                 check = addon.startprocess()
                 print(check)
                 if check['error'] != 0:
                     # obj.delete()
+                    obj.delete()
                     return Response(
                         {"message": f"Problem to upload file, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
                     )
@@ -419,17 +421,6 @@ class UploadfileView(APIView):
                         {"message": f"Problem to add data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
                     )
                 
-                # self.processed_data = BaselineDataTable.objects.filter(viewuploaded=obj).first()
-            
-                # wireless_numbers = self.processed_data.values_list('Wireless_number', flat=True)
-                # Onboardedobjects = BaselineDataTable.objects.filter(
-                #     viewuploaded=None,
-                #     Wireless_number__in=wireless_numbers
-                # )
-                # self.processed_data = BaselinedataSerializer(self.processed_data, many=True, context={'onboarded_objects': Onboardedobjects}).data
-                # print(self.processed_data[4])
-                # with open('results.json', 'w') as file:
-                #     json.dump(self.processed_data, file)
             else:
                 return Response({"message": "Invalid file type"}, status=status.HTTP_400_BAD_REQUEST)
             paylod_data = BaseDataTable.objects.filter(viewuploaded=obj).first()
@@ -449,8 +440,9 @@ class UploadfileView(APIView):
                 status=status.HTTP_200_OK,
             )
         except Exception as e:
+            obj.delete()
             print(e)
-            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"message":  "Unable to process file, might be due to unsupported file format."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def put(self, request, pk, *args, **kwargs):
         
@@ -624,13 +616,12 @@ class ProcessPdf:
                             "amount": amount,
                             "pay": pay
                         })
-
             bill_date1 = [f"{info['phone_number']} {info['amount']} {info['pay']}" for info in bill_date]
+            print(bill_date1)
             acc_info = accounts[0]
             bill_date_info = bill_date1[0]
         else:
             pages_data = []
-            print()
             with pdfplumber.open(self.path) as pdf:
                 for i, page in enumerate(pdf.pages):
                     if i == 0:
@@ -1825,6 +1816,38 @@ class ApproveView(APIView):
             print(e)
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+class ApproveFullView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        sub_cmpny = request.GET.get('org')
+        ban = request.GET.get('ban')
+        bill_date = request.GET.get('bill_date')
+        main = BaseDataTable.objects.filter(sub_company=sub_cmpny, accountnumber=ban, bill_date=bill_date).first()
+        if not main:
+            return Response({"message":"Bill not found!"},status=status.HTTP_400_BAD_REQUEST)
+        baselines = BaselineDataTable.objects.filter(viewpapered=main.viewpapered, viewuploaded=main.viewuploaded)
+        uniquelines = UniquePdfDataTable.objects.filter(viewpapered=main.viewpapered, viewuploaded=main.viewuploaded)
+        self.process_approval(baselines)
+        self.process_approval(uniquelines)
+        approved_wireless_list = baselines.values_list('is_baseline_approved', flat=True)
+        main.is_baseline_approved = False if False in approved_wireless_list else True
+        main.save()
+        onboard_baseline_objs = BaselineDataTable.objects.filter(viewuploaded=None,viewpapered=None, sub_company=sub_cmpny, vendor=main.vendor, account_number=main.accountnumber)
+        filtered_baseline = BaselinedataSerializer(baselines, many=True, context={'onboarded_objects': onboard_baseline_objs})
+        return Response({"message":"Bill Approved Successfully", "baseline":filtered_baseline.data},status=status.HTTP_200_OK)
+        
+    def process_approval(self,queryset):
+        updated_objects = []
+        for obj in queryset:
+            approve_obj = make_true_all(obj.category_object)
+            obj.category_object = approve_obj
+            obj.is_baseline_approved = check_true_false(approve_obj)
+            updated_objects.append(obj)
+        type(obj).objects.bulk_update(updated_objects, ['category_object', 'is_baseline_approved'])
+
+    
+
 class AprroveAllView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -1839,7 +1862,6 @@ class AprroveAllView(APIView):
             main_uploaded_id.category_object = approve_obj
             main_uploaded_id.is_baseline_approved = check_true_false(main_uploaded_id.category_object)
             main_uploaded_id.save()
-            print(main_uploaded_id)
             
 
             enter_bill_unique_obj = UniquePdfDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered=main_uploaded_id.viewpapered, wireless_number=main_uploaded_id.Wireless_number).first()
@@ -1921,14 +1943,12 @@ class PaperBillView(APIView):
             month = formatted_billdate.split(" ")[0]
             year = formatted_billdate.split(" ")[2]
             formatted_duedate = format_date(duedate)
-
             print(org, vendor, ban, invoice_number,month, year)
             
             base = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban)
-
-            print(base)
-
-
+            if not base:
+                return Response({"message":"Unexpected error occur!"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            print("base===")
             if base.filter(invoicenumber=invoice_number).exists():
                 return Response({"message":f"Bill with invoice number {invoice_number} already exists!"},status=status.HTTP_400_BAD_REQUEST)
         
@@ -1945,7 +1965,7 @@ class PaperBillView(APIView):
                 due_date=formatted_duedate
             )
             new_paper_obj.save()
-
+            print(base)
             new_base_obj = BaseDataTable.objects.create(
                 viewpapered=new_paper_obj,
                 company=base.first().company,
@@ -1987,12 +2007,14 @@ class PaperBillView(APIView):
             BaselineDataTable.objects.bulk_create(new_baselinies)
 
 
-            baseline = BaselineDataTable.objects.exclude(viewpapered=None).filter(account_number=base[0].accountnumber).filter(is_draft=False, is_pending=False)
-            if len(base) == 1:
-                baseline = baseline.filter(viewpapered=base[0].viewpapered)
+            if new_base_obj:
+                baseline = BaselineDataTable.objects.filter(viewpapered=new_base_obj.viewpapered).filter(is_draft=False, is_pending=False)
+            else:
+                return Response({"message":"Internal Server Error"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             wireless_numbers = baseline.values_list('Wireless_number', flat=True)
             Onboardedobjects = BaselineDataTable.objects.filter(
                 viewpapered=None,
+                viewuploaded=None,
                 vendor=vendor,
                 account_number=ban,
                 sub_company=org,

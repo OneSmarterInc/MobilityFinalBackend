@@ -30,7 +30,7 @@ import json
 from OnBoard.Ban.models import OnboardBan
 from OnBoard.Ban.models import InventoryUpload
 from OnBoard.Ban.Background.pp import ProcessPdf
-from OnBoard.Ban.Background.cp import ProcessCsv
+from OnBoard.Ban.Background.cp import ProcessCSVOnboard
 from sendmail import send_custom_email
 
 
@@ -61,7 +61,6 @@ def process_pdf_task(buffer_data, instance_id):
 # @background(schedule=3600)
 # @shared_task
 def process_csv(instance_id, buffer_data,type=None):
-    print("Processing CSV...")
     buffer_data_dict = json.loads(buffer_data)
 
     try:
@@ -78,8 +77,10 @@ def process_csv(instance_id, buffer_data,type=None):
     
 
     try:
-        obj = ProcessCsv(buffer_data=buffer_data_dict, instance=instance,type=type)
-        obj.process_csv_from_buffer()
+        obj = ProcessCSVOnboard(buffer_data=buffer_data_dict, instance=instance,uploadtype=type)
+        process = obj.process_csv_data()
+        return process
     except Exception as e:
         print("Internal Server Error")
         instance.delete()
+        return {"message": f"{e}", "code": 1}

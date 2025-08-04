@@ -44,3 +44,9 @@ def check_tmobile_type(pdf_path):
             return 1
         else:
             return 0
+        
+
+class InitialDataExtractor:
+    def __init__(self):
+        pass
+    

@@ -23,7 +23,7 @@ class InventoryView(APIView):
             all_accnts = showBaseDataser(BaseDataTable.objects.filter(sub_company=org).filter(viewuploaded=None,viewpapered=None), many=True)
         else:
             all_accnts = showBaseDataser(BaseDataTable.objects.filter(sub_company=org).filter(viewuploaded=None,viewpapered=None).filter(company=request.user.company.Company_name), many=True)
-
+        print(all_accnts.data)
         serializer = UniqueTableShowSerializer(inventory, many=True)
         return Response({"data":serializer.data, "accounts":all_accnts.data}, status=status.HTTP_200_OK)
     

@@ -358,7 +358,6 @@ class ProcessPdf:
                 line.save()
     def save_to_batch_report(self, data, vendor):
         try:
-            at_vendor_list = ['AT&T', 'AT n T', 'ATT', 'at&t', 'att', 'at n t']
             if 'mobile' in str(self.vendor_name).lower():
                 return None
             # if vendor in ['T_Mobile','t-mobile','T-mobile','t_mobile']:

@@ -753,7 +753,7 @@ class InventoryUploadView(APIView):
             orgserializer = OrganizationShowSerializer(orgs, many=True)
             inventories = InventoryUpload.objects.all()
             serializer = InventoryUploadSerializer(inventories, many=True)
-            base_data = BaseDataTable.objects.filter(viewuploaded=None).exclude(Entry_type="Master Account")
+            base_data = BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).exclude(Entry_type="Master Account")
             vendors = Vendors.objects.all()
 
             if request.user.designation.name == "Admin":
@@ -791,7 +791,6 @@ class InventoryUploadView(APIView):
             )
  
             obj.save()
-            print(obj)
             map = request.data.pop('mapping_obj', None)[0]
             map = map.replace('null', 'None')
             map = ast.literal_eval(map)
@@ -800,10 +799,8 @@ class InventoryUploadView(APIView):
                     map[key] = None
             mobj = MappingObjectBan.objects.create(inventory=obj, **map)
             mobj.save()
-            print(obj)
             process  = InventoryProcess(instance=obj)
             start, previous_data_log, new_data_log,message  = process.process_file()
-            print(start)
             if start:
                 # All users log
                 # AllUserLogs.objects.create(
@@ -827,15 +824,18 @@ class InventoryUploadView(APIView):
                 })
                 print(buffer_data)
                 print("Starting CSV process...")
-                process_csv(instance_id=obj.id, buffer_data=buffer_data,type='inventory')
-
-                return Response({"message" : "Inventory added successfully!", "data" : mutable_data}, status=status.HTTP_200_OK)
+                intrnl = process_csv(instance_id=obj.id, buffer_data=buffer_data,type='inventory')
+                print(intrnl)
+                if intrnl["code"] != 0:
+                    return Response({"message" : intrnl["message"]}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                else:
+                    return Response({"message" : "Inventory added successfully!", "data" : mutable_data}, status=status.HTTP_200_OK)
             else:
                 return Response({"message": f"{message if message else ''}"}, status=status.HTTP_400_BAD_REQUEST)
         
         except Exception as e:
             print("inventory post error=", str(e))
-            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"message": "Internal Server Error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def put(self, request, pk):
         inventory = InventoryUpload.objects.get(account_number=pk)
@@ -879,7 +879,6 @@ class InventoryProcess:
 
             # Save column names mapping in Column_mapping_data
             columns_list = df_csv.columns.tolist()
-            column_names_str = ','.join(columns_list)
 
             # Save the uploaded file temporarily for background processing
             with tempfile.NamedTemporaryFile(delete=False) as temper_file:
@@ -924,16 +923,14 @@ class InventoryProcess:
                     # For new wireless numbers, log the entire row in new data
                     new_data_log.append(self.clean_data_for_json(new_row.to_dict()))
             obj1 = new_data_log[0]
-            print(obj1)
-            if not 'account_number' in obj1:
-               return False, previous_data_log, new_data_log, f"Account number not found!"  
-            print(obj1['account_number'], self.ban)
-            if 'sub_company' in obj1 and self.org != obj1['sub_company']:
-                return False, previous_data_log, new_data_log, f"The sub_company {self.org} not matched!"
-            if 'vendor' in obj1 and self.vendor != obj1['vendor']:
-                return False, previous_data_log, new_data_log, f"The vendor {self.vendor} not matched!"
-            if str(self.ban) != str(obj1['account_number']):
-                return False, previous_data_log, new_data_log, f"The ban {self.ban} not matched!"
+            print(obj1) # this object is not mapped
+            # print(obj1['account_number'], self.ban)
+            # if 'sub_company' in obj1 and self.org != obj1['sub_company']:
+            #     return False, previous_data_log, new_data_log, f"The sub_company {self.org} not matched!"
+            # if 'vendor' in obj1 and self.vendor != obj1['vendor']:
+            #     return False, previous_data_log, new_data_log, f"The vendor {self.vendor} not matched!"
+            # if str(self.ban) != str(obj1['account_number']):
+            #     return False, previous_data_log, new_data_log, f"The ban {self.ban} not matched!"
             return True, previous_data_log, new_data_log, None
     
         except Exception as e:
