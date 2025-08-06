@@ -141,6 +141,8 @@ class AddNewInventoryView(APIView):
     def post(self, request, *args, **kwargs):
         data = request.data.copy()
         base = BaseDataTable.objects.filter(accountnumber=data.get('account_number'), vendor=data.get('vendor'), company=data.get('company'), sub_company=data.get('sub_company'))
+        if not base:
+            return Response({"message":"Account number not found!"},status=status.HTTP_400_BAD_REQUEST)
         if base[0].banOnboarded:
             data['banOnboarded'] = base[0].banOnboarded.id
         elif base[0].banUploaded:

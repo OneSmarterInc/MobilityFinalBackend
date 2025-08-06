@@ -323,7 +323,7 @@ class ProcessCSVOnboard:
 
         df_csv['sub_company'] = self.sub_company
         df_csv['vendor'] = self.vendor
-        df_csv['plans'] = df_csv['Plan_name']
+        df_csv['plans'] = df_csv['Plan_name'] if 'Plan_name' in df_csv.columns else None
         columns = df_csv.columns.tolist()
 
         for _, row in df_csv.iterrows():
