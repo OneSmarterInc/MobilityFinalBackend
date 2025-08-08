@@ -282,167 +282,163 @@ class UploadfileView(APIView):
             status=status.HTTP_200_OK,
         )
     def post(self, request, *args, **kwargs):
-        try:
-            file = request.data.get('file')
-            filetype = str(file.name).split('.')[-1]
-            if filetype not in ['pdf', 'xls', 'xlsx', 'zip']:
-                return Response({"message": "Invalid file type"}, status=status.HTTP_400_BAD_REQUEST)
-            if filetype in ['xls', 'xlsx']:
-                filetype = 'excel'
-            
-            if file.name.endswith('.pdf'):
-                check = prove_bill_ID(vendor_name=request.data.get('vendor'), bill_path=file)
-                if not check:
-                    return Response({"message" : f"the uploaded file is not {request.data.get('vendor')} file!"}, status=status.HTTP_400_BAD_REQUEST)
-            
-            company = request.data.get('company')
-            org = request.data.get('sub_company')
-            vendor = request.data.get('vendor')
-            ban = request.data.get('ban')
-            print("ban==",ban)
-            month  = request.data.get('month')
-            year  = request.data.get('year')
-            found = ViewUploadBill.objects.filter(
-                vendor = Vendors.objects.filter(name=vendor)[0],
-                month = month,
-                year = year,
-                ban=ban
-            ).exists()
-            if found:
-                return Response({"message": f"{vendor} bill already exists for {month}-{year}"}, status=status.HTTP_400_BAD_REQUEST)
-            print(filetype, company, org, vendor, month, year, ban)
-            if str(company).lower() in (None, 'null', ''):
-                company = None
+        file = request.data.get('file')
+        filetype = str(file.name).split('.')[-1]
+        if filetype not in ['pdf', 'xls', 'xlsx', 'zip']:
+            return Response({"message": "Invalid file type"}, status=status.HTTP_400_BAD_REQUEST)
+        if filetype in ['xls', 'xlsx']:
+            filetype = 'excel'
+        
+        if file.name.endswith('.pdf'):
+            check = prove_bill_ID(vendor_name=request.data.get('vendor'), bill_path=file)
+            if not check:
+                return Response({"message" : f"the uploaded file is not {request.data.get('vendor')} file!"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        company = request.data.get('company')
+        org = request.data.get('sub_company')
+        vendor = request.data.get('vendor')
+        ban = request.data.get('ban')
+        print("ban==",ban)
+        month  = request.data.get('month')
+        year  = request.data.get('year')
+        found = ViewUploadBill.objects.filter(
+            vendor = Vendors.objects.filter(name=vendor)[0],
+            month = month,
+            year = year,
+            ban=ban
+        ).exists()
+        if found:
+            return Response({"message": f"{vendor} bill already exists for {month}-{year}"}, status=status.HTTP_400_BAD_REQUEST)
+        print(filetype, company, org, vendor, month, year, ban)
+        if str(company).lower() in (None, 'null', ''):
+            company = None
+        else:
+            company = Company.objects.filter(Company_name=company)[0]
+
+        found = BaseDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(sub_company=org, vendor=vendor, accountnumber=ban)
+        if not found.exists():
+            return Response({"message":f"ban with account number {ban} not found!"},status=status.HTTP_400_BAD_REQUEST)
+        if found.exists():
+            print("Founded")
+            if 'master' in found[0].Entry_type.lower():
+                return Response({
+                    "message": f"ban with Master Account is not acceptable!"
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        found = found[0]
+        obj = ViewUploadBill.objects.create(
+            file_type = filetype,
+            file = file,
+            company = company,
+            organization = Organizations.objects.filter(Organization_name=org)[0],
+            vendor = Vendors.objects.filter(name=vendor)[0],
+            month = month,
+            year = year,
+            ban=ban
+        )
+        obj.save()
+
+        if 'mobile' in str(obj.vendor.name):
+            check_type = self.check_tmobile_type(obj.file.path)
+            if check_type == 1:
+                obj.types = 'first'
+            elif check_type == 2:
+                obj.types ='second'
             else:
-                company = Company.objects.filter(Company_name=company)[0]
-
-            found = BaseDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(sub_company=org, vendor=vendor, accountnumber=ban)
-            if not found.exists():
-                return Response({"message":f"ban with account number {ban} not found!"},status=status.HTTP_400_BAD_REQUEST)
-            if found.exists():
-                print("Founded")
-                if 'master' in found[0].Entry_type.lower():
-                    return Response({
-                        "message": f"ban with Master Account is not acceptable!"
-                    }, status=status.HTTP_400_BAD_REQUEST)
-            
-            found = found[0]
-            obj = ViewUploadBill.objects.create(
-                file_type = filetype,
-                file = file,
-                company = company,
-                organization = Organizations.objects.filter(Organization_name=org)[0],
-                vendor = Vendors.objects.filter(name=vendor)[0],
-                month = month,
-                year = year,
-                ban=ban
-            )
-            obj.save()
-
-            if 'mobile' in str(obj.vendor.name):
-                check_type = self.check_tmobile_type(obj.file.path)
-                if check_type == 1:
-                    obj.types = 'first'
-                elif check_type == 2:
-                    obj.types ='second'
-                else:
-                    obj.types = None
-                    
-            if str(file.name).endswith('.pdf'):
-                addon = ProcessPdf(instance=obj, user_mail=request.user.email)
-                check = addon.startprocess()
-                print(check)
-                if check['error'] != 0:
-                    # obj.delete()
-                    obj.delete()
-                    return Response(
-                        {"message": f"Problem to upload file, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
-                    )
-                buffer_data = json.dumps({'pdf_path': obj.file.path,'vendor_name': obj.vendor.name if obj.vendor else None,'pdf_filename':obj.file.name,'company_name':obj.company.Company_name if obj.company else None,'sub_company_name':obj.organization.Organization_name if obj.organization else None,'types':obj.types, 'month':obj.month, 'year':obj.year, 'email':request.user.email,'account_number':obj.ban})
-                print(buffer_data)
-                process_view_bills.delay(buffer_data, obj.id)
-            elif (str(file.name).endswith('.xls') or str(file.name).endswith('.xlsx')):
-                map = request.data.pop('mappingobj', None)[0]
-                map = map.replace('null', 'None')
-                map = ast.literal_eval(map)
-                for key, value in map.items():
-                    if value == "" or value == '':
-                        map[key] = None
-                mobj = MappingObjectBan.objects.create(viewupload=obj, **map)
-                mobj.save()
-                check = ProcessExcel(instance=obj, user_mail=request.user.email)
-                check = check.process()
-                if check['error']!= 0:
-                    obj.delete()
-                    return Response(
-                        {"message": f"Problem to process excel data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
-                    )
-                # AllUserLogs.objects.create(
-                #     user_email=request.user.email,
-                #     description=(
-                #         f"User onboarded excel file for {company} - {sub_company} "
-                #         f"with account number {Ban} and vendor - {vendor}."
-                #     ),
-                #     previus_data=json.dumps(previous_data_log) if previous_data_log else "",
-                #     new_data=json.dumps(new_data_log) if new_data_log else ""
-                # )
-
-                # Send the data to Celery for background processing
-                buffer_data = json.dumps({
-                    'excel_csv_path': obj.file.path,
-                    'company': obj.company.Company_name if obj.company else None,
-                    'sub_company': obj.organization.Organization_name if obj.organization else None,
-                    'vendor': obj.vendor.name if obj.vendor else None,
-                    'account_number': obj.ban,
-                    'month':obj.month,
-                    'year':obj.year,
-                    'mapping_json': model_to_dict(MappingObjectBan.objects.get(viewupload=obj)) or {}
-                })
-                print(buffer_data)
-                # process_view_excel.delay(buffer_data, obj.id)
-                # process_view_excel(buffer_data, obj.id)
-                try:
-                    excelobj = EnterBillProcessExcel(buffer_data=buffer_data, instance=obj)
-                    msgobject = excelobj.process_excel()
-                    print(msgobject)
-                    if msgobject['code'] != 0:
-                        obj.delete()
-                        return Response({"message":f"{str(msgobject['message'])}"},status=status.HTTP_400_BAD_REQUEST)
-                except Exception as e:
-                    print(e)
-                    obj.delete()
-                    return Response({"message":f"{str(e)}"},status=status.HTTP_400_BAD_REQUEST)
-            elif str(file.name).endswith('.zip'):
-                addon = ProcessZip(obj)
-                check = addon.startprocess()
-                print(check)
-                if check['error'] == -1:
-                    return Response(
-                        {"message": f"Problem to add data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
-                    )
+                obj.types = None
                 
+        if str(file.name).endswith('.pdf'):
+            addon = InitialProcessPdf(instance=obj, user_mail=request.user.email)
+            check = addon.startprocess()
+            print(check)
+            if check['error'] != 0:
+                return Response(
+                    {"message": f"Problem to upload file, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
+                )
+            buffer_data = json.dumps({'pdf_path': obj.file.path,'vendor_name': obj.vendor.name if obj.vendor else None,'pdf_filename':obj.file.name,'company_name':obj.company.Company_name if obj.company else None,'sub_company_name':obj.organization.Organization_name if obj.organization else None,'types':obj.types, 'month':obj.month, 'year':obj.year, 'email':request.user.email,'account_number':obj.ban})
+            print(buffer_data)
+
+            if "verizon" in str(obj.vendor.name).lower():
+                verizon_enterBill_processor.delay(buffer_data, obj.id)
             else:
-                return Response({"message": "Invalid file type"}, status=status.HTTP_400_BAD_REQUEST)
-            paylod_data = BaseDataTable.objects.filter(viewuploaded=obj).first()
-            self.paylod_data = {
-                'sub_company':paylod_data.sub_company,
-                'vendor':paylod_data.vendor,
-                'account_number':paylod_data.accountnumber,
-                'bill_date':paylod_data.bill_date
-            } if filetype in ("zip","excel") else None
-            print(paylod_data)
-            saveuserlog(
-                request.user,
-                f"Uploading file if {obj.vendor.name}-{obj.ban} for {obj.month}-{obj.year}"
-            )
-            return Response(
-                {"message": "File uploaded successfully!" if filetype in ("zip","excel") else "The bill upload is currently in progress and may take some time. You will receive an email notification once the process is complete.", "payload":self.paylod_data},
-                status=status.HTTP_200_OK,
-            )
-        except Exception as e:
-            obj.delete()
-            print(e)
-            return Response({"message":  "Unable to process file, might be due to unsupported file format."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                process_view_bills.delay(buffer_data, obj.id)
+        elif (str(file.name).endswith('.xls') or str(file.name).endswith('.xlsx')):
+            map = request.data.pop('mappingobj', None)[0]
+            map = map.replace('null', 'None')
+            map = ast.literal_eval(map)
+            for key, value in map.items():
+                if value == "" or value == '':
+                    map[key] = None
+            mobj = MappingObjectBan.objects.create(viewupload=obj, **map)
+            mobj.save()
+            check = ProcessExcel(instance=obj, user_mail=request.user.email)
+            check = check.process()
+            if check['error']!= 0:
+                obj.delete()
+                return Response(
+                    {"message": f"Problem to process excel data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
+                )
+            # AllUserLogs.objects.create(
+            #     user_email=request.user.email,
+            #     description=(
+            #         f"User onboarded excel file for {company} - {sub_company} "
+            #         f"with account number {Ban} and vendor - {vendor}."
+            #     ),
+            #     previus_data=json.dumps(previous_data_log) if previous_data_log else "",
+            #     new_data=json.dumps(new_data_log) if new_data_log else ""
+            # )
+
+            # Send the data to Celery for background processing
+            buffer_data = json.dumps({
+                'excel_csv_path': obj.file.path,
+                'company': obj.company.Company_name if obj.company else None,
+                'sub_company': obj.organization.Organization_name if obj.organization else None,
+                'vendor': obj.vendor.name if obj.vendor else None,
+                'account_number': obj.ban,
+                'month':obj.month,
+                'year':obj.year,
+                'mapping_json': model_to_dict(MappingObjectBan.objects.get(viewupload=obj)) or {}
+            })
+            print(buffer_data)
+
+            try:
+                excelobj = EnterBillProcessExcel(buffer_data=buffer_data, instance=obj)
+                msgobject = excelobj.process_excel()
+                print(msgobject)
+                if msgobject['code'] != 0:
+                    obj.delete()
+                    return Response({"message":f"{str(msgobject['message'])}"},status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                print(e)
+                obj.delete()
+                return Response({"message":f"{str(e)}"},status=status.HTTP_400_BAD_REQUEST)
+        elif str(file.name).endswith('.zip'):
+            addon = ProcessZip(obj)
+            check = addon.startprocess()
+            print(check)
+            if check['error'] == -1:
+                return Response(
+                    {"message": f"Problem to add data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
+                )
+            
+        else:
+            return Response({"message": "Invalid file type"}, status=status.HTTP_400_BAD_REQUEST)
+        paylod_data = BaseDataTable.objects.filter(viewuploaded=obj).first()
+        self.paylod_data = {
+            'sub_company':paylod_data.sub_company,
+            'vendor':paylod_data.vendor,
+            'account_number':paylod_data.accountnumber,
+            'bill_date':paylod_data.bill_date
+        } if filetype in ("zip","excel") else None
+        print(paylod_data)
+        saveuserlog(
+            request.user,
+            f"Uploading file if {obj.vendor.name}-{obj.ban} for {obj.month}-{obj.year}"
+        )
+        return Response(
+            {"message": "File uploaded successfully!" if filetype in ("zip","excel") else "The bill upload is currently in progress and may take some time. You will receive an email notification once the process is complete.", "payload":self.paylod_data},
+            status=status.HTTP_200_OK,
+        )
     
     def put(self, request, pk, *args, **kwargs):
         
@@ -538,14 +534,14 @@ def tagging(baseline_data, bill_data):
 
 
 # from .tasks import process_view_bills
-from View.enterbill.tasks import process_view_bills, process_view_excel
+from View.enterbill.tasks import process_view_bills, process_view_excel, verizon_enterBill_processor
 import re
 import os
 import zipfile
 import pandas as pd
-from checkbill import check_tmobile_type
+from checkbill import check_tmobile_type, checkVerizon
 from io import StringIO, BytesIO
-class ProcessPdf:
+class InitialProcessPdf:
     def __init__(self, user_mail, instance, **kwargs):
         print(instance)
         self.instance = instance
@@ -580,46 +576,15 @@ class ProcessPdf:
         if 'mobile' in str(self.vendor).lower():
             pass
         elif 'verizon' in str(self.vendor).lower():
-            accounts = []
-            dates = []
-            duration = []
-            bill_date = []
+            matching_page_basic = []
             with pdfplumber.open(self.path) as pdf:
-                for page_number in range(2):
-                    page = pdf.pages[page_number]
+                for i, page in enumerate(pdf.pages):
                     text = page.extract_text()
-                    lines = text.split('\n')
-                    for index, line in enumerate(lines):
-                        if line.startswith('InvoiceNumber AccountNumber DateDue'):
-                            line = lines[index + 1]
-                            items = line.split()
-                            del items[3]
-                            del items[4]
-                            del items[3]
-                            date = items[2]
-                            account = items[1]
-                            dates.append(date)
-                            accounts.append(account)
-
-                    match = re.search(r'Quick Bill Summary (\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s*-\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b)', text)
-                    if match:
-                        phone_number = match.group(1)
-                        duration.append(phone_number)
-
-                    match = re.search(r'Bill Date (January|February|March|April|May|June|July|August|September|October|November|December) (\d{2}), (\d{4})', text)
-                    if match:
-                        phone_number = match.group(1)
-                        amount = match.group(2)
-                        pay = match.group(3)
-                        bill_date.append({
-                            "phone_number": phone_number,
-                            "amount": amount,
-                            "pay": pay
-                        })
-            bill_date1 = [f"{info['phone_number']} {info['amount']} {info['pay']}" for info in bill_date]
-            print(bill_date1)
-            acc_info = accounts[0]
-            bill_date_info = bill_date1[0]
+                    if (("account" and "invoice" and "keyline") in text.lower()):
+                        if not matching_page_basic:
+                            matching_page_basic.append(page)
+                            break
+            acc_info, bill_date_info,billing_name = checkVerizon(matching_page_basic,self.org)
         else:
             pages_data = []
             with pdfplumber.open(self.path) as pdf:
@@ -643,8 +608,19 @@ class ProcessPdf:
                     first_page_data_dict["account_number"] = line.split(": ")[-1]
             acc_info = first_page_data_dict["account_number"]
             bill_date_info = first_page_data_dict["bill_cycle_date"]
+        
+        if not acc_info and not bill_date_info:
+            self.instance.delete()
+            return {'message' : f'Unable to process file, might be due to unsupported file format.', 'error' : -1}
+        print(billing_name)
+        if "verizon" in str(self.vendor).lower():
+            if (billing_name.lower() != self.org.lower()):
+                self.instance.delete()
+                return {'message' : f'Organization name from the Pdf file did not matched with {self.org}', 'error' : -1}
+            elif self.org.lower() == "babw" and not "build-a-bear" in billing_name.lower():
+                self.instance.delete()
+                return {'message' : f'Organization name from the Pdf file did not matched with {self.org}', 'error' : -1}
 
-                
 
         acc_no = acc_info
         bill_date_pdf = bill_date_info.replace(',','')

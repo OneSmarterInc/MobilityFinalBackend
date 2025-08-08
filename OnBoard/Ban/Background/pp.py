@@ -763,7 +763,7 @@ class ProcessPdf:
                         wireless_number = row['Wireless_number'] if 'Wireless_number' in row else None
                         item_category = str(row['Item_Category']).strip().upper() if 'Item_Category' in row else None
                         item_description = str(row['Item_Description']).strip().upper() if 'Item_Description' in row else None
-                        charges = charges = str(row['Charges']).replace("$",'') if 'Charges' in row else None
+                        charges = str(row['Charges']).replace("$",'') if 'Charges' in row else None
                         if pd.notna(item_category) and pd.notna(item_description) and pd.notna(charges):
                             wireless_data[wireless_number][item_category][item_description] = charges
                 result_list = [dict(wireless_data)]

@@ -137,10 +137,11 @@ profilepermissions = [
 urlpatterns.extend(profilemanagement)
 urlpatterns.extend(profilepermissions)
 
-from .CRUDViews.Inventory import InventoryView
+from .CRUDViews.Inventory import InventoryView, MovebanView
 inventory = [
     path("inventory/<org>/", InventoryView().as_view(), name='inventory-list-create'),
     path("inventory/<org>/<pk>/", InventoryView().as_view(), name='inventory-detail'),
+    path("move-ban/<pk>/", MovebanView().as_view(), name='move-ban'),
 ]
 urlpatterns.extend(inventory)
 

@@ -351,7 +351,7 @@ from .models import OnboardBan, BaseDataTable
 from .ser import OnboardBanSerializer, EntryTypeShowSerializer, BillTypeShowSerializer, OrganizationShowOnboardSerializer, BaseBansSerializer
 from Dashboard.ModelsByPage.DashAdmin import EntryType, BillType
 from .models import UploadBAN, MappingObjectBan
-from OnBoard.Ban.Background.tasks import process_pdf_task, process_csv
+from OnBoard.Ban.Background.tasks import process_pdf_task, process_csv, verizon_onboardPDF_processor
 from OnBoard.Ban.Background.tasks import process_csv
 from OnBoard.Ban.Background.cp import ProcessCSVOnboard
 
@@ -585,7 +585,7 @@ class OnboardBanView(APIView):
                     )
             else:
                 print("Its pdf")
-                addon = ProcessPdf(instance=obj, user_mail=request.user.email)
+                addon = InitialProcessPdf(instance=obj, user_mail=request.user.email)
                 
                 check = addon.startprocess()
                 print(check)
@@ -599,9 +599,11 @@ class OnboardBanView(APIView):
 
                 buffer_data = json.dumps({'pdf_path': obj.uploadBill.path, 'company_name': obj.organization.company.Company_name, 'vendor_name': obj.vendor.name, 'pdf_filename': obj.uploadBill.name, 'month': month, 'year': year, 'sub_company': obj.organization.Organization_name,'entry_type':obj.entryType.name,'user_email':request.user.email,'types':types,'baseline_check':obj.addDataToBaseline,'location':obj.location.site_name if obj.location else None,'master_account':obj.masteraccount.account_number if obj.masteraccount else None})
 
-                print(buffer_data)
-
-                process_pdf_task.delay(buffer_data,obj.id)
+                if "verizon" in obj.vendor.name.lower():
+                    print("yes it is verizon")
+                    verizon_onboardPDF_processor.delay(buffer_data,obj.id)
+                else:
+                    process_pdf_task.delay(buffer_data,obj.id)
                 
                 # process_pdf_task(buffer_data,obj)
                 # AllUserLogs.objects.create(
@@ -955,8 +957,9 @@ from io import BytesIO, StringIO
 import pandas as pd
 import re
 import pdfplumber
+from checkbill import checkVerizon
 from .models import PdfDataTable, BaseDataTable
-class ProcessPdf:
+class InitialProcessPdf:
     def __init__(self, user_mail, instance, **kwargs):
         print(instance)
         self.instance = instance
@@ -1029,46 +1032,15 @@ class ProcessPdf:
                     
                 
         elif 'verizon' in str(self.vendor).lower():
-            accounts = []
-            dates = []
-            duration = []
-            bill_date = []
+            matching_page_basic = []
             with pdfplumber.open(self.path) as pdf:
-                for page_number in range(2):
-                    page = pdf.pages[page_number]
+                for i, page in enumerate(pdf.pages):
                     text = page.extract_text()
-                    lines = text.split('\n')
-                    for index, line in enumerate(lines):
-                        if line.startswith('InvoiceNumber AccountNumber DateDue'):
-                            line = lines[index + 1]
-                            items = line.split()
-                            del items[3]
-                            del items[4]
-                            del items[3]
-                            date = items[2]
-                            account = items[1]
-                            dates.append(date)
-                            accounts.append(account)
-
-                    match = re.search(r'Quick Bill Summary (\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s*-\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b)', text)
-                    if match:
-                        phone_number = match.group(1)
-                        duration.append(phone_number)
-
-                    match = re.search(r'Bill Date (January|February|March|April|May|June|July|August|September|October|November|December) (\d{2}), (\d{4})', text)
-                    if match:
-                        phone_number = match.group(1)
-                        amount = match.group(2)
-                        pay = match.group(3)
-                        bill_date.append({
-                            "phone_number": phone_number,
-                            "amount": amount,
-                            "pay": pay
-                        })
-
-            bill_date1 = [f"{info['phone_number']} {info['amount']} {info['pay']}" for info in bill_date]
-            acc_info = accounts[0]
-            bill_date_info = bill_date1[0]
+                    if (("account" and "invoice" and "keyline") in text.lower()):
+                        if not matching_page_basic:
+                            matching_page_basic.append(page)
+                            break
+            acc_info, bill_date, billing_name = checkVerizon(matching_page_basic, self.org)
         else:
             pages_data = []
             with pdfplumber.open(self.path) as pdf:
@@ -1095,7 +1067,16 @@ class ProcessPdf:
                 bill_date_info = first_page_data_dict["bill_cycle_date"]
 
         acc_no = acc_info
+        if not acc_no:
+            return {"message":"Unable to onboard pdf","error":1}
         print(acc_no, self.org, self.company)
+        if "verizon" in str(self.vendor).lower():
+            if (billing_name.lower() != self.org.lower()):
+                self.instance.delete()
+                return {'message' : f'Organization name from the Pdf file did not matched with {self.org}', 'error' : -1}
+            elif self.org.lower() == "babw" and not "build-a-bear" in billing_name.lower():
+                self.instance.delete()
+                return {'message' : f'Organization name from the Pdf file did not matched with {self.org}', 'error' : -1}
         acc_exists  = BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org,company=self.company)
         print(acc_exists)
         if acc_exists.exists():

@@ -17,7 +17,7 @@ class DevicesView(APIView):
             ser = showdevicesSerializer(obj,many=True)
             return Response({"data":ser.data},status=status.HTTP_200_OK)
         else:
-            orgs = Organizations.objects.exclude(status=False)
+            orgs = Organizations.objects.filter(company=request.user.company) if request.user.company else Organizations.objects.all()
             org_ser = showOrganizations(orgs,many=True)
             return Response({"orgs":org_ser.data},status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):

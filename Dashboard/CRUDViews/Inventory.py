@@ -84,6 +84,7 @@ class InventoryView(APIView):
             return Response({"message": "Inventory not found in unique table!"}, status=status.HTTP_404_NOT_FOUND)
         except BaselineDataTable.DoesNotExist:
             return Response({"message": "Inventory not found in baseline table!"}, status=status.HTTP_404_NOT_FOUND)
+        print(data)
         if 'action' in data:
             if data['action'] == 'move-ban':
                 ban = data['ban']
@@ -123,6 +124,33 @@ class InventoryView(APIView):
             return Response({"message": "Inventory not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class MovebanView(APIView):
+    def put(self, request, pk, *args, **kwargs):
+        data = request.data.copy()
+        ban = data.get('ban')
+        if not ban:
+            return Response({"message":"ban not found"}, status=status.HTTP_400_BAD_REQUEST)
+        OldUniqueBanObj = UniquePdfDataTable.objects.filter(id=pk).first()
+        if not OldUniqueBanObj:
+            return Response({"message":"Mobile not found"}, status=status.HTTP_400_BAD_REQUEST)
+        searchBan = BaseDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(accountnumber=ban).first()
+
+        if not searchBan:
+            return Response({"message":"ban not found"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        newUpdatedBan = {
+            "account_number": searchBan.accountnumber,
+            "banUploaded":searchBan.banUploaded,
+            "viewuploaded":searchBan.viewuploaded,
+            "viewpapered": searchBan.viewpapered
+        }
+        UniqueBanObjs = UniquePdfDataTable.objects.filter(wireless_number=OldUniqueBanObj.wireless_number)
+        UniqueBanObjs.update(**newUpdatedBan)
+        BaselineObjs = BaselineDataTable.objects.filter(Wireless_number=OldUniqueBanObj.wireless_number)
+        BaselineObjs.update(**newUpdatedBan)
+
+        return Response({"message":f"Mobile {OldUniqueBanObj.wireless_number} moved to ban {searchBan.accountnumber} successfully!"},status=status.HTTP_200_OK)
 
 
 class AddNewInventoryView(APIView):

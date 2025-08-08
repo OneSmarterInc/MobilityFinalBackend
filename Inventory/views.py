@@ -27,7 +27,7 @@ class InventorySubjectView(APIView):
             onboardbanObjs = BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None)
             onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
             serializer = CompanyShowOnboardSerializer(objs, many=True)
-            all_lines = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None)
+            all_lines = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None)
             lines_Ser = UniqueTableShowSerializer(all_lines, many=True)
             return Response({"data": serializer.data, 'banonboarded':onbanser.data, "lines":lines_Ser.data}, status=status.HTTP_200_OK)
         elif request.user.designation.name == "Admin":
@@ -37,7 +37,7 @@ class InventorySubjectView(APIView):
             serializer = OrganizationShowOnboardSerializer(objs, many=True)
             onboardbanObjs = BaseDataTable.objects.filter(company=request.user.company).filter(viewuploaded=None, viewpapered=None)
             onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
-            all_lines = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None)
+            all_lines = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None)
             lines_Ser = UniqueTableShowSerializer(all_lines, many=True)
             return Response({"data": serializer.data, 'banonboarded':onbanser.data, "lines":lines_Ser.data}, status=status.HTTP_200_OK)
         try:
@@ -366,38 +366,33 @@ class MobileView(APIView):
 
     def put(self, request,account_number,wireless_number, *args, **kwargs):
         data = request.data.copy()
+        print(data)
         co = data.get("category_object")
         co = parse_until_dict(co) if co else None
         data["category_object"] = json.dumps(co) if co else {}
-        obj = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(account_number=account_number, wireless_number=wireless_number)
-        if obj:
-            obj = obj.first()
-        else:
-            return Response({
-                "message": "Mobile data not found"
-            },status=status.HTTP_404_NOT_FOUND)
+        obj = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(account_number=account_number, wireless_number=wireless_number).first()
+        if not obj:
+            return Response({"message":"Wireless Number not found!"},status=status.HTTP_400_BAD_REQUEST)
+        print(obj)
         try:
             serializer = UniqueTableShowSerializer(obj, data=data, partial=True)
             if serializer.is_valid():
                 serializer.save()
-            baselineobj = BaselineDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(account_number=account_number, Wireless_number=wireless_number)
-            if  baselineobj:
-                baselineobj = baselineobj.first()
-            baseline_ser = BaselineSaveSerializer(baselineobj, data=data, partial=True)
-            if baseline_ser.is_valid():
-                baseline_ser.save()
-                saveuserlog(
-                    request.user,
-                    f'mobile data of account number {account_number} and wireless number {wireless_number} updated successfully!'
-                )
-                return Response({
-                    "message": f"mobile data of number {wireless_number} updated successfully!"
-                },status=status.HTTP_200_OK)
-            else:
-                return Response({
-                    "message": str(serializer.errors)
-                },status=status.HTTP_400_BAD_REQUEST)
+            baselineobj = BaselineDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(account_number=account_number, Wireless_number=wireless_number).first()
+            print("baselineobj=", baselineobj)
+            if baselineobj:
+                baseline_ser = BaselineSaveSerializer(baselineobj, data=data, partial=True)
+                if baseline_ser.is_valid():
+                    baseline_ser.save()
+                    saveuserlog(
+                        request.user,
+                        f'mobile data of account number {account_number} and wireless number {wireless_number} updated successfully!'
+                    )
+            return Response({
+                "message": f"mobile {wireless_number} updated successfully!"
+            },status=status.HTTP_200_OK)
         except Exception as e:
+            print(e)
             return Response({
             "message": str(e)
         },status=status.HTTP_400_BAD_REQUEST)

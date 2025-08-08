@@ -315,7 +315,7 @@ class PdfDataTable(models.Model):
     location = models.CharField(max_length=255, blank=True, null=True, default="")
     item_category =  models.CharField(max_length=255, blank=True, null=True, default="")
     item_description =  models.CharField(max_length=255, blank=True, null=True, default="")
-    
+    item_charges = models.CharField(max_length=255, blank=True, null=True, default="")
     
     
     vendor = models.CharField(max_length=255, blank=True, null=True, default="")
@@ -469,6 +469,7 @@ class UniquePdfDataTable(models.Model):
     wearables = models.FloatField(default=0)
 
     cost_center = models.CharField(max_length=255, blank=True, null=True, default="")
+    VendorNumber = models.CharField(max_length=255, null=True,blank=True)
     bill_date = models.CharField(max_length=255, blank=True, null=True, default="")
     account_charges_and_credits = models.CharField(max_length=255, blank=True, null=True, default="")
     monthly_charges = models.CharField(max_length=255, blank=True, null=True, default="")
@@ -574,6 +575,7 @@ class BaselineDataTable(models.Model):
     third_party_charges_includes_tax = models.CharField(max_length=255, blank=True, null=True, default="")
     total_charges = models.CharField(max_length=255, blank=True, null=True, default="")
     voice_plan_usage = models.CharField(max_length=255, blank=True, null=True, default="")
+    VendorNumber = models.CharField(max_length=255, null=True,blank=True)
     messaging_usage = models.CharField(max_length=255, blank=True, null=True, default="")
     sub_company = models.CharField(max_length=255, blank=True, null=True, default="")
     category_object = models.JSONField(default=dict)

@@ -185,6 +185,7 @@ class showOnboardedSerializer(serializers.ModelSerializer):
 
         result = []
         for plan in distinct_plans:
+            
             entry = UniquePdfDataTable.objects.filter(
                 viewuploaded=None,
                 viewpapered=None,
@@ -192,7 +193,7 @@ class showOnboardedSerializer(serializers.ModelSerializer):
                 vendor=obj.vendor,
                 account_number=obj.accountnumber,
                 plans=plan
-            ).values('plans', 'plan_type', 'mifi','data_allotment','plan_fee','smartphone','tablet_computer','wearables').first()
+            ).values('plans', 'plan_type', 'mifi','data_allotment','plan_fee','smartphone','tablet_computer','wearables').first() if plan else None
 
             if entry:
                 plan_name = entry.pop("plans")
