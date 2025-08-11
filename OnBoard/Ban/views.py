@@ -1070,13 +1070,16 @@ class InitialProcessPdf:
         if not acc_no:
             return {"message":"Unable to onboard pdf","error":1}
         print(acc_no, self.org, self.company)
+        print(self.org, billing_name.upper())
         if "verizon" in str(self.vendor).lower():
-            if (billing_name.lower() != self.org.lower()):
+            if not self.check_billing_name(self.org, billing_name):
                 self.instance.delete()
-                return {'message' : f'Organization name from the Pdf file did not matched with {self.org}', 'error' : -1}
-            elif self.org.lower() == "babw" and not "build-a-bear" in billing_name.lower():
-                self.instance.delete()
-                return {'message' : f'Organization name from the Pdf file did not matched with {self.org}', 'error' : -1}
+                return {
+                    'message': f'Organization name from the PDF file did not match with {self.org}',
+                    'error': -1
+                }
+
+          
         acc_exists  = BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org,company=self.company)
         print(acc_exists)
         if acc_exists.exists():
@@ -1088,7 +1091,15 @@ class InitialProcessPdf:
             'message': 'Process Done',
             'error': 0,
         }
-
+    def check_billing_name(self, org, billing_name):
+        is_match = False
+        if org.lower() != billing_name.lower():
+            if org.lower() == "babw" and "build-a-bear" in billing_name.lower():
+                is_match = True
+            elif 'arch' in org.lower() and 'arch' in billing_name.lower():
+                is_match = True
+        print("is_match=", is_match)
+        return is_match
 
 class ProcessZip:
     def __init__(self, instance,usermail, **kwargs):

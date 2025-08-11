@@ -361,6 +361,7 @@ class ProcessPdf2:
         return sheet1
     
     def get_db_df(self):
+        print("def get_db_df")
         db_data = UniquePdfDataTable.objects.filter(
             company=self.company_name,
             sub_company=self.sub_company,
@@ -373,9 +374,16 @@ class ProcessPdf2:
             datadf = pd.DataFrame(db_data.values("wireless_number", "cost_center", "User_email", "User_status"))
         else:
             datadf = None
+        datadf = datadf.rename(columns={
+            "wireless_number": "Wireless Number",
+            "cost_center": "Cost Center",
+            "User_email": "User_email",
+            "User_status": "User_status"
+        })
         return datadf
         
     def get_sheet2(self, datadf,dbdf):
+        print("def get_sheet2")
         sheet2 = datadf
         sheet2["Account Number"] = self.account_number
         if not "Plans" in sheet2.columns:
@@ -406,6 +414,7 @@ class ProcessPdf2:
         return sheet2
     
     def get_sheet3(self, datadf,dbdf):
+        print("def get_sheet3")
         sheet3 = datadf
         sheet3["Account Number"] = self.account_number
         if not "Plans" in sheet3.columns:
@@ -434,6 +443,7 @@ class ProcessPdf2:
         return sheet3
     
     def get_sheet4(self, datadf,dbdf):
+        print("def get_sheet4")
         sheet4 = datadf
         sheet4["Account Number"] = self.account_number
         charges_list = list(sheet4["Total Charges"].str.replace("$", "", regex=False).str.replace(",", "", regex=False).astype(float))
@@ -443,7 +453,7 @@ class ProcessPdf2:
             sheet4 = pd.merge(sheet4, dbdf, on="Wireless Number")
         else:
             sheet4["cost_center"] = "NA"
-        sheet4 = sheet4[["Account Number", "Wireless Number", "Username", "cost_center", "Total Charges", "Sum of Total Charges"]]
+        sheet4 = sheet4[["Account Number", "Wireless Number", "Username", "Cost Center", "Total Charges", "Sum of Total Charges"]]
         return sheet4
     
     def start_process(self):

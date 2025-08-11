@@ -614,13 +614,9 @@ class InitialProcessPdf:
             return {'message' : f'Unable to process file, might be due to unsupported file format.', 'error' : -1}
         print(billing_name)
         if "verizon" in str(self.vendor).lower():
-            if (billing_name.lower() != self.org.lower()):
+            if not self.check_billing_name(self.org, billing_name):
                 self.instance.delete()
                 return {'message' : f'Organization name from the Pdf file did not matched with {self.org}', 'error' : -1}
-            elif self.org.lower() == "babw" and not "build-a-bear" in billing_name.lower():
-                self.instance.delete()
-                return {'message' : f'Organization name from the Pdf file did not matched with {self.org}', 'error' : -1}
-
 
         acc_no = acc_info
         bill_date_pdf = bill_date_info.replace(',','')
@@ -647,6 +643,15 @@ class InitialProcessPdf:
             'message': 'Process Done',
             'error': 0,
         }
+    def check_billing_name(self, org, billing_name):
+        is_match = False
+        if org.lower() != billing_name.lower():
+            if org.lower() == "babw" and "build-a-bear" in billing_name.lower():
+                is_match = True
+            elif 'arch' in org.lower() and 'arch' in billing_name.lower():
+                is_match = True
+        print("is_match=", is_match)
+        return is_match
     
 from django.conf import settings
 from django.core.files import File

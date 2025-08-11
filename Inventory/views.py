@@ -308,7 +308,7 @@ class MobileView(APIView):
     def get(self, request,account_number, wireless_number=None, *args, **kwargs):
         com = request.GET.get('company')
         sub_com = request.GET.get('sub_company')
-        lines = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(account_number=account_number, company=com, sub_company=sub_com)
+        lines = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(account_number=account_number, company=com, sub_company=sub_com)
         
         print("length of lines", len(lines))
         if not wireless_number:
