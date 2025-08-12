@@ -338,7 +338,7 @@ class UploadfileView(APIView):
         )
         obj.save()
 
-        if 'mobile' in str(obj.vendor.name):
+        if 'mobile' in str(obj.vendor.name) and obj.file.name.endswith('.pdf'):
             check_type = self.check_tmobile_type(obj.file.path)
             if check_type == 1:
                 obj.types = 'first'
@@ -655,7 +655,7 @@ class InitialProcessPdf:
     
 from django.conf import settings
 from django.core.files import File
-
+import shutil
 import io
 class ProcessZip:
     def __init__(self, instance, **kwargs):
@@ -732,7 +732,7 @@ class ProcessZip:
                 self.vendor = self.vendor.name
             else:
                 return {'message' : 'Vendor not found', 'error' : -1}
-            if 'mobile' in str(self.vendor).lower():
+            if 'mobile' in str(self.vendor).lower() and self.path.endswith('.pdf'):
                 self.types = check_tmobile_type(self.path)
 
             if self.path.endswith('.zip'):
@@ -1612,10 +1612,7 @@ class ProcessZip:
 
     def cleanup_extracted_files(self, directory):
         print("cleanup extracted files")
-        for root, dirs, files in os.walk(directory):
-            for file in files:
-                os.remove(os.path.join(root, file))
-        os.rmdir(directory)
+        shutil.rmtree(directory, ignore_errors=True)
     
 import tempfile
 
@@ -2012,5 +2009,4 @@ def format_date(date_str):
     formatted_date = date_obj.strftime("%B %d %Y")
     return formatted_date
 
-# def reflect_to_paper(baselines, uniquelines, billdate):
     

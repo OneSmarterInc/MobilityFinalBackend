@@ -12,7 +12,7 @@ class VerizonClass:
         self.total_amount = None
         self.remmitance = None
         self.duration = None
-        self.url = None
+        self.url = "http://sso.verizonenterprise.com"
         self.billing = {}
         self.planSide = None
         self.unique_key_pattern = re.compile(r'(?:\d{3}[-.]){2}\d{4}\s+[A-Za-z]+\s+[A-Za-z]+\s+\d+\s+(?:\$\d+(?:\.\d{2})?|--)', re.IGNORECASE)
