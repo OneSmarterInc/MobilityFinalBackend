@@ -957,6 +957,7 @@ from io import BytesIO, StringIO
 import pandas as pd
 import re
 import pdfplumber
+import shutil
 from checkbill import checkVerizon
 from .models import PdfDataTable, BaseDataTable
 class InitialProcessPdf:
@@ -1010,7 +1011,7 @@ class InitialProcessPdf:
             self.billtype = self.billtype.name
         acc_info = None
         bill_date_info = None
-        if 'mobile' in str(self.vendor).lower():
+        if 'mobile' in str(self.vendor).lower() and self.file.name.endswith('.pdf'):
             first_page_data = []
             with pdfplumber.open(self.path) as pdf:
                 pages_data = [page.extract_text() for page in pdf.pages[:1]]
@@ -1141,7 +1142,7 @@ class ProcessZip:
                 self.vendor = self.vendor.name
             else:
                 return {'message' : 'Vendor not found', 'error' : -1}
-            if 'mobile' in str(self.vendor).lower():
+            if 'mobile' in str(self.vendor).lower() and self.path.endswith('.pdf'):
                 self.types = check_tmobile_type(self.path)
                 
             if self.entrytype:
@@ -1835,10 +1836,11 @@ class ProcessZip:
 
     def cleanup_extracted_files(self, directory):
         print("cleanup extracted files")
-        for root, dirs, files in os.walk(directory):
-            for file in files:
-                os.remove(os.path.join(root, file))
-        os.rmdir(directory)
+        shutil.rmtree(directory, ignore_errors=True)
+        # for root, dirs, files in os.walk(directory):
+        #     for file in files:
+        #         os.remove(os.path.join(root, file))
+        # os.rmdir(directory)
 
 def remove_filds(model, data):
     valid_fields = {field.name for field in model._meta.get_fields()}

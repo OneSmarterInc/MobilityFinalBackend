@@ -248,7 +248,8 @@ class ProcessPdf2:
                 self.portal_information(basic_data)
                 self.pdf_data_table(baseline_df)
                 self.unique_data_table(unique_df)
-                self.baseline_data_table(baseline_df)
+                if not "master" in self.entry_type.lower():
+                    self.baseline_data_table(baseline_df)
                 self.reflect_category_object()
             print("Process completed successfully.")
             return True, "PDF Onboarded successfully", ProcessTime
