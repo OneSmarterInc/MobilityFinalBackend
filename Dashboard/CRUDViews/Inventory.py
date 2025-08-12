@@ -131,9 +131,13 @@ class MovebanView(APIView):
         ban = data.get('ban')
         if not ban:
             return Response({"message":"ban not found"}, status=status.HTTP_400_BAD_REQUEST)
-        OldUniqueBanObj = UniquePdfDataTable.objects.filter(id=pk).first()
-        if not OldUniqueBanObj:
+
+        UniqueMobileObj = UniquePdfDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(id=pk)
+        
+        if not UniqueMobileObj:
             return Response({"message":"Mobile not found"}, status=status.HTTP_400_BAD_REQUEST)
+        BaselineMobileObj = UniquePdfDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(Wireless_number=UniqueMobileObj[0].wireless_number)
+
         searchBan = BaseDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(accountnumber=ban).first()
 
         if not searchBan:
@@ -141,16 +145,19 @@ class MovebanView(APIView):
         
         newUpdatedBan = {
             "account_number": searchBan.accountnumber,
-            "banUploaded":searchBan.banUploaded,
-            "viewuploaded":searchBan.viewuploaded,
-            "viewpapered": searchBan.viewpapered
+            "banUploaded":searchBan.banUploaded if searchBan.banUploaded else None,
+            "banOnboarded":searchBan.banOnboarded if searchBan.banOnboarded else None,
+            "vendor":searchBan.vendor if searchBan.vendor else None,
+            "company":searchBan.company if searchBan.company else None,
+            "sub_company":searchBan.sub_company if searchBan.sub_company else None,
+            "viewuploaded":searchBan.viewuploaded if searchBan.viewuploaded else None,
+            "viewpapered": searchBan.viewpapered if searchBan.viewpapered else None,
         }
-        UniqueBanObjs = UniquePdfDataTable.objects.filter(wireless_number=OldUniqueBanObj.wireless_number)
-        UniqueBanObjs.update(**newUpdatedBan)
-        BaselineObjs = BaselineDataTable.objects.filter(Wireless_number=OldUniqueBanObj.wireless_number)
-        BaselineObjs.update(**newUpdatedBan)
+        UniqueMobileObj.update(**newUpdatedBan)
+        if BaselineMobileObj:
+            BaselineMobileObj.update(**newUpdatedBan)
 
-        return Response({"message":f"Mobile {OldUniqueBanObj.wireless_number} moved to ban {searchBan.accountnumber} successfully!"},status=status.HTTP_200_OK)
+        return Response({"message":f"Mobile {UniqueMobileObj[0].wireless_number} moved to ban {searchBan.accountnumber} successfully!"},status=status.HTTP_200_OK)
 
 
 class AddNewInventoryView(APIView):

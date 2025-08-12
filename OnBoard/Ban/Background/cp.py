@@ -267,15 +267,16 @@ class ProcessCSVOnboard:
             formatted_wireless_numbers.append(format_wireless_number(number)) if number else None
             
         df_csv['wireless_number'] = formatted_wireless_numbers
-
         obj1 = df_csv.iloc[0].to_dict()
+        print("obj1=",obj1)
         print(obj1['account_number'], self.account_number)
-        if 'sub_company' in obj1 and self.sub_company != obj1['sub_company']:
-            return {"message":f"The sub_company {self.sub_company} not matched!", 'code':1}
-        if 'vendor' in obj1 and self.vendor not in obj1['vendor']:
-            return {"message":f"The vendor {self.vendor} not matched!", 'code':1}
+        # if 'sub_company' in obj1 and self.sub_company != obj1['sub_company']:
+        #     return {"message":f"The sub_company {self.sub_company} not matched!", 'code':1}
+        if str(self.vendor) not in str(obj1['vendor']):
+            return {"message":f"The mapped vendor {obj1['vendor']} not matched with input vendor!", 'code':1}
         if str(self.account_number) != str(obj1['account_number']):
             return {"message":f"The mapped account number {obj1['account_number']} not matched with input account number!", 'code':1}
+        
         
         unique_account_numbers = PdfDataTable.objects.values_list('account_number', flat=True).distinct()
         companies = PdfDataTable.objects.values_list('company', flat=True).distinct()

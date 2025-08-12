@@ -791,8 +791,8 @@ class ProcessZip:
                 print('done')
                 self.save_to_pdf_data_table(data_pdf, v, t,obj)
                 print("saved to pdf data table")
-                self.save_to_batch_report(data_base, self.vendor)
-                print('saved to batch report')
+                # self.save_to_batch_report(data_base, self.vendor)
+                # print('saved to batch report')
                 self.save_to_unique_pdf_data_table(data_pdf, v, t,obj)
 
                 print('saved to unique pdf data table')

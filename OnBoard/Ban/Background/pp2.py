@@ -149,9 +149,20 @@ class ProcessPdf2:
 
 
     def build_category_object(self, group):
-        return json.dumps(group.groupby('Item Category').apply(
-            lambda x: dict(zip(x['Item Description'], x['Charges'].replace("$","").replace(",","")))
-        ).to_dict())
+        group['Item Category'] = group['Item Category'].str.upper()
+        group['Item Description'] = group['Item Description'].str.upper()
+
+        return json.dumps(
+            group.groupby('Item Category').apply(
+                lambda x: dict(
+                    zip(
+                        x['Item Description'],
+                        x['Charges'].replace({"$": "", ",": ""}, regex=True)
+                    )
+                )
+            ).to_dict()
+        )
+
     
     def baseline_data_table(self, datadf):
         baseline_mapping = {
