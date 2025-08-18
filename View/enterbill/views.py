@@ -342,26 +342,30 @@ class UploadfileView(APIView):
             check_type = self.check_tmobile_type(obj.file.path)
             if check_type == 1:
                 obj.types = 'first'
+                tp = 1
             elif check_type == 2:
                 obj.types ='second'
+                tp = 2
             else:
                 obj.types = None
+                tp = None
                 
         if str(file.name).endswith('.pdf'):
-            addon = InitialProcessPdf(instance=obj, user_mail=request.user.email)
-            check = addon.startprocess()
+            try:
+                addon = InitialProcessPdf(instance=obj, user_mail=request.user.email,tp=tp)
+                check = addon.startprocess()
+                if check['error'] != 0:
+                    obj.delete()
+                    return Response(
+                        {"message": f"Problem to upload file, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
+                    )
+            except:
+                obj.delete()
             print(check)
-            if check['error'] != 0:
-                return Response(
-                    {"message": f"Problem to upload file, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
-                )
+            
             buffer_data = json.dumps({'pdf_path': obj.file.path,'vendor_name': obj.vendor.name if obj.vendor else None,'pdf_filename':obj.file.name,'company_name':obj.company.Company_name if obj.company else None,'sub_company_name':obj.organization.Organization_name if obj.organization else None,'types':obj.types, 'month':obj.month, 'year':obj.year, 'email':request.user.email,'account_number':obj.ban})
             print(buffer_data)
-
-            if "verizon" in str(obj.vendor.name).lower():
-                verizon_enterBill_processor.delay(buffer_data, obj.id)
-            else:
-                process_view_bills.delay(buffer_data, obj.id)
+            verizon_att_enterBill_processor.delay(buffer_data, obj.id,btype=tp)
         elif (str(file.name).endswith('.xls') or str(file.name).endswith('.xlsx')):
             map = request.data.pop('mappingobj', None)[0]
             map = map.replace('null', 'None')
@@ -534,15 +538,15 @@ def tagging(baseline_data, bill_data):
 
 
 # from .tasks import process_view_bills
-from View.enterbill.tasks import process_view_bills, process_view_excel, verizon_enterBill_processor
+from View.enterbill.tasks import process_view_bills, process_view_excel, verizon_att_enterBill_processor
 import re
 import os
 import zipfile
 import pandas as pd
-from checkbill import check_tmobile_type, checkVerizon
+from checkbill import check_tmobile_type, checkVerizon, checkAtt, checkTmobile1, checkTmobile2
 from io import StringIO, BytesIO
 class InitialProcessPdf:
-    def __init__(self, user_mail, instance, **kwargs):
+    def __init__(self, user_mail, instance,tp, **kwargs):
         print(instance)
         self.instance = instance
         self.file = instance.file
@@ -556,7 +560,12 @@ class InitialProcessPdf:
         self.month = instance.month
         self.year = instance.year
         self.account_number = instance.ban
+        self.type = tp
+        self.file_acc = None
+        self.file_bill_date = None
+        self.file_billing_name = None
     def startprocess(self):
+        matching_page_basic = []
         print("start process")
         if self.org:
                 self.org = self.org.Organization_name
@@ -570,79 +579,57 @@ class InitialProcessPdf:
             self.vendor = self.vendor.name
         else:
             return {'message' : 'Vendor not found', 'error' : -1}
+        
 
-        acc_info = None
-        bill_date_info = None
-        if 'mobile' in str(self.vendor).lower():
-            pass
-        elif 'verizon' in str(self.vendor).lower():
-            matching_page_basic = []
-            with pdfplumber.open(self.path) as pdf:
-                for i, page in enumerate(pdf.pages):
-                    text = page.extract_text()
-                    if (("account" and "invoice" and "keyline") in text.lower()):
-                        if not matching_page_basic:
-                            matching_page_basic.append(page)
-                            break
-            acc_info, bill_date_info,billing_name = checkVerizon(matching_page_basic,self.org)
-        else:
-            pages_data = []
-            with pdfplumber.open(self.path) as pdf:
-                for i, page in enumerate(pdf.pages):
-                    if i == 0:
-                        page_text = page.extract_text()
-                        lines = page_text.split('\n')
-                        pages_data.extend(lines)
-                    else:
+        with pdfplumber.open(self.path) as pdf:
+            for i, page in enumerate(pdf.pages):
+                text = page.extract_text()
+                if (("account" and "invoice") in text.lower()):
+                    if not matching_page_basic:
+                        matching_page_basic.append(page)
                         break
-            
-            first_page_data_dict = {
-                    "bill_cycle_date": None,
-                    "account_number": None
+        if not matching_page_basic:
+            return {
+                    'message': f'Unable to process pdf may be due to unsupported format',
+                    'error': -1
                 }
 
-            for line in pages_data:
-                if line.startswith("Issue Date:"):
-                    first_page_data_dict["bill_cycle_date"] = line.split(": ")[-1]
-                elif "Account number:" in line:
-                    first_page_data_dict["account_number"] = line.split(": ")[-1]
-            acc_info = first_page_data_dict["account_number"]
-            bill_date_info = first_page_data_dict["bill_cycle_date"]
+        if "verizon" in self.vendor.lower():
+            self.file_acc, self.file_bill_date, self.file_billing_name = checkVerizon(matching_page_basic)
+        elif "mobile" in self.vendor.lower():
+            if self.type == 2:
+                self.file_acc, self.file_bill_date, self.file_billing_name = checkTmobile2(matching_page_basic)
+            elif self.type == 1:
+                self.file_acc, self.file_bill_date, self.file_billing_name = checkTmobile1(matching_page_basic)
+            else:
+                return {'message' : f'Unable to process file, might be due to unsupported file format.', 'error' : -1}
+        else:
+            self.file_acc, self.file_bill_date, self.file_billing_name = checkAtt(matching_page_basic)
+
+        print(self.file_acc, self.org, self.company, self.file_bill_date, self.file_billing_name)
         
-        if not acc_info and not bill_date_info:
-            self.instance.delete()
+        if not self.file_acc and not self.file_bill_date:
             return {'message' : f'Unable to process file, might be due to unsupported file format.', 'error' : -1}
-        print(billing_name)
         if "verizon" in str(self.vendor).lower():
-            if not self.check_billing_name(self.org, billing_name):
-                self.instance.delete()
+            if not self.check_billing_name(self.org, self.file_billing_name):
                 return {'message' : f'Organization name from the Pdf file did not matched with {self.org}', 'error' : -1}
 
-        acc_no = acc_info
-        bill_date_pdf = bill_date_info.replace(',','')
-
-        print(acc_no)
-        print(bill_date_pdf)
-
-        bill_date_pdf = bill_date_pdf.split(" ")
-        if acc_no != self.account_number:
-            self.instance.delete()
+        bill_date_pdf = self.file_bill_date.split(" ")
+        if self.file_acc != self.account_number:
             return {'message' : f'Account number from the Pdf file did not matched with input ban', 'error' : -1}
         
         if not (bill_date_pdf[0].lower() in self.month.lower()):
-            self.instance.delete()
             return {'message' : f'Bill date from the Pdf file did not matched with input month', 'error' : -1}
 
         if self.year != bill_date_pdf[2]:
-            self.instance.delete()
             return {'message' : f'Bill date from the Pdf file did not matched with input year', 'error' : -1}
-        if BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org, month=self.month, year=self.year):  # temprory set to not
-            self.instance.delete()
-            return {'message' : f'The bill with account number {acc_no} and bill date {bill_date_pdf} already exists', 'error' : -1}
+        if BaseDataTable.objects.filter(accountnumber=self.file_acc, sub_company=self.org, month=self.month, year=self.year):  # temprory set to not
+            return {'message' : f'The bill with account number {self.file_acc} and bill date {self.file_bill_date} already exists', 'error' : -1}
         return {
             'message': 'Process Done',
             'error': 0,
         }
+    
     def check_billing_name(self, org, billing_name):
         is_match = False
         if org.lower() != billing_name.lower():

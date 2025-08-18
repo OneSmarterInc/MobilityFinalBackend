@@ -108,8 +108,10 @@ class VerizonClass:
                 "Usage and Purchase Charges":line[-12],
                 "Monthly Charges": line[-13],
             })
-        unique_df = pd.DataFrame(lines_data).replace("--","NA")
+
+        unique_df = pd.DataFrame(lines_data).replace(r'^\s*--\s*$', "NA", regex=True)
         return unique_df
+        
     def separate_words(self, text):
         words = re.findall(r'[A-Z][a-z]*|[a-z]+|[A-Z]+(?![a-z])', text)
         for word in words:
@@ -118,6 +120,7 @@ class VerizonClass:
                 newWord = " ".join(separate).strip()
                 words[words.index(word)] = newWord
         return " ".join(words)
+    
     def baseline_data(self,pages,unique_df=None):
         final_data = []
         final_plan_data = []
@@ -212,7 +215,16 @@ class VerizonClass:
         else:
             baseline_df.insert(baseline_df.columns.get_loc("Monthly Charges"), "Plans", "")
         return baseline_df
-
+    
+    def format_wn(self, df):
+        df["Wireless Number"] = (
+            df["Wireless Number"]
+            .astype(str)
+            .str.replace(r"\D", "", regex=True)
+            .str.replace(r"(\d{3})(\d{3})(\d{4})", r"\1-\2-\3", regex=True)
+        )
+        return df
+    
     def extract_all(self):
         matching_page_basic = []
         matching_pages_unique = []
@@ -221,7 +233,7 @@ class VerizonClass:
             extraction_start_time = time.perf_counter()
             for i, page in enumerate(pdf.pages):
                 text = page.extract_text()
-                if (("account" and "invoice" and "keyline") in text.lower()):
+                if (("account" and "invoice") in text.lower()):
                     if not matching_page_basic:
                         matching_page_basic.append(page)
                 if text and self.unique_key_pattern.search(text):
@@ -230,37 +242,43 @@ class VerizonClass:
                     # if matching_pages_baseline:
                     #     break
                     matching_pages_baseline.append(page)
-            extraction_finish_time = time.perf_counter()
-            extraction_time = extraction_finish_time - extraction_start_time
+                if "need-to-know information" in text.lower():
+                    break
+                    
+        extraction_finish_time = time.perf_counter()
+        extraction_time = extraction_finish_time - extraction_start_time
 
-            process_start_time = time.perf_counter()
-            basic_data = self.initial_page_data(matching_page_basic)
-            unique_df = self.unique_data(matching_pages_unique)
-            baseline_df = self.baseline_data(matching_pages_baseline, unique_df=unique_df)
+        process_start_time = time.perf_counter()
+        basic_data = self.initial_page_data(matching_page_basic)
+        unique_df = self.unique_data(matching_pages_unique)
+        charges_list = list(unique_df["Total Charges"].str.replace("$", "", regex=False).str.replace(",", "", regex=False).astype(float))
+        sum_of_total_charges = sum(charges_list)
+        basic_data["Total Charges"] = f'${round(sum_of_total_charges,2)}'
+        baseline_df = self.baseline_data(matching_pages_baseline, unique_df=unique_df)
 
-            plan_df = baseline_df[["Wireless Number", "Plans"]]
-            plan_df = plan_df.drop_duplicates(subset=["Wireless Number", "Plans"])
-            unique_df = unique_df.merge(plan_df, on="Wireless Number", how="left")
-            # reorder unique df to put Plan just before Monthly Charges
-            if "Plans" in unique_df.columns:
-                cols = list(unique_df.columns)
-                plan_index = cols.index("Plans")
-                monthly_index = cols.index("Monthly Charges")
-                if plan_index > monthly_index:
-                    cols.insert(monthly_index, cols.pop(plan_index))
-                unique_df = unique_df[cols]
-            else:
-                unique_df.insert(unique_df.columns.get_loc("Monthly Charges"), "Plans", "")
+        plan_df = baseline_df[["Wireless Number", "Plans"]]
+        plan_df = plan_df.drop_duplicates(subset=["Wireless Number", "Plans"])
+        unique_df = unique_df.merge(plan_df, on="Wireless Number", how="left")
+        # reorder unique df to put Plan just before Monthly Charges
+        if "Plans" in unique_df.columns:
+            cols = list(unique_df.columns)
+            plan_index = cols.index("Plans")
+            monthly_index = cols.index("Monthly Charges")
+            if plan_index > monthly_index:
+                cols.insert(monthly_index, cols.pop(plan_index))
+            unique_df = unique_df[cols]
+        else:
+            unique_df.insert(unique_df.columns.get_loc("Monthly Charges"), "Plans", "")
 
-            
-            process_finish_time = time.perf_counter()
-            process_time = process_finish_time - process_start_time
-            print(f"{(extraction_time + process_time):.2f}", "seconds to process the PDF")
-            return basic_data, unique_df, baseline_df, round(float(extraction_time + process_time), 2)
+        process_finish_time = time.perf_counter()
+        process_time = process_finish_time - process_start_time
+        print(f"{(extraction_time + process_time):.2f}", "seconds to process the PDF")
+        return basic_data, self.format_wn(unique_df), self.format_wn(baseline_df), round(float(extraction_time + process_time), 2)
 
-# obj = VerizonClass("Bills/media/ViewUploadedBills/Verizon.pdf")
+# obj = VerizonClass("Bills/media/BanUploadBill/Verizon.pdf")
 # basic, unique, baseline,t = obj.extract_all()
-
+# print(basic)
+# unique.to_csv("unique.csv", index=False)
 # print(unique[["Wireless Number", "Plans"]].head(10))
 # unique.to_csv("unique.csv", index=False)
 # baseline.to_csv("baseline.csv", index=False)

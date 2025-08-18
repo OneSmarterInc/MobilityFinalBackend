@@ -17,7 +17,7 @@ from sendmail import send_custom_email
 from OnBoard.Ban.Background.pp2 import ProcessPdf2
 import time
 @shared_task
-def verizon_onboardPDF_processor(buffer_data, instance_id):
+def verizon_att_onboardPDF_processor(buffer_data, instance_id,btype):
     buffer_data_dict = json.loads(buffer_data)
 
     try:
@@ -27,7 +27,7 @@ def verizon_onboardPDF_processor(buffer_data, instance_id):
         return {"message": f"Error: OnboardBan object with ID {instance_id} not found.", "error": 1}
 
     try:
-        obj = ProcessPdf2(buffer_data=buffer_data_dict,instance=instance)
+        obj = ProcessPdf2(buffer_data=buffer_data_dict,instance=instance,btype=btype)
         check, msg, ProcessTime = obj.start_process()
 
         if ProcessTime >= 60:

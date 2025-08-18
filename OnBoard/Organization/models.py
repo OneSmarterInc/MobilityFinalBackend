@@ -86,7 +86,7 @@ class Links(models.Model):
     url = models.URLField(max_length=2000)
 
     username = models.CharField(max_length=255)
-    password = models.CharField(max_length=255)
+    password = models.CharField(max_length=255,null=True, blank=True)
     remark = models.TextField(null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)

@@ -2,12 +2,15 @@ from OnBoard.Ban.models import BaseDataTable, UniquePdfDataTable, BaselineDataTa
 import logging
 import pdfplumber
 from Scripts.VerizonNew import VerizonClass
+from Scripts.AttNew import AttClass
+from Scripts.Tmobile1New import Tmobile1Class
+from Scripts.Tmobile2New import Tmobile2Class
 import pandas as pd
 import json
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 class ProcessPdf2:
-    def __init__(self, buffer_data,instance=None):
+    def __init__(self, buffer_data,btype,instance=None):
         self.instance = instance
         self.buffer_data = buffer_data
         self.pdf_path = self.buffer_data.get('pdf_path')
@@ -20,10 +23,10 @@ class ProcessPdf2:
         self.location = self.buffer_data.get('location')
         self.master_account = self.buffer_data.get('master_account')
         self.year = self.buffer_data.get('year')
-        self.types = self.buffer_data.get('types')
+        self.type = self.buffer_data.get('types')
         self.email = self.buffer_data.get('user_email')
         self.sub_company = self.buffer_data.get('sub_company')
-        self.t_mobile_type = self.check_tmobile_type() if 'mobile' in str(self.vendor_name).lower() else 0
+        self.t_mobile_type = btype if btype else 0
 
         logger.info(f'Processing PDF from buffer: {self.pdf_path}, {self.company_name}, {self.vendor_name}, {self.pdf_filename}')
 
@@ -31,27 +34,6 @@ class ProcessPdf2:
         self.net_amount = 0
         self.check = True
         self.account_number = None
-
-    def check_tmobile_type(self):
-        print("def check_tmobile_type")
-        Lines = []
-        with pdfplumber.open(self.pdf_path) as pdf:
-            for i, page in enumerate(pdf.pages):
-                if i == 0:
-                    page_text = page.extract_text()
-                    lines = page_text.split('\n')
-                    Lines.extend(lines)
-                else:
-                    break
-
-        if 'Bill period Account Invoice Page' in Lines[0]:
-            print("Type2 : Bill period Account Invoice Page")
-            return 2
-        elif 'Your Statement' in Lines[0]:
-            print("Type1 : Your Statement")
-            return 1
-        else:
-            return 0
         
     def base_data_table(self, data):
         baseDatamapped = {
@@ -62,7 +44,10 @@ class ProcessPdf2:
             "net_amount": str(data.get("Total Amount")).replace("$","").replace(",",""),
             "BillingName" : data.get("Billing Info").get("name"),
             "BillingAdd": data.get("Billing Info").get("address"),
+            "BillingAtn" : data.get("Billing Info").get("attn"),
+            "total_charges":data.get("Total Charges"),
             "RemittanceAdd": data.get("Remittance Info"),
+            "website":  data.get("Vendor Url"),
             "duration": data.get("Duration"),
             "pdf_path": self.pdf_path,
             "pdf_filename": self.pdf_filename,
@@ -87,15 +72,17 @@ class ProcessPdf2:
             'Total Charges':"total_charges",
             'Third Party Charges (includes Tax)':"third_party_charges_includes_tax",
             'Taxes, Governmental Surcharges and Fees':"taxes_governmental_surcharges_and_fees",
+            "Government fees and taxes": "taxes_governmental_surcharges_and_fees",
             'Surcharges and Other Charges and Credits':"surcharges_and_other_charges_credits", 
+            "Company fees and surcharges":"surcharges_and_other_charges_and_credits",
             'Equipment Charges':"equipment_charges",
             'Usage and Purchase Charges':"usage_and_purchase_charges", 
             'Monthly Charges': "monthly_charges",
             "Item Category": "item_category",
             "Item Description": "item_description",
             "Charges": "item_charges",
-            "Plans":"plans"
-
+            "Plans":"plans",
+            "Group":"group_number"
         }
         datadf = datadf.rename(columns=pdf_mapping)
         datadf["company"] = self.company_name
@@ -125,11 +112,14 @@ class ProcessPdf2:
             'Total Charges':"total_charges",
             'Third Party Charges (includes Tax)':"third_party_charges_includes_tax",
             'Taxes, Governmental Surcharges and Fees':"taxes_governmental_surcharges_and_fees",
+            "Government fees and taxes": "taxes_governmental_surcharges_and_fees",
             'Surcharges and Other Charges and Credits':"surcharges_and_other_charges_credits", 
+            "Company fees and surcharges":"surcharges_and_other_charges_and_credits",
             'Equipment Charges':"equipment_charges",
             'Usage and Purchase Charges':"usage_and_purchase_charges", 
             'Monthly Charges': "monthly_charges",
             "Plans": "plans",
+            "Group":"group_number"
         }
         datadf = datadf.rename(columns=unique_mapping)
         datadf["company"] = self.company_name
@@ -151,17 +141,24 @@ class ProcessPdf2:
     def build_category_object(self, group):
         group['Item Category'] = group['Item Category'].str.upper()
         group['Item Description'] = group['Item Description'].str.upper()
-
-        return json.dumps(
-            group.groupby('Item Category').apply(
-                lambda x: dict(
-                    zip(
-                        x['Item Description'],
-                        x['Charges'].replace({"$": "", ",": ""}, regex=True)
-                    )
-                )
-            ).to_dict()
+        group['Charges'] = (
+            group['Charges']
+            .astype(str)                              
+            .str.strip()                              
+            .replace({"[$,]": ""}, regex=True)       
+            .replace("", "0")                       
         )
+        group['Charges'] = pd.to_numeric(group['Charges'], errors='coerce').fillna(0)
+        summed = (
+            group.groupby(['Item Category', 'Item Description'], as_index=False)['Charges']
+            .sum()
+        )
+        result = (
+            summed.groupby('Item Category')
+            .apply(lambda x: dict(zip(x['Item Description'], x['Charges'])))
+            .to_dict()
+        )
+        return json.dumps(result)
 
     
     def baseline_data_table(self, datadf):
@@ -174,6 +171,8 @@ class ProcessPdf2:
             'Total Charges':"total_charges",
             'Third Party Charges (includes Tax)':"third_party_charges_includes_tax",
             'Taxes, Governmental Surcharges and Fees':"taxes_governmental_surcharges_and_fees",
+            "Government fees and taxes": "taxes_governmental_surcharges_and_fees",
+            "Company fees and surcharges":"surcharges_and_other_charges_and_credits",
             'Surcharges and Other Charges and Credits':"surcharges_and_other_charges_and_credits", 
             'Equipment Charges':"equipment_charges",
             'Usage and Purchase Charges':"usage_and_purchase_charges", 
@@ -237,8 +236,18 @@ class ProcessPdf2:
     def start_process(self):
         if not (self.pdf_path and self.instance and self.company_name and self.sub_company and self.vendor_name):
             return False, "Unable to process pdf due to incomplete data.", None
+        print(self.vendor_name.lower())
+        print(self.t_mobile_type)
         try:
-            obj = VerizonClass(self.pdf_path)
+            if "verizon" in self.vendor_name.lower():
+                obj = VerizonClass(self.pdf_path)
+            elif 'mobile' in self.vendor_name.lower():
+                if self.t_mobile_type == 1:
+                    obj = Tmobile1Class(self.pdf_path)
+                elif self.t_mobile_type == 2:
+                    obj = Tmobile2Class(self.pdf_path)
+            else:
+                obj = AttClass(self.pdf_path)
             basic_data, unique_df, baseline_df, ProcessTime = obj.extract_all()
             self.account_number = basic_data.get("Account Number")
             self.net_amount = basic_data.get("Total Amount")

@@ -68,8 +68,9 @@ class OnboardOrganizationView(APIView):
         return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, pk):
+        print(pk)
         try:
-            organization = Organizations.objects.get(Organization_name=pk)
+            organization = Organizations.objects.get(id=pk)
             organization.delete()
             saveuserlog(request.user, f'Organization with name {pk} deleted successfully!')
             return Response({"message": "Organization deleted successfully!"}, status=status.HTTP_200_OK)
@@ -188,17 +189,12 @@ class LinksView(APIView):
                 return Response({"message": "Link not found"}, status=status.HTTP_404_NOT_FOUND)
     
     def put(self, request, org, pk):
+
         try:
-            organization = Organizations.objects.get(id=org)
-            org_name = organization.Organization_name
-            company_name = organization.company.Company_name
-        except Organizations.DoesNotExist:
-            return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
-        try:
-            link = Links.objects.filter(organization=org, name=pk).first()
+            link = Links.objects.filter(id=pk).first()
         except Links.DoesNotExist:
             return Response({"message": "Link not found"}, status=status.HTTP_404_NOT_FOUND)
-        serializer = LinkSerializer(link, data={"organization": org_name, 'company' : company_name, **request.data})
+        serializer = LinkSerializer(link, data=request.data,partial=True)
         if serializer.is_valid():
             serializer.save()
             saveuserlog(request.user, f'Link with name {pk} updated successfully!')
@@ -206,8 +202,9 @@ class LinksView(APIView):
         return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, org, pk):
+        print(pk)
         try:
-            link = Links.objects.filter(organization=org, name=pk).first()
+            link = Links.objects.filter(id=pk).first()
             link.delete()
             saveuserlog(request.user, f'Link with name {pk} deleted successfully!')
             return Response({"message": "Link deleted successfully!"}, status=status.HTTP_200_OK)

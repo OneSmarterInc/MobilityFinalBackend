@@ -13,7 +13,7 @@ def get_error_message():
     We sincerely apologize for this service interruption and appreciate your cooperation.'''
 import time
 @shared_task
-def verizon_enterBill_processor(buffer_data, instance_id):
+def verizon_att_enterBill_processor(buffer_data, instance_id,btype):
     buffer_data_dict = json.loads(buffer_data)
 
     try:
@@ -23,7 +23,7 @@ def verizon_enterBill_processor(buffer_data, instance_id):
         return {"message": f"Error: BaseDataTable object with ID {instance_id} not found.", "error": 1}
 
     try:
-        obj = ProcessPdf2(buffer_data=buffer_data_dict,instance=instance)
+        obj = ProcessPdf2(buffer_data=buffer_data_dict,instance=instance,btype=btype)
         check, msg, ProcessTime = obj.start_process()
         
         if ProcessTime >= 60:

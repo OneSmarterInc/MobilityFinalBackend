@@ -351,7 +351,7 @@ from .models import OnboardBan, BaseDataTable
 from .ser import OnboardBanSerializer, EntryTypeShowSerializer, BillTypeShowSerializer, OrganizationShowOnboardSerializer, BaseBansSerializer
 from Dashboard.ModelsByPage.DashAdmin import EntryType, BillType
 from .models import UploadBAN, MappingObjectBan
-from OnBoard.Ban.Background.tasks import process_pdf_task, process_csv, verizon_onboardPDF_processor
+from OnBoard.Ban.Background.tasks import process_pdf_task, process_csv, verizon_att_onboardPDF_processor
 from OnBoard.Ban.Background.tasks import process_csv
 from OnBoard.Ban.Background.cp import ProcessCSVOnboard
 
@@ -535,7 +535,6 @@ class OnboardBanView(APIView):
             print(isreal)
             if not isreal:
                 return Response({"message" : f"the uploaded file is not {request.data.get('vendor')} file!"}, status=status.HTTP_400_BAD_REQUEST)
-        print(request.data)
         mutable_data = {k: v for k, v in request.data.items() if not hasattr(v, 'read')}
         mutable_data = {key: (value if value != "" else None) for key, value in mutable_data.items()}
         boolean_fields = ["is_it_consolidatedBan", "addDataToBaseline"]
@@ -573,6 +572,10 @@ class OnboardBanView(APIView):
                addDataToBaseline = False if etype.name == "Master Account" else mutable_data.pop('addDataToBaseline', False),
                is_it_consolidatedBan = mutable_data.pop('is_it_consolidatedBan', False)
             )
+            if 'mobile' in str(obj.vendor.name.lower()).lower() and obj.uploadBill.path.endswith('.pdf'):
+                tp = check_tmobile_type(obj.uploadBill.path)
+            else:
+                tp = None
             obj.save()
             print(obj.uploadBill.name.endswith('.zip'), 'verizon' in str(obj.vendor.name).lower())
             if obj.uploadBill.name.endswith('.zip'):
@@ -585,7 +588,7 @@ class OnboardBanView(APIView):
                     )
             else:
                 print("Its pdf")
-                addon = InitialProcessPdf(instance=obj, user_mail=request.user.email)
+                addon = InitialProcessPdf(instance=obj, user_mail=request.user.email,tp=tp)
                 
                 check = addon.startprocess()
                 print(check)
@@ -599,12 +602,11 @@ class OnboardBanView(APIView):
 
                 buffer_data = json.dumps({'pdf_path': obj.uploadBill.path, 'company_name': obj.organization.company.Company_name, 'vendor_name': obj.vendor.name, 'pdf_filename': obj.uploadBill.name, 'month': month, 'year': year, 'sub_company': obj.organization.Organization_name,'entry_type':obj.entryType.name,'user_email':request.user.email,'types':types,'baseline_check':obj.addDataToBaseline,'location':obj.location.site_name if obj.location else None,'master_account':obj.masteraccount.account_number if obj.masteraccount else None})
 
-                if "verizon" in obj.vendor.name.lower():
-                    print("yes it is verizon")
-                    verizon_onboardPDF_processor.delay(buffer_data,obj.id)
-                else:
-                    process_pdf_task.delay(buffer_data,obj.id)
-                
+                # if "verizon" in obj.vendor.name.lower():
+                #     print("yes it is verizon")
+                verizon_att_onboardPDF_processor.delay(buffer_data,obj.id,btype=tp)
+                # else:
+                    
                 # process_pdf_task(buffer_data,obj)
                 # AllUserLogs.objects.create(
                 #     user_email=request.user.email,
@@ -958,10 +960,10 @@ import pandas as pd
 import re
 import pdfplumber
 import shutil
-from checkbill import checkVerizon
+from checkbill import checkVerizon, checkAtt, checkTmobile2, checkTmobile1
 from .models import PdfDataTable, BaseDataTable
 class InitialProcessPdf:
-    def __init__(self, user_mail, instance, **kwargs):
+    def __init__(self, user_mail, instance,tp, **kwargs):
         print(instance)
         self.instance = instance
         self.file = instance.uploadBill
@@ -979,12 +981,17 @@ class InitialProcessPdf:
         self.baseline = instance.addDataToBaseline
         self.vendorList = Vendors.objects.all()
         self.typesList = BillType.objects.all()
-        self.types = None
+        self.type = tp
         self.email = user_mail
         self.month = None
         self.year = None
+
+        self.file_acc = None
+        self.file_bill_date = None
+        self.file_billing_name = None
     def startprocess(self):
         print("start process")
+        matching_page_basic = []
         if self.org:
                 self.org = self.org.Organization_name
         else:
@@ -1002,6 +1009,8 @@ class InitialProcessPdf:
             self.entrytype = self.entrytype.name
         else:
             return {'message' : 'Entry Type not found', 'error' : -1}
+        
+        
 
         if self.masteraccount:
             self.masteraccount = self.masteraccount.account_number
@@ -1009,71 +1018,44 @@ class InitialProcessPdf:
             self.loc = self.loc.site_name
         if self.billtype:
             self.billtype = self.billtype.name
-        acc_info = None
-        bill_date_info = None
-        if 'mobile' in str(self.vendor).lower() and self.file.name.endswith('.pdf'):
-            first_page_data = []
-            with pdfplumber.open(self.path) as pdf:
-                pages_data = [page.extract_text() for page in pdf.pages[:1]]
-                text = '\n'.join(pages_data)
-                lines = text.strip().split("\n")
-                first_page_data.extend(lines)
-            t_type = check_tmobile_type(self.path)
-            if t_type == 1:
-                for line in first_page_data:
-                    if re.match(r'Account Number:\s*(\d+)',line):
-                        acc_info = str(line).split(":")[-1].replace(" ","")
+
+
+
+
+        with pdfplumber.open(self.path) as pdf:
+            for i, page in enumerate(pdf.pages):
+                text = page.extract_text()
+                if (("account" and "invoice") in text.lower()):
+                    if not matching_page_basic:
+                        matching_page_basic.append(page)
                         break
-            elif t_type == 2:
-                line_2 = lines[1].split(" ")
-                for item in line_2:
-                    try: item = int(item)
-                    except: item = item
-                    if isinstance(item,int) and len(str(item)) > 6: acc_info = item
-                    
-                
-        elif 'verizon' in str(self.vendor).lower():
-            matching_page_basic = []
-            with pdfplumber.open(self.path) as pdf:
-                for i, page in enumerate(pdf.pages):
-                    text = page.extract_text()
-                    if (("account" and "invoice" and "keyline") in text.lower()):
-                        if not matching_page_basic:
-                            matching_page_basic.append(page)
-                            break
-            acc_info, bill_date, billing_name = checkVerizon(matching_page_basic, self.org)
-        else:
-            pages_data = []
-            with pdfplumber.open(self.path) as pdf:
-                num_of_pages = len(pdf.pages)
-            if num_of_pages < 999:
-                with pdfplumber.open(self.path) as pdf:
-                    pages_data = [page.extract_text() for page in pdf.pages[:2]]
-
-                for page_data in pages_data:
-                    first_page_data = page_data
-                    break
-
-                first_page_data_dict = {
-                    "bill_cycle_date": None,
-                    "account_number": None
+        print(matching_page_basic)
+        if not matching_page_basic:
+            return {
+                    'message': f'Unable to process pdf may be due to unsupported format',
+                    'error': -1
                 }
 
-                for line in first_page_data.splitlines():
-                    if line.startswith("Issue Date:"):
-                        first_page_data_dict["bill_cycle_date"] = line.split(": ")[-1]
-                    elif "Account number:" in line:
-                        first_page_data_dict["account_number"] = line.split(": ")[-1]
-                acc_info = first_page_data_dict["account_number"]
-                bill_date_info = first_page_data_dict["bill_cycle_date"]
+        print(self.vendor)
+        if "verizon" in self.vendor.lower():
+            self.file_acc, self.file_bill_date, self.file_billing_name = checkVerizon(matching_page_basic)
+        elif "mobile" in self.vendor.lower():
+            if self.type == 2:
+                self.file_acc, self.file_bill_date, self.file_billing_name = checkTmobile2(matching_page_basic)
+            elif self.type == 1:
+                self.file_acc, self.file_bill_date, self.file_billing_name = checkTmobile1(matching_page_basic)
+            else:
+                return {'message' : f'Unable to process file, might be due to unsupported file format.', 'error' : -1}
+        else:
+            self.file_acc, self.file_bill_date, self.file_billing_name = checkAtt(matching_page_basic)
 
-        acc_no = acc_info
-        if not acc_no:
-            return {"message":"Unable to onboard pdf","error":1}
-        print(acc_no, self.org, self.company)
-        print(self.org, billing_name.upper())
+        print(self.file_acc, self.org, self.company)
+        if not self.file_acc:
+            return {"message":"Unable to onboard pdf due to unsupported format","error":1}
+        
+        print(self.org, self.file_billing_name.upper())
         if "verizon" in str(self.vendor).lower():
-            if not self.check_billing_name(self.org, billing_name):
+            if not self.check_billing_name(self.org, self.file_billing_name):
                 self.instance.delete()
                 return {
                     'message': f'Organization name from the PDF file did not match with {self.org}',
@@ -1081,10 +1063,10 @@ class InitialProcessPdf:
                 }
 
           
-        acc_exists  = BaseDataTable.objects.filter(accountnumber=acc_no, sub_company=self.org,company=self.company)
+        acc_exists  = BaseDataTable.objects.filter(accountnumber=self.file_acc, sub_company=self.org,company=self.company)
         print(acc_exists)
         if acc_exists.exists():
-            message = f'Account Number {acc_no}  already exists.'
+            message = f'Account Number {self.file_acc}  already exists.'
             print(message)
             return {'message': message, 'error': 1}
 
