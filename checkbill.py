@@ -113,7 +113,27 @@ def checkAtt(pages):
     except:
         return None, None, None
 def checkTmobile1(pages):
-    pass
+    try:
+        page_0 = pages[0]
+        width = page_0.width
+        height = page_0.height
+
+        top_half_bbox = (0, 0, width, height / 2 - 200)
+        top_half = page_0.within_bbox(top_half_bbox)
+        top_text = top_half.extract_text()
+        topLines = top_text.splitlines()
+        account_number = None
+        billing_name = None
+        for line in topLines:
+            if not account_number and "account" in line.lower():
+                line = line.replace(" ","")
+                account_number = line.split(":")[1]
+            if not billing_name and "statement for" in line.lower():
+                billing_name = line.split(":")[1]
+        print(account_number, billing_name)
+        return account_number, billing_name
+    except:
+        return None, None
 def checkTmobile2(pages):
     try:
         page = pages[0]

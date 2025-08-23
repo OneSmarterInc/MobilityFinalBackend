@@ -134,6 +134,9 @@ class ProcessCSVOnboard:
 
         BaselineDataTable.objects.bulk_create(clean_items)
         self.save_to_portal_info({'Website':None})
+        self.instance.account_number = self.account_number
+        self.instance.is_processed = True
+        self.instance.save()
         return {'code' : 0, 'message':f"Excel file with account number {file_account_number} onboarded successfully!"}
 
 

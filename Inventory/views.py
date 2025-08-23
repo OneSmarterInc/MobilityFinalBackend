@@ -14,13 +14,36 @@ from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
 from OnBoard.Ban.models import UploadBAN, OnboardBan, BaseDataTable, BaselineDataTable
 # Create your views here.
+from .homeser import showCompanySerializer, showOnboardedSerializer, showOrganizationSerializer, showUploadedSerializer
 
+class GetCompanyView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    def get(self, request):
+        companies = Company.objects.all()
+        comser = showCompanySerializer(companies, many=True)
+        return Response({"companies":comser.data},status=status.HTTP_200_OK)
 
+class Homepageview(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request,company):
+        try:
+            obj = Company.objects.filter(Company_name=company).first()
+            if not obj:
+                return Response({"message":"Company not found!"},status=status.HTTP_400_BAD_REQUEST)
+            orgs = Organizations.objects.filter(company=obj)
+            orgser = showOrganizationSerializer(orgs, many=True)
+            bansOnboardSer = showOnboardedSerializer(OnboardBan.objects.filter(organization__in=orgs), many=True)
+            bansUplaodSer = showUploadedSerializer(UploadBAN.objects.filter(organization__in=orgs), many=True)
+            return Response({"onboarded":bansOnboardSer.data, "uploaded":bansUplaodSer.data, "orgs":orgser.data},status=status.HTTP_200_OK)
+        except Exception as e:
+            print(e)
+            return Response({"message":"Interal Server Error!"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
 class InventorySubjectView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        from django.db.models import Q
 
         if request.user.designation.name == "Superadmin":
             objs = Company.objects.all()

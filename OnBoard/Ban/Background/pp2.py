@@ -7,6 +7,7 @@ from Scripts.Tmobile1New import Tmobile1Class
 from Scripts.Tmobile2New import Tmobile2Class
 import pandas as pd
 import json
+import time
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 class ProcessPdf2:
@@ -60,6 +61,8 @@ class ProcessPdf2:
             "Entry_type":self.entry_type,
         }
         BaseDataTable.objects.create(**baseDatamapped)
+        self.instance.account_number = self.account_number
+        self.instance.save()
         
         print("Added to base data table")
     def pdf_data_table(self, datadf):
@@ -82,7 +85,11 @@ class ProcessPdf2:
             "Item Description": "item_description",
             "Charges": "item_charges",
             "Plans":"plans",
-            "Group":"group_number"
+            "Group":"group_number",
+            "Taxes and Surcharges": "taxes_governmental_surcharges_and_fees",
+            "Third Party Services":"third_party_charges_includes_tax",
+            "Usage Charges": "usage_and_purchase_charges", 
+            "Credits & Adjustments": "surcharges_and_other_charges_and_credits",
         }
         datadf = datadf.rename(columns=pdf_mapping)
         datadf["company"] = self.company_name
@@ -119,7 +126,11 @@ class ProcessPdf2:
             'Usage and Purchase Charges':"usage_and_purchase_charges", 
             'Monthly Charges': "monthly_charges",
             "Plans": "plans",
-            "Group":"group_number"
+            "Group":"group_number",
+            "Taxes and Surcharges": "taxes_governmental_surcharges_and_fees",
+            "Third Party Services":"third_party_charges_includes_tax",
+            "Usage Charges": "usage_and_purchase_charges", 
+            "Credits & Adjustments": "surcharges_and_other_charges_and_credits",
         }
         datadf = datadf.rename(columns=unique_mapping)
         datadf["company"] = self.company_name
@@ -178,6 +189,10 @@ class ProcessPdf2:
             'Usage and Purchase Charges':"usage_and_purchase_charges", 
             'Monthly Charges': "monthly_charges",
             "Plans": "plans",
+            "Taxes and Surcharges": "taxes_governmental_surcharges_and_fees",
+            "Third Party Services":"third_party_charges_includes_tax",
+            "Usage Charges": "usage_and_purchase_charges", 
+            "Credits & Adjustments": "surcharges_and_other_charges_and_credits",
         }
         
         datadf = datadf.rename(columns=baseline_mapping)
@@ -246,6 +261,8 @@ class ProcessPdf2:
                     obj = Tmobile1Class(self.pdf_path)
                 elif self.t_mobile_type == 2:
                     obj = Tmobile2Class(self.pdf_path)
+                else:
+                    return False, "Unable to process pdf might be due to t-mobile unsupported format.", 0
             else:
                 obj = AttClass(self.pdf_path)
             basic_data, unique_df, baseline_df, ProcessTime = obj.extract_all()
@@ -257,7 +274,7 @@ class ProcessPdf2:
                 self.portal_information(basic_data)
                 self.pdf_data_table(baseline_df)
                 self.unique_data_table(unique_df)
-                if not "master" in self.entry_type.lower():
+                if self.baseline_check:
                     self.baseline_data_table(baseline_df)
                 self.reflect_category_object()
             print("Process completed successfully.")

@@ -1261,5 +1261,9 @@ def process_analysis_pdf_from_buffer(instance, buffer_data):
             obj.is_processed = True
             obj.save()
             os.remove(zpath)
+        instance.is_processed = True
+        instance.save()
+        
+    
 
     

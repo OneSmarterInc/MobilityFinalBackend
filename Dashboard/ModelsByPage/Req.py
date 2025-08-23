@@ -25,6 +25,7 @@ class Requests(models.Model):
     model = models.CharField(max_length=255, null=True, blank=True)
     device_color = models.CharField(max_length=255, null=True, blank=True)
     device_storage = models.CharField(max_length=255, null=True, blank=True)
+    request_tracking_id = models.CharField(max_length=255, null=True, blank=True)
 
     ## Accessories
     cases = models.CharField(max_length=255, null=True, blank=True)

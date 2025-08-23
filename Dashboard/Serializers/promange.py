@@ -42,11 +42,16 @@ class ProfileSaveSerializer(serializers.ModelSerializer):
             permissions = Permission.objects.filter(name__in=permissions_data)
             instance.permissions.set(permissions)
 
+        if 'vendors' in validated_data:
+            vendors_data = validated_data.pop('vendors')
+            instance.vendors.set(vendors_data)
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
         instance.save()
         return instance
+
 
 
 class usersShowser(serializers.ModelSerializer):
@@ -63,9 +68,13 @@ class ProfileShowSerializer(serializers.ModelSerializer):
     organization = serializers.CharField()
     user = usersShowser()
     role = roleser()
+    vendors = serializers.SerializerMethodField()
     class Meta:
         model = Profile
         fields = '__all__'
+    def get_vendors(self,obj):
+        vendors = obj.vendors.all()
+        return [{"id":vendor.id, "name":vendor.name} for vendor in vendors]
 
 class PermissionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -83,6 +92,14 @@ class ProfilePermissionSerializer(serializers.ModelSerializer):
         model = Profile
         fields = ('permissions', 'role')
 
-
-        
-        
+class GetUserbyOrgSerializer(serializers.ModelSerializer):
+    organization = serializers.CharField()
+    role = serializers.SerializerMethodField()
+    user = serializers.SerializerMethodField()
+    class Meta:
+        model = Profile
+        exclude = ("usertype",)
+    def get_role(self,obj):
+        return obj.role.name
+    def get_user(self,obj):
+        return f'{obj.user.first_name} {obj.user.last_name}'

@@ -4,6 +4,7 @@ from OnBoard.Organization.models import Organizations
 from authenticate.models import PortalUser
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 from OnBoard.Ban.models import BaseDataTable, UniquePdfDataTable, BaselineDataTable
+from Dashboard.ModelsByPage.ProfileManage import Profile
 
 class devicesSerializer(serializers.ModelSerializer):
     class Meta:
@@ -150,22 +151,47 @@ class showUsers(serializers.ModelSerializer):
     class Meta:
         model = PortalUser
         fields = ('id','first_name','last_name','email')
+    
 
+class AddusertoPortalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PortalUser
+        fields = "__all__"
+
+    def create(self, validated_data):
+        password = validated_data.pop("password")
+        user = PortalUser(**validated_data)
+        user.set_password(password) 
+        user.save()
+        return user
+
+
+class AddusertoProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Profile
+        fields = "__all__"
 
     
 class OrganizationShowSerializer(serializers.ModelSerializer):
     vendors = serializers.StringRelatedField(many=True)
     locations = serializers.StringRelatedField(many=True)
-
+    profile_vendors = serializers.SerializerMethodField()
     class Meta:
         model = Organizations
-        fields = ['id', 'Organization_name', 'vendors', 'locations']
+        fields = ['id', 'Organization_name', 'vendors', 'locations', 'profile_vendors']
+    def get_profile_vendors(self,obj):
+        profile = Profile.objects.filter(organization=obj).first()
+        vendors = profile.vendors.all() if profile else None
+
+        return [{"id":ven.id, "name":ven.name} for ven in vendors] if vendors else []
 
 
 class VendorShowSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vendors
-        fields = ['name',]
+        fields = ['name','id']
+
+
 import json
 from addon import parse_until_dict
 class showOnboardedSerializer(serializers.ModelSerializer):

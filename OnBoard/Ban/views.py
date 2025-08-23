@@ -22,6 +22,8 @@ import os
 from checkbill import prove_bill_ID
 from addon import parse_until_dict
 class UploadBANView(APIView):
+    def __init__(self):
+        self.instance = None
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, pk=None):
@@ -127,12 +129,18 @@ class UploadBANView(APIView):
             else:
                 invoicemethod = None
                 mutable_data.pop('invoicemethod')
-            
+
+            vendor = get_object_or_404(Vendors, name=mutable_data.pop('Vendor', None))
+            org = get_object_or_404(Organizations, Organization_name=mutable_data.pop('organization', None))
+            accnum = mutable_data.pop('account_number', None)
+
+            if UploadBAN.objects.filter(organization=org,Vendor=vendor,account_number=accnum).exists():
+                return Response({"message":"Account Number already exists!"},status=status.HTTP_400_BAD_REQUEST)
             upload_ban = UploadBAN.objects.create(
                 user_email=get_object_or_404(PortalUser, email=mutable_data.pop('user_email', None)),
-                Vendor=get_object_or_404(Vendors, name=mutable_data.pop('Vendor', None)),
+                Vendor=vendor,
                 company=get_object_or_404(Company, Company_name=mutable_data.pop('company', None)),
-                organization=get_object_or_404(Organizations, Organization_name=mutable_data.pop('organization', None)),
+                organization=org,
                 entryType=get_object_or_404(EntryType, name=mutable_data.pop('entryType', None)),
                 location=loc,
                 costcenterlevel=costlvl,
@@ -142,9 +150,11 @@ class UploadBANView(APIView):
                 paymenttype=get_object_or_404(PaymentType, name=mutable_data.pop('paymenttype', None)),
                 invoicemethod=invoicemethod,
                 masteraccount=mutable_data.pop('masteraccount', None),
+                account_number = accnum,
                 **mutable_data
             )
             upload_ban.save()
+            self.instance = upload_ban
             obj = BaseDataTable.objects.create(
                 banUploaded = upload_ban,
                 company = upload_ban.company.Company_name if upload_ban.company else None,
@@ -233,6 +243,7 @@ class UploadBANView(APIView):
             saveuserlog(request.user, f"BAN with account number {upload_ban.account_number} created successfully!")
 
         except Exception as e:
+            if self.instance: self.instance.delete()
             print(f"Error in BAN creation: {e}")
             return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         print(lines)
@@ -259,6 +270,7 @@ class UploadBANView(APIView):
                         print("Skipping invalid line entry:", line)
 
             except Exception as e:
+                if upload_ban: upload_ban.delete()
                 print(f"Error in line creation: {e}")
                 return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -437,13 +449,16 @@ class OnboardBanView(APIView):
                     )
                     obj.save()
                     if obj.uploadBill.name.endswith('.zip'):
-                        addon = ProcessZip(obj,request.user.email)
-                        check = addon.startprocess()
-                        print(check)
-                        # if check['error'] != 0:
-                        #     return Response(
-                        #         {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
-                        #     )
+                        
+                        try:
+                            addon = ProcessZip(obj,request.user.email)
+                            check = addon.startprocess()
+                            print(check)
+                            if check['error'] != 0:
+                                if obj:obj.delete()             
+                        except:
+                            if obj:obj.delete()
+                                    
                 for i, ed in enumerate(excel_data):
                     if not ed['organization']:
                         continue
@@ -515,11 +530,16 @@ class OnboardBanView(APIView):
 
                         print("process_csv")
                         # process_csv.delay(instance_id=obj.id, buffer_data=buffer_data)
-                        classobject = ProcessCSVOnboard(instance=obj, buffer_data=buffer_data)
-                        process = classobject.process_excel_csv_data()
-                        print(process)
-                        if process['code'] != 0:
-                            print(f"Account number {process['account_number']} not processed!")
+                        try:
+                            classobject = ProcessCSVOnboard(instance=obj, buffer_data=buffer_data)
+                            process = classobject.process_excel_csv_data()
+                            print(process)
+                            if process['code'] != 0:
+                                print(f"Account number {process['account_number']} not processed!")
+                                if obj: obj.delete()
+                            
+                        except:
+                            if obj: obj.delete()
                 saveuserlog(
                     request.user, f"Multiple RDD and Excel uploaded."
                 )
@@ -579,43 +599,44 @@ class OnboardBanView(APIView):
             obj.save()
             print(obj.uploadBill.name.endswith('.zip'), 'verizon' in str(obj.vendor.name).lower())
             if obj.uploadBill.name.endswith('.zip'):
-                addon = ProcessZip(obj,request.user.email)
-                check = addon.startprocess()
-                print(check)
-                if check['error'] == -1:
-                    return Response(
-                        {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
-                    )
+                try:
+                    addon = ProcessZip(obj,request.user.email)
+                    check = addon.startprocess()
+                    print(check)
+                    if check['error'] == -1:
+                        if obj: obj.delete()
+                        return Response(
+                            {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
+                        )
+                except:
+                    if obj: obj.delete()
+                    return Response({"message":"Internal Server Error!"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             else:
                 print("Its pdf")
-                addon = InitialProcessPdf(instance=obj, user_mail=request.user.email,tp=tp)
+                try:
+                    addon = InitialProcessPdf(instance=obj, user_mail=request.user.email,tp=tp)
+                    check = addon.startprocess()
+                    print(check)
+                    if check['error'] != 0:
+                        if obj: obj.delete()
+                        return Response(
+                            {"message": f"unable to onbaord, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
+                        )
+                except Exception as e:
+                    print(e)
+                    if obj: obj.delete()
+                    return Response({"message":"Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+               
                 
-                check = addon.startprocess()
-                print(check)
-                if check['error'] != 0:
-                    return Response(
-                        {"message": f"Problem to onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
-                    )
                 month, year = None, None
                 types = []
                 print(obj)
 
                 buffer_data = json.dumps({'pdf_path': obj.uploadBill.path, 'company_name': obj.organization.company.Company_name, 'vendor_name': obj.vendor.name, 'pdf_filename': obj.uploadBill.name, 'month': month, 'year': year, 'sub_company': obj.organization.Organization_name,'entry_type':obj.entryType.name,'user_email':request.user.email,'types':types,'baseline_check':obj.addDataToBaseline,'location':obj.location.site_name if obj.location else None,'master_account':obj.masteraccount.account_number if obj.masteraccount else None})
+                
 
-                # if "verizon" in obj.vendor.name.lower():
-                #     print("yes it is verizon")
                 verizon_att_onboardPDF_processor.delay(buffer_data,obj.id,btype=tp)
-                # else:
-                    
-                # process_pdf_task(buffer_data,obj)
-                # AllUserLogs.objects.create(
-                #     user_email=request.user.email,
-                #     description=(
-                #         f"User uploaded pdf file for {obj.organization.company.Company_name} - {obj.organization.Organization_name}."
-                #         f"with vendor name {obj.vendor.name} and account number {obj.masteraccount.account_number}."
-                #     )
-                # )
-            
+
 
             saveuserlog(request.user, f"Onboard BAN with account number created successfully!")
             if bill.name.endswith('.pdf'):
@@ -723,6 +744,7 @@ class ExcelUploadView(APIView):
                 mapping_json = mapping_obj
             except json.JSONDecodeError:
                 print("")
+                if obj: obj.delete()
                 return Response({"message": "Invalid JSON"}, status=status.HTTP_400_BAD_REQUEST)
 
             ma = None
@@ -733,14 +755,18 @@ class ExcelUploadView(APIView):
                 site = obj.location.site_name
             buffer_data = json.dumps({'excel_csv_path': obj.uploadBill.path,'company':obj.organization.company.Company_name,'sub_company':obj.organization.Organization_name,'vendor':obj.vendor.name,'entry_type':obj.entryType.name,"mapping_json":mapping_json,'location':site,'master_account':ma,'email':request.user.email
                         })
-
-            classobject = ProcessCSVOnboard(instance=obj, buffer_data=buffer_data)
-            process = classobject.process_excel_csv_data()
-            print(process)
-            if process['code'] != 0:
-                return Response({"message":f"{process['message']}"},status=status.HTTP_400_BAD_REQUEST)
-            else:
-                return Response({"message":"Excel uploaded successfully!"},status=status.HTTP_200_OK)
+            try:
+                classobject = ProcessCSVOnboard(instance=obj, buffer_data=buffer_data)
+                process = classobject.process_excel_csv_data()
+                print(process)
+                if process['code'] != 0:
+                    if obj: obj.delete()
+                    return Response({"message":f"{process['message']}"},status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    return Response({"message":"Excel uploaded successfully!"},status=status.HTTP_200_OK)
+            except:
+                if obj: obj.delete()
+                return Response({"message":f"{process['message']}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
             return Response({"message":"Mapping not found!"},status=status.HTTP_400_BAD_REQUEST)
 
@@ -1023,11 +1049,22 @@ class InitialProcessPdf:
 
 
         with pdfplumber.open(self.path) as pdf:
-            for i, page in enumerate(pdf.pages):
+            pages = pdf.pages
+            for i, page in enumerate(pages):
                 text = page.extract_text()
-                if (("account" and "invoice") in text.lower()):
+                if "account" in text.lower() and re.findall(r"\b\d{5}-\d{4}\b", text):
                     if not matching_page_basic:
                         matching_page_basic.append(page)
+                        if self.type == 1:
+                            page1 = pages[i+1].within_bbox(((0, 0, page.width/2, 200)))
+                            text = page1.extract_text()
+                            pattern = re.compile(r"""
+                                (                       
+                                (?:[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{2,4}) 
+                                )                       
+                            """, re.VERBOSE)
+                            matches = pattern.search(text)
+                            self.file_bill_date = matches[0].replace(",","") if matches else None
                         break
         print(matching_page_basic)
         if not matching_page_basic:
@@ -1043,7 +1080,7 @@ class InitialProcessPdf:
             if self.type == 2:
                 self.file_acc, self.file_bill_date, self.file_billing_name = checkTmobile2(matching_page_basic)
             elif self.type == 1:
-                self.file_acc, self.file_bill_date, self.file_billing_name = checkTmobile1(matching_page_basic)
+                self.file_acc, self.file_billing_name = checkTmobile1(matching_page_basic)
             else:
                 return {'message' : f'Unable to process file, might be due to unsupported file format.', 'error' : -1}
         else:
@@ -1053,10 +1090,9 @@ class InitialProcessPdf:
         if not self.file_acc:
             return {"message":"Unable to onboard pdf due to unsupported format","error":1}
         
-        print(self.org, self.file_billing_name.upper())
+        print(self.org, self.file_billing_name)
         if "verizon" in str(self.vendor).lower():
             if not self.check_billing_name(self.org, self.file_billing_name):
-                self.instance.delete()
                 return {
                     'message': f'Organization name from the PDF file did not match with {self.org}',
                     'error': -1
@@ -1070,6 +1106,8 @@ class InitialProcessPdf:
             print(message)
             return {'message': message, 'error': 1}
 
+        self.instance.account_number = self.file_acc
+        self.instance.save()
         return {
             'message': 'Process Done',
             'error': 0,
@@ -1179,6 +1217,8 @@ class ProcessZip:
                     self.account_number = obj.accountnumber
                     obj.save()
                 print('done')
+                self.instance.account_number = self.account_number
+                self.instance.save()
                 self.save_to_pdf_data_table(data_pdf, v, t)
                 print("saved to pdf data table")
                 print("dataforbatch",data_base)
@@ -1235,6 +1275,8 @@ class ProcessZip:
                 }
                 self.save_to_portal(dataforportal)
                 self.reflect_category_object()
+                self.instance.is_processed = True
+                self.instance.save()
                 return {'message' : 'RDD uploaded successfully!', 'error' : 0}
         except Exception as e:
             print(f'Error occurred while processing zip file: {str(e)}')

@@ -29,6 +29,9 @@ def verizon_att_onboardPDF_processor(buffer_data, instance_id,btype):
     try:
         obj = ProcessPdf2(buffer_data=buffer_data_dict,instance=instance,btype=btype)
         check, msg, ProcessTime = obj.start_process()
+        if check:
+            instance.is_processed = True
+            instance.save()
 
         if ProcessTime >= 60:
             ProcessTime = f"{ProcessTime / 60:.2f} minutes"
@@ -44,10 +47,10 @@ def verizon_att_onboardPDF_processor(buffer_data, instance_id,btype):
             msg = get_error_message()
         else:
             msg = f"{msg}\nYour pdf {pdf_filename} took {ProcessTime} to process"
-        send_custom_email(receiver_mail=buffer_data_dict.get("user_email"), subject=sub, body=msg)
+        send_custom_email(company= buffer_data_dict.get('company_name'),to=buffer_data_dict.get("user_email"), subject=sub, body_text=msg)
         if not check:
             instance.delete()
-            send_custom_email(receiver_mail="gauravdhale09@gmail.com", subject=sub, body=msg)
+            send_custom_email(company= buffer_data_dict.get('company_name'),to="gauravdhale09@gmail.com", subject=sub, body_text=msg)
     except Exception as e:
         errormsg = get_error_message()
         print("Internal Server Error")
@@ -55,8 +58,8 @@ def verizon_att_onboardPDF_processor(buffer_data, instance_id,btype):
         msg = f"""Error occur during processing pdf
             {e}
         """
-        send_custom_email(receiver_mail=buffer_data_dict.get("user_email"), subject=sub, body=errormsg)
-        send_custom_email(receiver_mail="gauravdhale09@gmail.com", subject=sub, body=msg)
+        send_custom_email(company= buffer_data_dict.get('company_name'),to=buffer_data_dict.get("user_email"), subject=sub, body_text=errormsg)
+        send_custom_email(company= buffer_data_dict.get('company_name'),to="gauravdhale09@gmail.com", subject=sub, body_text=msg)
         instance.delete()
     
 from OnBoard.Ban.Background.pp import ProcessPdf
@@ -80,7 +83,7 @@ def process_pdf_task(buffer_data, instance_id):
         msg = f"""Error occur during processing pdf \n
             {e}
         """
-        send_custom_email(receiver_mail="gauravdhale09@gmail.com", subject=sub, body=msg)
+        send_custom_email(company= buffer_data_dict.get('company_name'),to="gauravdhale09@gmail.com", subject=sub, body_text=msg)
         instance.delete()
 
 

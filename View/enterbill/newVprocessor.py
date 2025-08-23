@@ -89,6 +89,10 @@ class ProcessPdf2:
             "Charges": "item_charges",
             "Plans": "plans",
             "Group":"group_number",
+            "Taxes and Surcharges": "taxes_governmental_surcharges_and_fees",
+            "Third Party Services":"third_party_charges_includes_tax",
+            "Usage Charges": "usage_and_purchase_charges", 
+            "Credits & Adjustments": "surcharges_and_other_charges_and_credits",
         }
         datadf = datadf.rename(columns=pdf_mapping)
         datadf["company"] = self.company_name
@@ -126,6 +130,10 @@ class ProcessPdf2:
             'Monthly Charges': "monthly_charges",
             "Plans": "plans",
             "Group":"group_number",
+            "Taxes and Surcharges": "taxes_governmental_surcharges_and_fees",
+            "Third Party Services":"third_party_charges_includes_tax",
+            "Usage Charges": "usage_and_purchase_charges", 
+            "Credits & Adjustments": "surcharges_and_other_charges_and_credits",
 
         }
         datadf = datadf.rename(columns=unique_mapping)
@@ -185,6 +193,10 @@ class ProcessPdf2:
             'Usage and Purchase Charges':"usage_and_purchase_charges", 
             'Monthly Charges': "monthly_charges",
             "Plans": "plans",
+            "Taxes and Surcharges": "taxes_governmental_surcharges_and_fees",
+            "Third Party Services":"third_party_charges_includes_tax",
+            "Usage Charges": "usage_and_purchase_charges", 
+            "Credits & Adjustments": "surcharges_and_other_charges_and_credits",
         }
         
         datadf = datadf.rename(columns=baseline_mapping)
@@ -481,6 +493,8 @@ class ProcessPdf2:
                     obj = Tmobile1Class(self.pdf_path)
                 elif self.t_mobile_type == 2:
                     obj = Tmobile2Class(self.pdf_path)
+                else:
+                    return False, "Unable to process pdf might be due to t-mobile unsupported format.", 0
             else:
                 obj = AttClass(self.pdf_path)
             basic_data, unique_df, baseline_df, ProcessTime = obj.extract_all()
@@ -562,7 +576,10 @@ def tagging(baseline_data, bill_data):
     bill_data = parse_until_dict(bill_data)
     def compare_and_tag(base, bill):
         for key in list(bill.keys()):
-            closely_matched = get_close_match_key(key,list(base.keys()))
+            if not key in base.keys():
+                closely_matched = get_close_match_key(key,list(base.keys()))
+            else:
+                closely_matched = key
             if not closely_matched:
                 print("not closely matched!")
                 bill[key] = {"amount": f'{str(bill[key]).strip().replace("$","")}', "approved": False}

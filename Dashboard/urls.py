@@ -125,10 +125,11 @@ manageusers = [
 ]
 urlpatterns.extend(manageusers)
 
-from .CRUDViews.Profilemanagement import ProfileManageView, ProfilePermissionsView
+from .CRUDViews.Profilemanagement import ProfileManageView, ProfilePermissionsView,GetUserbyOrgView
 profilemanagement = [
     path("profile-management/", ProfileManageView().as_view(), name='profilemanagement-list-create'),
     path("profile-management/<pk>/", ProfileManageView().as_view(), name='profilemanagement-detail'),
+    path("get-user-by-org/<org>/", GetUserbyOrgView().as_view(), name='get-by-org'),
 ]
 profilepermissions = [
     path("profile-permissions/", ProfilePermissionsView().as_view(), name='profilepermission-list-create'),
@@ -177,12 +178,13 @@ forgot = [
 ]
 urlpatterns.extend(forgot)
 
-from .CRUDViews.requests import RequestsView, OnlineFormView, RequestLogsView, RequestExcelUploadView, UniqueLineView
+from .CRUDViews.requests import RequestsView, OnlineFormView, RequestLogsView, RequestExcelUploadView, UniqueLineView, RequestUsersExcelUploadView
 
 requests = [
     path("requests-management/", RequestsView().as_view(), name='requests-list-create'),
     path("requests-management/<pk>/", RequestsView().as_view(), name='requests-detail'),
-    path("unique-line/<phone>/",UniqueLineView.as_view(),name='unique')
+    path("unique-line/<phone>/",UniqueLineView.as_view(),name='unique'),
+    path("request-users-excel-upload/<org>/",RequestUsersExcelUploadView.as_view(), name='request-users-excel')
 ]
 
 urlpatterns.extend(requests)

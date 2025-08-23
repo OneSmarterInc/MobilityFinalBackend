@@ -7,11 +7,20 @@ from OnBoard.Company.models import Company
 from Dashboard.ModelsByPage.DashAdmin import Permission
 from OnBoard.Organization.models import Organizations
 from rest_framework.permissions import IsAuthenticated
-from ..Serializers.promange import OrganizationsShowSerializer, showdesignations, showusers, ProfileSaveSerializer, ProfileShowSerializer, PermissionSerializer, ProfilePermissionSerializer
+from ..Serializers.promange import OrganizationsShowSerializer, showdesignations, showusers, ProfileSaveSerializer, ProfileShowSerializer, PermissionSerializer, ProfilePermissionSerializer,GetUserbyOrgSerializer
 from ..ModelsByPage.DashAdmin import UserRoles
 from authenticate.models import PortalUser
 from ..ModelsByPage.ProfileManage import Profile
 
+class GetUserbyOrgView(APIView):
+    # permission_classes = [IsAuthenticated]
+    def get(self, request,org, *args, **kwargs):
+        if not org:
+            return Response({"message": f"Organization required!"}, status=status.HTTP_400_BAD_REQUEST)
+        objs = Profile.objects.filter(organization=org)
+        ser = GetUserbyOrgSerializer(objs,many=True)
+        return Response({"data": ser.data}, status=status.HTTP_200_OK)
+        
 class ProfileManageView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, *args, **kwargs):   
@@ -21,9 +30,9 @@ class ProfileManageView(APIView):
             orgs = Organizations.objects.filter(company=request.user.company)
         
         ser = OrganizationsShowSerializer(orgs, many=True)
-        desg = UserRoles.objects.exclude(name='Superadmin')
+        desg = UserRoles.objects.exclude(id__in=(1,3))
         desgser = showdesignations(desg, many=True)
-        all_comapny_users = PortalUser.objects.exclude(company=None)
+        all_comapny_users = PortalUser.objects.exclude(company=None).exclude(designation__in=(1,3))
         company_users_ser = showusers(all_comapny_users, many=True)
 
         all_org_users = Profile.objects.all()

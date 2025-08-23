@@ -49,6 +49,7 @@ class ViewUploadBill(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     output_file = models.FileField(upload_to='ViewUploadedBills/', null=True, blank=True)
+    is_processed = models.BooleanField(default=False) 
 
     class Meta:
         db_table = 'ViewUploadBill'

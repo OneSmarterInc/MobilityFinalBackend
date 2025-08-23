@@ -12,10 +12,14 @@ from .ser import BatchReportSerializer, OrganizationShowSerializer, BaseDataSeri
 from openpyxl import Workbook
 from sendmail import send_custom_email
 # call update_or_create a django method
+from .emails_verify import verify_smtp_login
+from rest_framework.decorators import action
 import ast
 from io import BytesIO
 from openpyxl.utils.dataframe import dataframe_to_rows
-
+from rest_framework import viewsets, permissions
+from .models import BatchAutomation
+from .serializers import BatchAutomationSerializer
 from django.core.files.base import ContentFile
 
 from uuid import uuid4
@@ -24,7 +28,13 @@ import os
 import shutil
 import pandas as pd
 from django.forms import model_to_dict
-# Create your views here.
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework import status
+from django.shortcuts import get_object_or_404
+from .models import EmailConfiguration
+from .serializers import EmailConfigurationSerializer
+
 class BatchView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request,org, *args, **kwargs):
@@ -59,6 +69,7 @@ class BatchView(APIView):
         data = request.data
         if 'action' in data:
             org = data['sub_company']
+            company = data['company']
             from_date = data['from_date']
             to_date = data['to_date']
             ids = ast.literal_eval(data['ids'])
@@ -137,11 +148,19 @@ class BatchView(APIView):
                 rm = data.get('to_mail')
                 print("sending mail...")
                 try:
+                    # send_custom_email(
+                    #     receiver_mail=rm,
+                    #     subject='Batch Report',
+                    #     body='Please find the attached report.',
+                    #     attachment=obj.batch_file
+                    # )
                     send_custom_email(
-                        receiver_mail=rm,
-                        subject='Batch Report',
-                        body='Please find the attached report.',
-                        attachment=obj.batch_file
+                        company=company,                     # or whatever key matches your DB row
+                        organization=org,                      # or e.g., "IN-West"
+                        subject="Batch Report",
+                        to=rm,                                  # string or list
+                        body_text="Please find the attached report.",
+                        attachments=[obj.batch_file],           # list, supports FieldFile
                     )
                     return Response({"message":f"Email sent successfully sent to {rm}"}, status=status.HTTP_200_OK)
                 except Exception as e:
@@ -187,3 +206,142 @@ class BatchView(APIView):
         except Exception as e:
             print(f'Error in Batch Report delete: {e}')
             return Response({'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+class BatchAutomationViewSet(viewsets.ModelViewSet):
+    queryset = BatchAutomation.objects.all()
+    serializer_class = BatchAutomationSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        # supports ?company= or ?company_id=
+        org_id = self.request.query_params.get("company") or self.request.query_params.get("company_id")
+        if org_id:
+            qs = qs.filter(company_id=org_id)  # <-- was organization_id
+        freq = self.request.query_params.get("frequency")
+        if freq:
+            qs = qs.filter(frequency=freq)
+        return qs
+    
+    
+
+
+@api_view(['GET', 'POST'])
+def email_config_list(request):
+    from django.urls import resolve
+    print('HIT email_config_list:', resolve(request.path_info))
+    if request.method == 'GET':
+        configs = EmailConfiguration.objects.all()
+        serializer = EmailConfigurationSerializer(configs, many=True)
+        return Response(serializer.data)
+
+    if request.method == 'POST':
+        serializer = EmailConfigurationSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ✅ Retrieve (GET one), Update (PUT), Delete (DELETE)
+@api_view(['GET', 'PUT', 'DELETE'])
+def email_config_detail(request, pk):
+    config = get_object_or_404(EmailConfiguration, pk=pk)
+
+    if request.method == 'GET':
+        serializer = EmailConfigurationSerializer(config)
+        return Response(serializer.data)
+
+    if request.method == 'PUT':
+        serializer = EmailConfigurationSerializer(config, data=request.data, partial=True)  
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == 'DELETE':
+        config.delete()
+        return Response({'message': 'Deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+    
+    
+    
+class EmailConfigurationViewSet(viewsets.ModelViewSet):
+    queryset = EmailConfiguration.objects.all()
+    # serializer_class = ...  # your existing serializer
+
+    @action(detail=False, methods=["post"], url_path="verify")
+    def verify(self, request):
+        """
+        Accepts either a full config payload OR a config id to reuse stored password.
+        Body:
+          - company, organization, sender_email, smtp_username (optional), smtp_host, smtp_port, use_ssl, use_tls
+          - password (optional if id provided)
+          - id (optional) -> when present and password missing, use stored password for that row
+        """
+        data = request.data
+        config_id = data.get("id")
+        password = (data.get("password") or "").strip()
+
+        # pull from DB if id present
+        cfg = None
+        if config_id:
+            cfg = EmailConfiguration.objects.filter(id=config_id).first()
+            if not cfg:
+                return Response({"ok": False, "message": "Config not found."},
+                                status=status.HTTP_404_NOT_FOUND)
+            if not password:
+                password = (cfg.password or "").strip()
+
+        # gather fields (prefer request body; fallback to cfg)
+        def pick(key, default=None):
+            if key in data and data[key] not in (None, ""):
+                return data[key]
+            return getattr(cfg, key, default) if cfg else default
+
+        smtp_host = pick("smtp_host")
+        smtp_port = pick("smtp_port")
+        sender_email = pick("sender_email")
+        smtp_username = pick("smtp_username") or sender_email  # login default
+        use_ssl = bool(pick("use_ssl", False))
+        use_tls = bool(pick("use_tls", True))
+
+        # normalize common mismatches
+        try:
+            smtp_port = int(smtp_port)
+        except Exception:
+            return Response({"ok": False, "message": "smtp_port must be an integer."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if smtp_port == 465:
+            use_ssl, use_tls = True, False
+        elif smtp_port == 587:
+            use_tls, use_ssl = True, False
+        if use_ssl and use_tls:
+            # prefer SSL on 465, TLS otherwise
+            use_ssl = (smtp_port == 465)
+            use_tls = not use_ssl
+
+        # required checks
+        missing = [k for k, v in {
+            "smtp_host": smtp_host, "smtp_port": smtp_port,
+            "sender_email": sender_email, "password": password
+        }.items() if not v]
+        if missing:
+            return Response({"ok": False, "message": f"Missing fields: {', '.join(missing)}"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        ok, msg = verify_smtp_login(
+            host=smtp_host, port=smtp_port,
+            username=(smtp_username or sender_email),
+            password=password,
+            use_tls=use_tls, use_ssl=use_ssl,
+        )
+        code = status.HTTP_200_OK if ok else status.HTTP_400_BAD_REQUEST
+        return Response({
+            "ok": ok,
+            "message": msg,
+            "normalized": {
+                "use_ssl": use_ssl, "use_tls": use_tls, "smtp_port": smtp_port
+            }
+        }, status=code)    

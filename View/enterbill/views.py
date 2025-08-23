@@ -349,19 +349,22 @@ class UploadfileView(APIView):
             else:
                 obj.types = None
                 tp = None
+        else:
+            tp = None
                 
         if str(file.name).endswith('.pdf'):
             try:
                 addon = InitialProcessPdf(instance=obj, user_mail=request.user.email,tp=tp)
                 check = addon.startprocess()
+                print(check)
                 if check['error'] != 0:
                     obj.delete()
                     return Response(
                         {"message": f"Problem to upload file, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
                     )
-            except:
+            except Ex:
                 obj.delete()
-            print(check)
+            
             
             buffer_data = json.dumps({'pdf_path': obj.file.path,'vendor_name': obj.vendor.name if obj.vendor else None,'pdf_filename':obj.file.name,'company_name':obj.company.Company_name if obj.company else None,'sub_company_name':obj.organization.Organization_name if obj.organization else None,'types':obj.types, 'month':obj.month, 'year':obj.year, 'email':request.user.email,'account_number':obj.ban})
             print(buffer_data)
@@ -497,7 +500,10 @@ def tagging(baseline_data, bill_data):
     bill_data = parse_until_dict(bill_data)
     def compare_and_tag(base, bill):
         for key in list(bill.keys()):
-            closely_matched = get_close_match_key(key,list(base.keys()))
+            if not key in base.keys():
+                closely_matched = get_close_match_key(key,list(base.keys()))
+            else:
+                closely_matched = key
             if not closely_matched:
                 print("not closely matched!",key)
                 bill[key] = {"amount": f'{str(bill[key]).strip().replace("$","")}', "approved": False}
@@ -582,11 +588,22 @@ class InitialProcessPdf:
         
 
         with pdfplumber.open(self.path) as pdf:
-            for i, page in enumerate(pdf.pages):
+            pages = pdf.pages
+            for i, page in enumerate(pages):
                 text = page.extract_text()
-                if (("account" and "invoice") in text.lower()):
+                if "account" in text.lower() and re.findall(r"\b\d{5}-\d{4}\b", text):
                     if not matching_page_basic:
                         matching_page_basic.append(page)
+                        if self.type == 1:
+                            page1 = pages[i+1].within_bbox(((0, 0, page.width/2, 200)))
+                            text = page1.extract_text()
+                            pattern = re.compile(r"""
+                                (                       
+                                (?:[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{2,4}) 
+                                )                       
+                            """, re.VERBOSE)
+                            matches = pattern.search(text)
+                            self.file_bill_date = matches[0].replace(",","") if matches else None
                         break
         if not matching_page_basic:
             return {
@@ -600,7 +617,7 @@ class InitialProcessPdf:
             if self.type == 2:
                 self.file_acc, self.file_bill_date, self.file_billing_name = checkTmobile2(matching_page_basic)
             elif self.type == 1:
-                self.file_acc, self.file_bill_date, self.file_billing_name = checkTmobile1(matching_page_basic)
+                self.file_acc, self.file_billing_name = checkTmobile1(matching_page_basic)
             else:
                 return {'message' : f'Unable to process file, might be due to unsupported file format.', 'error' : -1}
         else:

@@ -4,6 +4,7 @@ from .models import PortalUser, UserLogs
 from django.db.utils import IntegrityError
 from django.contrib.auth.password_validation import validate_password
 from Dashboard.ModelsByPage.DashAdmin import UserRoles
+from Dashboard.ModelsByPage.ProfileManage import Profile
 
 from Dashboard.Serializers.AdminPage import UserRoleShowSerializer
 
@@ -56,13 +57,22 @@ class RegisterSerializer(serializers.ModelSerializer):
 class showUsersSerializer(serializers.ModelSerializer):
     designation = UserRoleShowSerializer()
     company = serializers.CharField(max_length=255, read_only=True)
+    organization = serializers.SerializerMethodField()
+    orgRole = serializers.SerializerMethodField()
     """
     Serializer to display user data.
     """
     class Meta:
         model = PortalUser
-        fields = ['username', 'email', 'designation', 'company']
+        fields = ['username', 'email', 'designation', 'company', 'organization','orgRole']
+    
+    def get_organization(self,obj):
+        obj = Profile.objects.filter(user=obj).first()
+        return obj.organization.Organization_name if obj and obj.organization else None
 
+    def get_orgRole(self,obj):
+        obj = Profile.objects.filter(user=obj).first()
+        return obj.role.name if obj and obj.role else None
 
 class UserLogSaveSerializer(serializers.ModelSerializer):
     class Meta:

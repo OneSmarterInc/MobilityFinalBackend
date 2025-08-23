@@ -246,7 +246,7 @@ class Tmobile2Class:
         
     
 
-# path = "Bills/Scripts/t-mobiles/TMOBILE_statement-SUMMARY-Apr06-May0520233b14995d4b9f49458b6a7cf7584c7a7b.pdf"
+# path = "Bills/Scripts/t-mobiles/Type2/T-Mobile Bill.pdf"
 # obj = Tmobile2Class(path)
 # basic, unique_df, baseline_df,totalTime = obj.extract_all()
 # print(basic)
@@ -257,4 +257,3 @@ class Tmobile2Class:
 # baseline_df.to_csv("baseline.csv")
 # baseline_df.to_json("baseline.json",orient="records",indent=2)
 # print(totalTime)
-    

@@ -8,21 +8,22 @@ from Dashboard.ModelsByPage.DashAdmin import Permission
 from OnBoard.Organization.models import Organizations
 from rest_framework.permissions import IsAuthenticated
 from ..ModelsByPage.Req import Requests
-from ..Serializers.requestser import showRequestSerializer, showOrganizations, showUsers, RequestsSaveSerializer, showOnboardedSerializer, OrganizationShowSerializer, VendorShowSerializer, UniquePdfShowSerializer
+from ..Serializers.requestser import showRequestSerializer, showOrganizations, showUsers, RequestsSaveSerializer, showOnboardedSerializer, OrganizationShowSerializer, VendorShowSerializer, UniquePdfShowSerializer, AddusertoPortalSerializer, AddusertoProfileSerializer
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 from OnBoard.Ban.models import BaseDataTable, UniquePdfDataTable
 from authenticate.models import PortalUser
+from Dashboard.ModelsByPage.ProfileManage import Profile
 
 class RequestsView(APIView):
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
     def get(self, request,pk=None, *args, **kwargs):
-        if pk==None:
+        if pk is None:
             all_objs = Requests.objects.all().order_by('-created')
             ser = showRequestSerializer(all_objs, many=True)
         else:
             obj = Requests.objects.get(id=pk)
             ser = showRequestSerializer(obj)
-        orgs = showOrganizations(Organizations.objects.all(), many=True)
+        orgs = showOrganizations(Organizations.objects.filter(company=request.user.company) if request.user.company else Organizations.objects.all(), many=True)
         users = showUsers(PortalUser.objects.exclude(company=None) ,many=True)
         onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).exclude(Entry_type="Master Account"), many=True)
         return Response({"data":ser.data,"organizations":orgs.data, "users":users.data, "bans":onboarded.data},status=status.HTTP_200_OK)
@@ -59,13 +60,17 @@ import json
 class OnlineFormView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request,pk=None, *args, **kwargs):
-       
-        orgs = OrganizationShowSerializer(Organizations.objects.all(), many=True)
+        
+        all_orgs = Organizations.objects.filter(company=request.user.company) if request.user.company else Organizations.objects.all()
+        orgs = OrganizationShowSerializer(all_orgs, many=True)
         vendors = VendorShowSerializer(Vendors.objects.all(), many=True)
         onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).exclude(Entry_type="Master Account"), many=True)
         unique = UniquePdfShowSerializer(UniquePdfDataTable.objects.filter(viewuploaded=None,viewpapered=None), many=True)
-        users = showUsers(PortalUser.objects.exclude(company=None) ,many=True)
-        return Response({"organizations":orgs.data, "vendors":vendors.data, "bans":onboarded.data, "lines":unique.data,"users":users.data},status=status.HTTP_200_OK)
+        profile_users = Profile.objects.filter(organization__in=all_orgs).select_related("user")
+        print(profile_users)
+        users = [p.user for p in profile_users if p.user.company is not None]
+        users_data = showUsers(users, many=True)
+        return Response({"organizations":orgs.data, "vendors":vendors.data, "bans":onboarded.data, "lines":unique.data,"users":users_data.data},status=status.HTTP_200_OK)
     
     def post(self, request, *args, **kwargs):
         data = request.data.copy()
@@ -114,7 +119,8 @@ class RequestLogsView(APIView):
         else:
             obj = Requests.objects.get(id=pk)
             ser = showRequestSerializer(obj)
-        orgs = showOrganizations(Organizations.objects.all(), many=True)
+        all_orgs = Organizations.objects.filter(company=request.user.company) if request.user.company else Organizations.objects.all()
+        orgs = showOrganizations(all_orgs, many=True)
         users = showUsers(PortalUser.objects.exclude(company=None) ,many=True)
 
         return Response({"data":ser.data,"organizations":orgs.data, "users":users.data},status=status.HTTP_200_OK)
@@ -186,6 +192,89 @@ class RequestExcelUploadView(APIView):
             print(e)
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+from Dashboard.ModelsByPage.DashAdmin import UserRoles, Vendors
+from authenticate.models import PortalUser
+
+
+class RequestUsersExcelUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, org, *args, **kwargs):
+        errorBuffer = {}
+        orgobj = Organizations.objects.filter(id=org).first()
+            
+        if not orgobj:
+            return Response({"message": f"Organization with name '{org}' does not exist."},status=status.HTTP_400_BAD_REQUEST)
+        
+        data = request.data.copy()
+
+        for obj in data:
+            vendor = obj.get('vendor')
+            role = obj.get('user_role')
+            email = obj.get('contact_email')
+            phone = obj.get('contact_phone')
+            username = obj.get('user_name')
+            fn = obj.get('first_name')
+            ln = obj.get('last_name')
+
+            if PortalUser.objects.filter(email=email).exists():
+                errorBuffer[email] = ['user with this email already exists']
+
+            roleObj = UserRoles.objects.filter(name=role).first()
+            if not roleObj:
+                roleObj = UserRoles.objects.create(name=role)
+            else:
+                roleObj = roleObj
+            
+            vendorObj = Vendors.objects.filter(name=vendor).first()
+            if not vendorObj:
+                errorBuffer.setdefault(email, []).append('vendor not found')
+                continue
+                
+            PortalDict = {
+                "company": orgobj.company.id, 
+                "email": email,
+                "first_name":fn,
+                "last_name":ln,
+                "username":str(email).split("@")[0],
+                "phone_number":phone,
+                "designation":roleObj.id,
+                "password":1234,
+            }
+            print(PortalDict)
+
+            portalser = AddusertoPortalSerializer(data=PortalDict)
+            if portalser.is_valid():
+                portalser.save()
+            else:
+                print(portalser.errors)
+                continue
+            print(portalser.data)
+            ProfileDict = {
+                "user":portalser.data.get('id'),
+                "organization":orgobj.id,
+                "role":roleObj.id,
+                "vendors": [vendorObj.id],
+                "email":email,
+                "phone":phone,
+            }
+            print(ProfileDict)
+            profileser = AddusertoProfileSerializer(data=ProfileDict)
+            if profileser.is_valid():
+                profileser.save()
+            else:
+                print("errors==",profileser.errors)
+                continue
+            print(profileser.data)
+        print(errorBuffer)
+        return Response({"message":"Bulk users excel uploaded successfully!"},status=status.HTTP_200_OK)
+
+            
+
+            
+
+
+        
 from ..ModelsByPage.Req import TrackingInfo
 from ..Serializers.requestser import showtrackinfoSerializer,trackinfoSerializer
 class TrackingInfoView(APIView):

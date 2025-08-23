@@ -9,7 +9,6 @@ from authenticate.models import PortalUser
 import datetime
 
 
-
 # Base Account Number
 
 class UploadBAN(models.Model):
@@ -192,6 +191,7 @@ class OnboardBan(models.Model):
     masteraccount = models.ForeignKey(
         UploadBAN, related_name='masteraccOnboardBan', on_delete=models.SET_NULL, null=True)
     is_it_consolidatedBan = models.BooleanField(default=False)
+    account_number = models.CharField(max_length=100, null=True, blank=True)
     location = models.ForeignKey(Location, related_name='locationOnboardBan', on_delete=models.SET_NULL, null=True)
 
     addDataToBaseline = models.BooleanField(default=False)
@@ -199,6 +199,7 @@ class OnboardBan(models.Model):
     billType = models.ForeignKey(BillType, related_name='billtypes', on_delete=models.SET_NULL, null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True, null=True)
+    is_processed = models.BooleanField(default=False) 
     
     class Meta:
         db_table = 'OnboardBAN'
@@ -374,7 +375,7 @@ class BaseDataTable(models.Model):
     BillingCountry = models.CharField(max_length=255, null=True, blank=True, default="United States")
     BillingAtn = models.CharField(max_length=255, null=True, blank=True, default="")
     BillingDate = models.CharField(max_length=255, null=True, blank=True, default="")
-
+    is_production = models.BooleanField(default=False)
     ### Remittance Information
     RemittanceName = models.CharField(max_length=255, null=True, blank=True, default="")
     RemittanceState = models.CharField(max_length=255, null=False, blank=False, default="")
