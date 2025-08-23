@@ -210,6 +210,7 @@ class RequestUsersExcelUploadView(APIView):
 
         for obj in data:
             vendor = obj.get('vendor')
+            vendor_ids = []
             role = obj.get('user_role')
             email = obj.get('contact_email')
             phone = obj.get('contact_phone')
@@ -226,10 +227,16 @@ class RequestUsersExcelUploadView(APIView):
             else:
                 roleObj = roleObj
             
-            vendorObj = Vendors.objects.filter(name=vendor).first()
-            if not vendorObj:
-                errorBuffer.setdefault(email, []).append('vendor not found')
-                continue
+            
+            if isinstance(vendor, list):
+                # vendor is a list → filter only those that exist
+                existing_vendors = Vendors.objects.filter(name__in=vendor)
+                vendor_ids = list(existing_vendors.values_list('id', flat=True))
+            else:
+                # vendor is a single string → check one
+                vendorObj = Vendors.objects.filter(name=vendor).first()
+                if vendorObj:
+                    vendor_ids = [vendorObj.id]
                 
             PortalDict = {
                 "company": orgobj.company.id, 

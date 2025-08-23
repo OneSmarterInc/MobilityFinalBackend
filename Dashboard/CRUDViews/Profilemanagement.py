@@ -35,7 +35,7 @@ class ProfileManageView(APIView):
         all_comapny_users = PortalUser.objects.exclude(company=None).exclude(designation__in=(1,3))
         company_users_ser = showusers(all_comapny_users, many=True)
 
-        all_org_users = Profile.objects.all()
+        all_org_users = Profile.objects.exclude(company=None).exclude(organization=None)
         org_users_ser = ProfileShowSerializer(all_org_users, many=True)
         
         return Response({"orgs": ser.data, "desg":desgser.data, "company_users":company_users_ser.data, "org_users":org_users_ser.data}, status=status.HTTP_200_OK)
