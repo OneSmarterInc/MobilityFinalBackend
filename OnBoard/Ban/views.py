@@ -649,7 +649,8 @@ class OnboardBanView(APIView):
             )
 
         except Exception as e:
-            print(f"Error in Onboard BAN creation: {e}")
+            if obj : obj.delete()
+            print(f"Error in Onboard BAN: {e}")
             return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     
@@ -1091,12 +1092,12 @@ class InitialProcessPdf:
             return {"message":"Unable to onboard pdf due to unsupported format","error":1}
         
         print(self.org, self.file_billing_name)
-        if "verizon" in str(self.vendor).lower():
-            if not self.check_billing_name(self.org, self.file_billing_name):
-                return {
-                    'message': f'Organization name from the PDF file did not match with {self.org}',
-                    'error': -1
-                }
+        # if "verizon" in str(self.vendor).lower():
+        #     if not self.check_billing_name(self.org, self.file_billing_name):
+        #         return {
+        #             'message': f'Organization name from the PDF file did not match with {self.org}',
+        #             'error': -1
+        #         }
 
           
         acc_exists  = BaseDataTable.objects.filter(accountnumber=self.file_acc, sub_company=self.org,company=self.company)

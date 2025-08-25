@@ -22,7 +22,7 @@ class GetUserbyOrgView(APIView):
         return Response({"data": ser.data}, status=status.HTTP_200_OK)
         
 class ProfileManageView(APIView):
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
     def get(self, request, *args, **kwargs):   
         if request.user.designation.name == "Superadmin":
             orgs = Organizations.objects.all()
@@ -35,17 +35,26 @@ class ProfileManageView(APIView):
         all_comapny_users = PortalUser.objects.exclude(company=None).exclude(designation__in=(1,3))
         company_users_ser = showusers(all_comapny_users, many=True)
 
-        all_org_users = Profile.objects.exclude(company=None).exclude(organization=None)
+        all_org_users = Profile.objects.exclude(organization=None)
         org_users_ser = ProfileShowSerializer(all_org_users, many=True)
         
         return Response({"orgs": ser.data, "desg":desgser.data, "company_users":company_users_ser.data, "org_users":org_users_ser.data}, status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
         data = request.data.copy()
         org = data.get('organization')
-        orginstance = Organizations.objects.get(id=org)
+        orginstance = Organizations.objects.filter(id=org).first()
+        if not orginstance:
+            return  Response({"message": f"Organization not found"}, status=status.HTTP_400_BAD_REQUEST)
         check = Profile.objects.filter(organization=org,user=data.get('user'))
         if check:
-            return Response({"message": f"User already designated as {check[0].role.name} for organization {orginstance.Organization_name}!"}, status=status.HTTP_400_BAD_REQUEST)
+            obj = check.first()
+            ser = ProfileSaveSerializer(obj, data=data, partial=True)
+            if ser.is_valid():
+                ser.save()
+                return Response({"message": "Profile updated successfully!"}, status=status.HTTP_200_OK)
+            else:
+                print(ser.errors)
+                return Response({"message": f"Unable to update profile"}, status=status.HTTP_400_BAD_REQUEST)
         ser = ProfileSaveSerializer(data=data)
         if ser.is_valid():
             ser.save()
@@ -91,3 +100,17 @@ class ProfilePermissionsView(APIView):
             print(ser.errors)
             return Response({"message": f"{str(ser.errors)}"}, status=status.HTTP_400_BAD_REQUEST)
         
+class ProfileUpdateView(APIView):
+    # permission_classes = [IsAuthenticated]
+    def put(self, request,pk, *args, **kwargs):   
+        obj = Profile.objects.filter(id=pk).first()
+        if not obj:
+            return Response({"message":"Profile not found!"}, status=status.HTTP_400_BAD_REQUEST) 
+        
+        ser = ProfileSaveSerializer(obj, data=request.data, partial=True)
+        if ser.is_valid():
+            ser.save()
+            return Response({"message": "Profile updated successfully!"}, status=status.HTTP_200_OK)
+        else:
+            print(ser.errors)
+            return Response({"message": f"Unable to update profile"}, status=status.HTTP_400_BAD_REQUEST)

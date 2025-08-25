@@ -63,8 +63,6 @@ from .newbillprocessor import ProcessBills
 
 
 @shared_task
-
-@shared_task
 def process_view_bills(buffer_data, instance_id):
     print("Processing view bills...")
     buffer_data_dict = json.loads(buffer_data)

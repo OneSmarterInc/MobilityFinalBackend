@@ -627,9 +627,9 @@ class InitialProcessPdf:
         
         if not self.file_acc and not self.file_bill_date:
             return {'message' : f'Unable to process file, might be due to unsupported file format.', 'error' : -1}
-        if "verizon" in str(self.vendor).lower():
-            if not self.check_billing_name(self.org, self.file_billing_name):
-                return {'message' : f'Organization name from the Pdf file did not matched with {self.org}', 'error' : -1}
+        # if "verizon" in str(self.vendor).lower():
+        #     if not self.check_billing_name(self.org, self.file_billing_name):
+        #         return {'message' : f'Organization name from the Pdf file did not matched with {self.org}', 'error' : -1}
 
         bill_date_pdf = self.file_bill_date.split(" ")
         if self.file_acc != self.account_number:

@@ -20,10 +20,23 @@ class showrolename(serializers.ModelSerializer):
         model = UserRoles
         fields = ['name',]
 class showusers(serializers.ModelSerializer):
+    organization = serializers.SerializerMethodField()
+    vendors = serializers.SerializerMethodField()
     designation = showrolename()
     class Meta:
         model = PortalUser
-        fields = ['first_name', 'last_name','id','designation','username', 'email','phone_number','mobile_number']
+        fields = ['first_name', 'last_name','id','designation','username', 'email','phone_number','mobile_number','organization','vendors']
+    def get_vendors(self,obj):
+        profile_obj = Profile.objects.filter(user=obj).first()
+
+        if profile_obj:
+            vendors = profile_obj.vendors.all()
+            return [{"id":vendor.id, "name":vendor.name} for vendor in vendors]  if vendors else []
+        else: return []
+        
+    def get_organization(self,obj):
+        profile_obj = Profile.objects.filter(user=obj).first()
+        return {"id":profile_obj.organization.id, "name": profile_obj.organization.Organization_name} if profile_obj else {"id":"", "name":""}
 
 class ProfileSaveSerializer(serializers.ModelSerializer):
     permissions = serializers.ListField(
@@ -74,7 +87,7 @@ class ProfileShowSerializer(serializers.ModelSerializer):
         fields = '__all__'
     def get_vendors(self,obj):
         vendors = obj.vendors.all()
-        return [{"id":vendor.id, "name":vendor.name} for vendor in vendors]
+        return [{"id":vendor.id, "name":vendor.name} for vendor in vendors] if vendors else []
 
 class PermissionSerializer(serializers.ModelSerializer):
     class Meta:

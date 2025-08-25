@@ -125,11 +125,12 @@ manageusers = [
 ]
 urlpatterns.extend(manageusers)
 
-from .CRUDViews.Profilemanagement import ProfileManageView, ProfilePermissionsView,GetUserbyOrgView
+from .CRUDViews.Profilemanagement import ProfileManageView, ProfilePermissionsView,GetUserbyOrgView,ProfileUpdateView
 profilemanagement = [
     path("profile-management/", ProfileManageView().as_view(), name='profilemanagement-list-create'),
     path("profile-management/<pk>/", ProfileManageView().as_view(), name='profilemanagement-detail'),
     path("get-user-by-org/<org>/", GetUserbyOrgView().as_view(), name='get-by-org'),
+    path("update-profile/<pk>/", ProfileUpdateView().as_view(), name='update-profile'),
 ]
 profilepermissions = [
     path("profile-permissions/", ProfilePermissionsView().as_view(), name='profilepermission-list-create'),
