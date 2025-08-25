@@ -155,6 +155,8 @@ def send_custom_email(
     config_override: Optional[Mapping[str, object]] = None,
     fail_silently: bool = False,
 ) -> bool:
+    if not to:
+        return
     """
     Per-company/org email sender.
     - Looks up EmailConfiguration, then applies `config_override` (wins on conflicts).
@@ -221,6 +223,7 @@ def send_custom_email(
 
     try:
         sent = message.send(fail_silently=fail_silently)
+        print(f"Message sent sucessfully to {to}")
         return bool(sent)
     except Exception:
         if fail_silently:

@@ -15,6 +15,9 @@ import time
 @shared_task
 def verizon_att_enterBill_processor(buffer_data, instance_id,btype):
     buffer_data_dict = json.loads(buffer_data)
+    com = buffer_data_dict.get('company_name')
+    sc = buffer_data_dict.get('sub_company_name')
+    email = buffer_data_dict.get('email')
 
     try:
         instance = ViewUploadBill.objects.get(id=instance_id)
@@ -35,7 +38,7 @@ def verizon_att_enterBill_processor(buffer_data, instance_id,btype):
             ProcessTime = f"{ProcessTime:.2f} seconds"
         print("Process Time:", ProcessTime)
         
-        sub = "SimpleTek Pdf PDF Bill Upload"
+        sub = "Pdf PDF Bill Upload"
         pdf_filename = buffer_data_dict.get("pdf_filename")
         if pdf_filename:
             pdf_filename = pdf_filename.split("/")[-1]
@@ -43,20 +46,21 @@ def verizon_att_enterBill_processor(buffer_data, instance_id,btype):
             msg = get_error_message()
         else:
             msg = f"{msg}\nYour pdf {pdf_filename} took {ProcessTime} to process"
-        send_custom_email(company= buffer_data_dict.get('company_name'),to=buffer_data_dict.get("email"), subject=sub, body_text=msg)
+        send_custom_email(company=com, organization=sc,to=email, subject=sub, body_text=msg)
         if not check:
-            instance.delete()
-            send_custom_email(company= buffer_data_dict.get('company_name'),to="gauravdhale09@gmail.com", subject=sub, body_text=msg)
+            if instance: instance.delete()
+            send_custom_email(company=com, organization=sc,to="gauravdhale09@gmail.com", subject=sub, body_text=msg)
     except Exception as e:
         errormsg = get_error_message()
         print("Internal Server Error")
-        sub = "SimpleTek PDF Upload-Internal Server Error"
+        sub = "PDF Upload-Internal Server Error"
         msg = f"""Error occur during processing pdf
             {e}
         """
-        send_custom_email(company= buffer_data_dict.get('company_name'),to=buffer_data_dict.get("email"), subject=sub, body_text=errormsg)
-        send_custom_email(company= buffer_data_dict.get('company_name'),to="gauravdhale09@gmail.com", subject=sub, body_text=msg)
-        instance.delete()
+        send_custom_email(company=com, organization=sc,to=email, subject=sub, body_text=msg)
+        send_custom_email(company=com, organization=sc,to="gauravdhale09@gmail.com", subject=sub, body_text=msg)
+    
+        if instance: instance.delete()
 
 from View.enterbill.ep import EnterBillProcessExcel
 from .newbillprocessor import ProcessBills

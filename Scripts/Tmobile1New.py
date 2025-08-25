@@ -251,15 +251,15 @@ class Tmobile1Class:
         unique_df = self.unique_data(matching_pages_unique)
         
         # unique df charges
-        charges_list = list(unique_df["Total Charges"].str.replace("$", "", regex=False).str.replace(",", "", regex=False).astype(float))
-        sum_of_total_charges = sum(charges_list)
-        print("unique df sum=",round(sum_of_total_charges,2))
+        # charges_list = list(unique_df["Total Charges"].str.replace("$", "", regex=False).str.replace(",", "", regex=False).astype(float))
+        # sum_of_total_charges = sum(charges_list)
+        # print("unique df sum=",round(sum_of_total_charges,2))
         baseline_df = self.baseline_data(matching_pages_baseline,unique_df)
         
         # whole basline df charges
-        charges_list = list(baseline_df["Charges"].str.replace("$", "", regex=False).str.replace(",", "", regex=False).astype(float))
-        sum_of_total_charges = sum(charges_list)
-        print("baseline df sum=",round(sum_of_total_charges,2))
+        # charges_list = list(baseline_df["Charges"].str.replace("$", "", regex=False).str.replace(",", "", regex=False).astype(float))
+        # sum_of_total_charges = sum(charges_list)
+        # print("baseline df sum=",round(sum_of_total_charges,2))
         
         # charges by wn baseline df
         baseline_df["Charges"] = (

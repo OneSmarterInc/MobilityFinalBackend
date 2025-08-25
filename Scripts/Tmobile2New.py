@@ -246,7 +246,7 @@ class Tmobile2Class:
         
     
 
-# path = "Bills/Scripts/t-mobiles/Type2/T-Mobile Bill.pdf"
+# path = "Bills/Scripts/t-mobiles/Type2/TMOBILE_statement-SUMMARY-Apr06-May0520233b14995d4b9f49458b6a7cf7584c7a7b.pdf"
 # obj = Tmobile2Class(path)
 # basic, unique_df, baseline_df,totalTime = obj.extract_all()
 # print(basic)
