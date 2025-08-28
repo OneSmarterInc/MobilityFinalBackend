@@ -8,7 +8,7 @@ from ...Location.models import Location
 class BanshowSerializer(serializers.ModelSerializer):
     class Meta:
         model = BaseDataTable
-        fields = ['accountnumber','vendor']
+        fields = ['accountnumber','vendor','sub_company']
 
 class OrganizationShowuploadSerializer(serializers.ModelSerializer):
     locations = serializers.StringRelatedField(many=True)

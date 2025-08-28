@@ -13,6 +13,7 @@ from Dashboard.ModelsByPage.DashAdmin import Vendors
 from OnBoard.Ban.models import BaseDataTable, UniquePdfDataTable
 from authenticate.models import PortalUser
 from Dashboard.ModelsByPage.ProfileManage import Profile
+from authenticate.views import saveuserlog
 
 class RequestsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -35,25 +36,29 @@ class RequestsView(APIView):
         except Requests.DoesNotExist:
             return Response({"message":"Request not found!"},status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"message":str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"message":"Internal Server Error!"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         data = request.data.copy() 
         data = json.loads(data) if not isinstance(data, dict) else data
         ser = RequestsSaveSerializer(obj, data=data,partial=True)
         if ser.is_valid():
             ser.save()
+            data = ser.data
+            saveuserlog(request.user, f"Request {data['request_type']} updated.")
             return Response({"message":"Request updated successfully!"},status=status.HTTP_200_OK)
         else:
-            return Response({"message":str(ser.errors)},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"Unable to update request."},status=status.HTTP_400_BAD_REQUEST)
         
     def delete(self, request,pk, *args, **kwargs):
         try:
-            re = Requests.objects.get(id=pk)
+            re = Requests.objects.filter(id=pk).first()
+            line = re.mobile
             re.delete()
+            saveuserlog(request.user, f"Request {re.request_type}  deleted.")
             return Response({"message": "Request deleted successfully!"}, status=status.HTTP_200_OK)
         except Requests.DoesNotExist:
             return Response({"message": "request does not exist"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"message":str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"Unable to delete request."}, status=status.HTTP_400_BAD_REQUEST)
     
 import json
 
@@ -104,11 +109,13 @@ class OnlineFormView(APIView):
             ser = RequestsSaveSerializer(data=line)
             if ser.is_valid():
                 ser.save()
-                    
+                data = request.data
+                saveuserlog(request.user, f"request {r_type} created for organization {org_name} and line {line['mobile']}") 
             else:
                 print(ser.errors)
-                return Response({"message":{str(ser.errors)}},status=status.HTTP_400_BAD_REQUEST)
-        return Response({"message":f"{len(lines)} Lines added successfully!" if r_type=='Add New Line' else "Request added successfully!"},status=status.HTTP_200_OK)
+                return Response({"message":"Unable to create request"},status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({"message":f"Request to add {len(lines)} Line/s created successfully!" if r_type=='Add New Line' else "Request created successfully!"},status=status.HTTP_200_OK)
 
 class RequestLogsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -132,24 +139,31 @@ class RequestLogsView(APIView):
         except Requests.DoesNotExist:
             return Response({"message":"Request not found!"},status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"message":str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"message":"Internal Server Error!"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         data = request.data.copy()
+        org = obj.organization.Organization_name
         ser = RequestsSaveSerializer(obj, data=data,partial=True)
         if ser.is_valid():
             ser.save()
+            data = ser.data
+            saveuserlog(request.user, f"request {obj.request_type} updated for organization {org} and line {obj.mobile}")
             return Response({"message":"Request updated successfully!"},status=status.HTTP_200_OK)
         else:
-            return Response({"message":str(ser.errors)},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"Unable to update request."},status=status.HTTP_400_BAD_REQUEST)
         
     def delete(self, request,pk, *args, **kwargs):
         try:
-            re = Requests.objects.get(id=pk)
+            re = Requests.objects.filter(id=pk).first()
+            org = re.organization.Organization_name
+            rt = re.request_type
+            mobile = re.mobile
             re.delete()
+            saveuserlog(request.user, f"request {rt} deleted for organization {org} and line {obj.mobile}")
             return Response({"message": "Request deleted successfully!"}, status=status.HTTP_200_OK)
         except Requests.DoesNotExist:
             return Response({"message": "request does not exist"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"message":str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"Unable to delete request."}, status=status.HTTP_400_BAD_REQUEST)
         
 from addon import str_to_bool
 
@@ -185,12 +199,12 @@ class RequestExcelUploadView(APIView):
                 
                 instance = Requests(**obj)
                 instance.save()  # Save individually to trigger signals or validations
-
+            saveuserlog(request.user, f"Requests in bulk for organization {org} created successfully.")
             return Response({"message": "Excel data uploaded successfully!"}, status=status.HTTP_200_OK)
 
         except Exception as e:
             print(e)
-            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Unable to create bulk requests."}, status=status.HTTP_400_BAD_REQUEST)
 
 from Dashboard.ModelsByPage.DashAdmin import UserRoles, Vendors
 from authenticate.models import PortalUser
@@ -283,7 +297,8 @@ class RequestUsersExcelUploadView(APIView):
                 continue
             print(profileser.data)
         print(errorBuffer)
-        return Response({"message":"Bulk users excel uploaded successfully!"},status=status.HTTP_200_OK)
+        saveuserlog(request.user, f"Profile users in bulk for organization {orgobj.Organization_name} created successfully.")
+        return Response({"message":"Bulk users created successfully!"},status=status.HTTP_200_OK)
 
             
 
@@ -311,16 +326,22 @@ class TrackingInfoView(APIView):
         ser = trackinfoSerializer(obj,data=request.data,partial=True)
         if ser.is_valid():
             ser.save()
+            data = ser.data
+            saveuserlog(request.user, f"Tracking info for request {data['mobile']} updated.")
             return Response({"message":"Tracking Information  updated succesfully!","data":ser.data},status=status.HTTP_200_OK)
         else:
             return Response({"message":str(ser.errors)},status=status.HTTP_400_BAD_REQUEST)
     def delete(self, request, pk, *args, **kwargs):
         obj = TrackingInfo.objects.filter(id=pk).first()
+        line = obj.mobile
         if not obj:
             return Response({"message":"Tracking Information  not found"},status=status.HTTP_400_BAD_REQUEST)
         obj.delete()
+        saveuserlog(request.user, f"Tracking info for request {line} updated.")
         return Response({"message":"Tracking Information  deleted sucessfully!"},status=status.HTTP_200_OK)
+        
 from ..Serializers.requestser import PhoneShowSerializer
+
 class UniqueLineView(APIView):
     def get(self,request, phone, *args, **kwargs):
         if not phone:

@@ -33,7 +33,7 @@ class OnboardOrganizationView(APIView):
             saveuserlog(request.user, f'Organization with name {serializer.data["Organization_name"]} created successfully!')
             return Response({"message" : "Organization created successfully!", "data" : serializer.data}, status=status.HTTP_201_CREATED)
         print(serializer.errors)
-        return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"message": "Unable to create organization."}, status=status.HTTP_400_BAD_REQUEST)
     
     def get(self, request, pk=None):
         if pk is None:
@@ -63,16 +63,17 @@ class OnboardOrganizationView(APIView):
         serializer = OrganizationSaveSerializer(organization, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            saveuserlog(request.user, f'Organization with name {organization.Organization_name} updated successfully!')  
+            saveuserlog(request.user, f'Organization {organization.Organization_name} updated successfully!')  
             return Response({"message" : "Organization updated successfully!", "data": serializer.data}, status=status.HTTP_200_OK)
-        return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"message": "Unable to update organization."}, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, pk):
         print(pk)
         try:
             organization = Organizations.objects.get(id=pk)
+            name = organization.Organization_name
             organization.delete()
-            saveuserlog(request.user, f'Organization with name {pk} deleted successfully!')
+            saveuserlog(request.user, f'Organization {name} deleted successfully!')
             return Response({"message": "Organization deleted successfully!"}, status=status.HTTP_200_OK)
         except Organizations.DoesNotExist:
             return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -96,14 +97,14 @@ class DivisionView(APIView):
         try:
             if serializer.is_valid():
                 serializer.save()
-                saveuserlog(request.user, f'Division with name {serializer.data["name"]} created successfully!')
+                saveuserlog(request.user, f'Division {serializer.data["name"]} created successfully!')
                 return Response({"message" : "Division created successfully!", "data" : serializer.data}, status=status.HTTP_201_CREATED)
             else:
                 print(serializer.errors)
-                return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)        
+                return Response({"message": "Unable to create division."}, status=status.HTTP_400_BAD_REQUEST)        
         except Exception as e:
             print(e)
-            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"message": "Unable to create division."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     def get(self, request, org, pk=None):
         if pk is None:
             divisions = Division.objects.filter(organization=org)
@@ -133,21 +134,22 @@ class DivisionView(APIView):
             serializer = DivisionSerializer(division, data={"organization": org_name, 'company' : company_name, **request.data})
             if serializer.is_valid():
                 serializer.save()
-                saveuserlog(request.user, f'Division with name {division.name} updated successfully!')
+                saveuserlog(request.user, f'Division {division.name} updated successfully!')
                 return Response({"message" : "Division updated successfully!", "data": serializer.data}, status=status.HTTP_200_OK)
             else:
-                return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message": "Unable to update division."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             print(e)
-            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"message": "Unable to update division."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def delete(self, request, org, pk):
         try:
             division = Division.objects.filter(organization=org, id=pk).first()
         except Division.DoesNotExist:
             return Response({"message": "Division not found"}, status=status.HTTP_404_NOT_FOUND)
+        name = division.name
         division.delete()
-        saveuserlog(request.user, f'Division with name {pk} deleted successfully!')
+        saveuserlog(request.user, f'Division {name} deleted successfully!')
         return Response({"message": "Division deleted successfully!"}, status=status.HTTP_200_OK)
         
 from .models import Links
@@ -166,13 +168,13 @@ class LinksView(APIView):
                 serializer = LinkSerializer(data={"organization": org_name, 'company' : company_name, **data})
                 if serializer.is_valid():
                     serializer.save()
-                    saveuserlog(request.user, f'Link with name {serializer.data["name"]} created successfully!')
+                    saveuserlog(request.user, f'Link {serializer.data["name"]} created successfully!')
                 else:
-                    return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({"message": "Unable to create link."}, status=status.HTTP_400_BAD_REQUEST)
             return Response({"message" : "Link created successfully!", "data" : serializer.data}, status=status.HTTP_201_CREATED)
         except Exception as e:
             print(e)
-            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"message": "Unable to create link."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     
     def get(self, request, org, pk=None):
@@ -197,16 +199,17 @@ class LinksView(APIView):
         serializer = LinkSerializer(link, data=request.data,partial=True)
         if serializer.is_valid():
             serializer.save()
-            saveuserlog(request.user, f'Link with name {pk} updated successfully!')
+            saveuserlog(request.user, f'Link {link.name} updated successfully!')
             return Response({"message" : "Link updated successfully!", "data": serializer.data}, status=status.HTTP_200_OK)
-        return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"message": "Unable to update link."}, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, org, pk):
         print(pk)
         try:
             link = Links.objects.filter(id=pk).first()
+            name = link.name
             link.delete()
-            saveuserlog(request.user, f'Link with name {pk} deleted successfully!')
+            saveuserlog(request.user, f'Link {name} deleted successfully!')
             return Response({"message": "Link deleted successfully!"}, status=status.HTTP_200_OK)
         except Links.DoesNotExist:
             return Response({"message": "Link not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -232,8 +235,8 @@ def ChangeOrgStatus(request, pk):
         else:
             return Response({"message": "Invalid status. Status should be Active, Inactive, or Closed."}, status=status.HTTP_400_BAD_REQUEST)
         organization.save()
-        saveuserlog(request.user, f'Organization status changed to {string_status} for {organization.Organization_name}')
+        saveuserlog(request.user, f'Organization {organization.Organization_name} status changed to {string_status}')
         return Response({"message": f"Organization status changed to {string_status}."}, status=status.HTTP_200_OK)
     except Exception as e:
         print("error", e)
-        return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({"message": "Unable to update organization."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

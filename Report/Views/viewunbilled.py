@@ -187,8 +187,8 @@ class ViewUnbilledReportView(APIView):
                     self.data = showUnbilledReport(filtered_data, many=True)
                 except Exception as e:
                     print(e)
-                    return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                
+                    return Response({"message": "Internal Server Error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            saveuserlog(request.user, f"Unilled data report excel file of {month}-{year} downloaded.")
         return Response(
             {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "data":self.data.data if self.data else None, "unique_dates":self.unique_dates if self.report_type == "Unbilled_Data_Usage" else None},
             status=status.HTTP_200_OK,
@@ -365,11 +365,13 @@ class ViewUnbilledReportView(APIView):
                     kwargs=self.change_kwargs(filter_kwargs)
                 )
                 report_file.file.save(f'unbilled_data_report_{month}.xlsx', ContentFile(output.getvalue()))
+                saveuserlog(request.user, f"Unilled data report excel file of {month} downloaded.")
+
                 return Response({"data":report_file.file.url, "message" : "Excel file generated sucessfully!"}, status=status.HTTP_200_OK)
 
             except Exception as e:
                 print(e)
-                return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({"message": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
             if sub_type == "getZeroUsageReportUnbilledExcel":
                 try:
@@ -462,6 +464,8 @@ class ViewUnbilledReportView(APIView):
                         kwargs=self.change_kwargs(filter_kwargs)
                     )
                     report_file.file.save(f'zero_usage_report_{month}.xlsx', ContentFile(output.getvalue()))
+                    saveuserlog(request.user, f"Unilled data report excel file of {month} downloaded.")
+
                     return Response({"data": report_file.file.url, "message" : "Excel file generated sucessfully!"}, status=status.HTTP_200_OK)
 
                 except Exception as e:
@@ -581,6 +585,8 @@ class ViewUnbilledReportView(APIView):
                         kwargs = self.change_kwargs(filter_kwargs)
                     )
                     report_file.file.save(f'top_10_usage_report_{month}.xlsx', ContentFile(output.getvalue()))
+                    saveuserlog(request.user, f"Unilled data report excel file of {month} downloaded.")
+
                     return Response({"data": report_file.file.url, "message" : "Excel file generated successfully!"}, status=status.HTTP_200_OK)
                     # Create the HTTP response with the Excel file
                     # response = HttpResponse(output, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -589,4 +595,4 @@ class ViewUnbilledReportView(APIView):
                     # return response
                 
                 except Exception as e:
-                    return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    return Response({"message": "Internal Server Error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

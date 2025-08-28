@@ -12,7 +12,7 @@ from ..Serializers.requestser import devicesSerializer, showdevicesSerializer, s
 from ..ModelsByPage.Req import CostCenters
 from ..Serializers.requestser import CostCentersSaveSerializer, CostCentersShowSerializer
 from Dashboard.ModelsByPage.DashAdmin import Vendors
-
+from authenticate.views import saveuserlog
 
 class CostCentersView(APIView):
     permission_classes = [IsAuthenticated]
@@ -42,9 +42,11 @@ class CostCentersView(APIView):
         ser = CostCentersSaveSerializer(data=data)
         if ser.is_valid():
             ser.save()
+            saveuserlog(request.user, f"Cost Center added for account {data['ban']}")
             return Response({"message": "Cost Center added successfully!"}, status=status.HTTP_200_OK)
         else:
-            return Response({"message": str(ser.errors)}, status=status.HTTP_400_BAD_REQUEST)
+            print(ser.errors)
+            return Response({"message": "unable to add cost center."}, status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request, pk, *args, **kwargs):
         obj = CostCenters.objects.filter(id=pk).first()
@@ -53,13 +55,18 @@ class CostCentersView(APIView):
         ser = CostCentersSaveSerializer(obj, data=request.data, partial=True)
         if ser.is_valid():
             ser.save()
+            data = ser.data
+            saveuserlog(request.user, f"Cost Center updated for account {data['ban']}")
             return Response({"message": "Cost Center updated successfully!"}, status=status.HTTP_200_OK)
         else:
-            return Response({"message": str(ser.errors)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "unable to update cost center."}, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request,org, pk, *args, **kwargs):
         obj = CostCenters.objects.filter(id=pk).first()
+        ban = obj.ban
+        cc = obj.cost_center
         if not obj:
+            saveuserlog(request.user, f"Cost Center {cc} of account {data['ban']} deleted.")
             return Response({"message": "Cost Center not found"}, status=status.HTTP_400_BAD_REQUEST)
         obj.delete()
         return Response({"message": "Cost Center deleted successfully!"}, status=status.HTTP_200_OK)
@@ -70,13 +77,13 @@ class BulkCostCenterUpload(APIView):
 
     def post(self, request,sub_company,vendor,ban, *args, **kwargs):
         data = request.data.copy()
-        
         data = data.get('costCenters')
         for center in data:
             dct = {}
             dct['sub_company'] = sub_company
             dct['vendor'] = vendor
             dct['ban'] = ban
+            ba
             dct['cost_center'] = center
             ser = CostCentersSaveSerializer(data=dct)
             if ser.is_valid(): 
@@ -84,4 +91,5 @@ class BulkCostCenterUpload(APIView):
             else:
                 print(center)
                 print(ser.errors)
+        saveuserlog(request.user, f"Bulk Cost centers for {ban} uploaded successfully.")
         return Response({"message": "Cost Centers added successfully!"}, status=status.HTTP_200_OK)

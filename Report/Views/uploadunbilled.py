@@ -80,7 +80,7 @@ class UploadUnbilledReportView(APIView):
                 else:
                     return Response({"message": "Unsupported file format"}, status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:
-                return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message": "Unsupported file format"}, status=status.HTTP_400_BAD_REQUEST)
             for _, row in df.iterrows():
                 user_name = row.get('User name', '')
                 wireless_number = row.get('Wireless number', '')
@@ -145,7 +145,7 @@ class UploadUnbilledReportView(APIView):
             }, status=status.HTTP_200_OK)
         except Exception as e:
             print(e)
-            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Unable to upload report."}, status=status.HTTP_400_BAD_REQUEST)
         
     def delete(self, request,pk, *args, **kwargs):
         self.com = None
@@ -185,4 +185,4 @@ class UploadUnbilledReportView(APIView):
             return Response({"message": f"{self.report_type} Report deleted successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
             print(e)
-            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Unable to delete report."}, status=status.HTTP_400_BAD_REQUEST)

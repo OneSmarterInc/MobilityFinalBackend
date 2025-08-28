@@ -25,7 +25,7 @@ class BatchAutomation(models.Model):
     days = models.JSONField(default=list)
 
     # ["ops@example.com", "team@example.com"]
-    emails = models.JSONField(default=list)
+    emails = models.JSONField(blank=True, default=list)
 
     # Optional denormalized creator info (no FK)
     created_by_id = models.IntegerField(null=True, blank=True)

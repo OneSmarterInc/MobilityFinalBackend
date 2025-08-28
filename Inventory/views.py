@@ -15,7 +15,6 @@ from authenticate.views import saveuserlog
 from OnBoard.Ban.models import UploadBAN, OnboardBan, BaseDataTable, BaselineDataTable
 # Create your views here.
 from .homeser import showCompanySerializer, showOnboardedSerializer, showOrganizationSerializer, showUploadedSerializer
-
 class GetCompanyView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     def get(self, request):
@@ -122,24 +121,29 @@ class InventoryDataView(APIView):
     def delete(self, request, subject, id):
         try:
             if subject == "Company":
+
                 company = Company.objects.filter(id=id).first()
+                name = company.Company_name
                 company.delete()
-                saveuserlog(request.user, f"Company named {id} deleted successfully!")
+                saveuserlog(request.user, f"Company named {name} deleted successfully!")
                 return Response({"message": "company deleted successfully!"}, status=status.HTTP_200_OK)
             elif subject == "Organization":
                 organization = Organizations.objects.filter(id=id).first()
+                name = organization.Organization_name
                 organization.delete()
-                saveuserlog(request.user, f"Organization named {id} deleted successfully!")
+                saveuserlog(request.user, f"Organization named {name} deleted successfully!")
                 return Response({"message" : "organization deleted successfully!"}, status=status.HTTP_200_OK)
             elif subject == "Location":
                 location = Location.objects.filter(id=id).first()
+                name = location.site_name
                 location.delete()
-                saveuserlog(request.user, f"Location named {id} deleted successfully!")
+                saveuserlog(request.user, f"Location named {name} deleted successfully!")
                 return Response({"message" : "Location deleted successfully!"}, status=status.HTTP_200_OK)
             elif subject == "Vendor":
                 vendor = Vendors.objects.filter(id=id)
+                name = vendor.name
                 vendor.delete()
-                saveuserlog(request.user, f"Vendor named {id} deleted successfully!")
+                saveuserlog(request.user, f"Vendor named {name} deleted successfully!")
                 return Response({"message" : "Vendor deleted successfully!"}, status=status.HTTP_200_OK)
             else:
                 return Response({"message" : "Invalid subject"}, status=status.HTTP_400_BAD_REQUEST)
@@ -158,7 +162,7 @@ class BanInfoView(APIView):
             orgobject = Organizations.objects.get(Organization_name=org)
             locobj = Location.objects.filter(organization=orgobject)
             vendorobject = Vendors.objects.get(name=vendor)
-            banobject = BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None).get(accountnumber=ban)
+            banobject = BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None).get(sub_company=org, vendor=vendor, accountnumber=ban)
             if banobject.banUploaded:
                 portalinfo = PortalInformation.objects.get(banUploaded=banobject.banUploaded.id)
             elif banobject.banOnboarded:
@@ -222,6 +226,7 @@ class BanInfoView(APIView):
             )
         print(obj.remarks)
 
+        saveuserlog(request.user, f"account number {obj.accountnumber} updated successfully.")
         return Response({
             "message": "Ban information updated successfully!"
         }, status=status.HTTP_200_OK)
@@ -232,15 +237,17 @@ class BanInfoView(APIView):
             return Response({"message":f"Ban with account number {ban} not found!"},status=status.HTTP_400_BAD_REQUEST)
         data = request.data.copy()
         print(data)
-        ser = BanSaveSerializer(obj[0], data=data, partial=True)
+        ser = BanSaveSerializer(obj.first(), data=data, partial=True)
         if ser.is_valid():
             ser.save()
+            saveuserlog(request.user, f"account number {obj.first().accountnumber} updated successfully.")
             return Response({"message":"Ban updated successfully"}, status=status.HTTP_200_OK)
         else:
-            return Response({"message":f"{str(ser.errors)}"},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"Unable to update ban."},status=status.HTTP_400_BAD_REQUEST)
     def delete(self, request, org, vendor, ban, *args, **kwargs):
         
         base = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban)
+        
         if not base:
             return Response({"message":f"Ban {ban} not found!"},status=status.HTTP_400_BAD_REQUEST)
         if len(base) > 1:
@@ -252,7 +259,9 @@ class BanInfoView(APIView):
             obj = UploadBAN.objects.get(id=base[0].banUploaded.id)
         else:
             return Response({"message":f"Ban with account number {ban} not found!"},status=status.HTTP_400_BAD_REQUEST)
+        acc = obj.account_number
         obj.delete()
+        saveuserlog(request.user, f"account number {obj.accountnumber} deleted successfully.")
         return Response({"message":f"Ban with account number {ban} deleted successfully!"},status=status.HTTP_200_OK)
         
 
@@ -370,21 +379,18 @@ class MobileView(APIView):
                 baseser = BaselineSaveSerializer(data=data)
                 if baseser.is_valid():
                     baseser.save()
-                saveuserlog(
-                    request.user,
-                    f'mobile data of account number {data["account_number"]} added successfully!'
-                )
+                saveuserlog(request.user, f"new line with wireless number {data['wireless_number']} in account {data["account_number"]} created successfully!")
                 return Response({
-                    "message": f"mobile data of number {data['wireless_number']} added successfully!"
+                    "message": f"new line with wireless number {data['wireless_number']} created successfully!"
                 },status=status.HTTP_201_CREATED)
             else:
                 print(serializer.errors)
                 return Response({
-                    "message": str(serializer.errors)
+                    "message": "Unable to create new mobile line."
                 },status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({
-            "message": str(e)
+            "message": "Unable to create new mobile line."
         },status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request,account_number,wireless_number, *args, **kwargs):
@@ -409,7 +415,7 @@ class MobileView(APIView):
                     baseline_ser.save()
                     saveuserlog(
                         request.user,
-                        f'mobile data of account number {account_number} and wireless number {wireless_number} updated successfully!'
+                        f'wireless number {wireless_number} in account number {account_number} and  updated successfully!'
                     )
             return Response({
                 "message": f"mobile {wireless_number} updated successfully!"
@@ -417,7 +423,7 @@ class MobileView(APIView):
         except Exception as e:
             print(e)
             return Response({
-            "message": str(e)
+            "message": "Unable to update mobile line."
         },status=status.HTTP_400_BAD_REQUEST)
     def delete(self, request,account_number,wireless_number, *args, **kwargs):
         try:
@@ -431,14 +437,14 @@ class MobileView(APIView):
             obj.delete()
             saveuserlog(
                 request.user,
-                f'mobile data of account number {account_number} and wireless number {wireless_number} deleted successfully!'
+                f'wireless number {wireless_number} in account number {account_number} deleted successfully!'
             )
             return Response({
                 "message": f"mobile data of number {wireless_number} deleted successfully!"
             },status=status.HTTP_200_OK)
         except Exception as e:
             return Response({
-            "message": str(e)
+            "message": "Unable to delete mobile line."
         },status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -455,5 +461,5 @@ class OnboardedBaselineView(APIView):
             serializer = BaselineSaveSerializer(objs, many=True)
             return Response({"data": serializer.data}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Unable to get baseline data."}, status=status.HTTP_400_BAD_REQUEST)
         

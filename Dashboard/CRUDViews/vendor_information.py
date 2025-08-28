@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from ..ModelsByPage.Req import VendorInformation, VendorPlan
 from OnBoard.Organization.models import Organizations
 from OnBoard.Ban.models import BaseDataTable, BaselineDataTable, UniquePdfDataTable
+from authenticate.views import saveuserlog
 class getBansView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -73,6 +74,7 @@ class VendorInformationView(APIView):
                 unique = self.get_query(UniquePdfDataTable, show_data).filter(plans=replace_plan)
                 unique.update(category_object=new_category, **updated_plan)
                 VendorInformation.objects.filter(id=show_data['id']).update(plan_replaced_with=replace_plan)
+                
             if existing_plan and data.get('update_existing'):
                 print("replacing")
                 baseline = self.get_query(BaselineDataTable, show_data).filter(plans=existing_plan)
@@ -80,6 +82,7 @@ class VendorInformationView(APIView):
                 unique = self.get_query(UniquePdfDataTable, show_data).filter(plans=existing_plan)
                 unique.update(category_object=new_category)
                 VendorInformation.objects.filter(id=show_data['id']).update(plan_replaced_with=existing_plan)
+            saveuserlog(request.user, f"vendor information added in account number {data.get('ban')}")
             return Response({"message":"vendor information added succesfully!"},status=status.HTTP_200_OK)
         else:
             return Response({"message":str(ser.errors)},status=status.HTTP_400_BAD_REQUEST)
@@ -104,15 +107,18 @@ class VendorInformationView(APIView):
         ser = VendorInformationSerializer(obj,data=request.data,partial=True)
         if ser.is_valid():
             ser.save()
+            saveuserlog(request.user, f"vendor information updated for account number {obj.ban}")
             return Response({"message":"vendor information updated succesfully!"},status=status.HTTP_200_OK)
         else:
-            return Response({"message":str(ser.errors)},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"Unable to update vendor information."},status=status.HTTP_400_BAD_REQUEST)
         
     def delete(self, request, pk, *args, **kwargs):
         obj = VendorInformation.objects.filter(id=pk).first()
+        ban = obj.ban
         if not obj:
             return Response({"message":"vendor information not found"},status=status.HTTP_400_BAD_REQUEST)
         obj.delete()
+        saveuserlog(request.user, f"vendor information updated for account number {ban}")
         return Response({"message":"vendor information deleted sucessfully!"},status=status.HTTP_200_OK)
     
 
@@ -156,4 +162,5 @@ class ReplacePlanView(APIView):
         unique = self.get_query(UniquePdfDataTable, show_data).filter(plans=replace_plan)
         unique.update(category_object=new_cat, **updated_plan)
         VendorInformation.objects.filter(id=show_data['id']).update(plan_replaced_with=replace_plan)
+        saveuserlog(request.user, f"vendor information updated for account number {obj.ban}")
         return Response({"message":"plan replaced succesfully!"},status=status.HTTP_200_OK)

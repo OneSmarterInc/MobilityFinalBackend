@@ -64,7 +64,7 @@ class LocationView(APIView):
             return Response({"message": "Location created successfully!", "data": loc.site_name}, status=status.HTTP_201_CREATED)
         except Exception as e:
             print(e)
-            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Unable to create location."}, status=status.HTTP_400_BAD_REQUEST)
 
         
     def put(self, request, org, pk, *args, **kwargs):
@@ -95,13 +95,13 @@ class LocationView(APIView):
                 location.division = division  
             
             location.save()  
-            saveuserlog(request.user, f"location with site name {pk} updated successfully!")
+            saveuserlog(request.user, f"location with site name {location.site_name} updated successfully!")
             
             return Response({"message": "Location updated successfully!"}, status=status.HTTP_200_OK)
 
         except Exception as e:
             print(e)
-            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Unable to update location."}, status=status.HTTP_400_BAD_REQUEST)
 
         # serializer = LocationSaveSerializer(location, data=request.data)
         # if serializer.is_valid():
@@ -120,8 +120,9 @@ class LocationView(APIView):
             loc = Location.objects.get(id=pk)
         except Location.DoesNotExist:
             return Response({"message" : "Location not found!"}, status=status.HTTP_404_NOT_FOUND)
+        name = loc.site_name
         loc.delete()
-        saveuserlog(request.user, f"location with site name {pk} deleted successfully!") 
+        saveuserlog(request.user, f"location with site name {name} deleted successfully!") 
         return Response({"message" : "Location deleted successfully!"}, status=status.HTTP_200_OK)
         
 

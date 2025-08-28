@@ -7,7 +7,7 @@ from OnBoard.Organization.models import Organizations
 from rest_framework.permissions import IsAuthenticated
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 from ..Serializers.ven import VendorsSerializer, OrganizationListSerializer
-
+from authenticate.views import saveuserlog
 
 class VendorsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -37,6 +37,7 @@ class VendorsView(APIView):
             print(vendor)
             org.favorite_vendors.remove(vendor.first())
             org.save()
+            saveuserlog(request.user, f"vendor {vendor.first().name} updated successfully!")
         return Response({"message":"vendor updated successfully!"})
     def delete(self, request, pk, *args, **kwargs):
         pass

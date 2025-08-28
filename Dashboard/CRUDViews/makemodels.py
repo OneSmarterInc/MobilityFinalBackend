@@ -7,7 +7,7 @@ from authenticate.models import PortalUser
 from rest_framework.permissions import IsAuthenticated
 from ..ModelsByPage.Req import MakeModel
 from OnBoard.Organization.models import Organizations
-
+from authenticate.views import saveuserlog
 
 class MakeModelView(APIView):
     # permission_classes = [IsAuthenticated]
@@ -26,9 +26,11 @@ class MakeModelView(APIView):
         ser = MakeModelSerializer(data=data)
         if ser.is_valid():
             ser.save()
+            data = ser.data
+            saveuserlog(request.user, f"New model {data['name']} of device type {data['device_type']} added.")
             return Response({"message":"Model added succesfully!"},status=status.HTTP_200_OK)
         else:
-            return Response({"message":str(ser.errors)},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"Unable to add new model."},status=status.HTTP_400_BAD_REQUEST)
     def put(self, request, pk, *args, **kwargs):
         obj = MakeModel.objects.filter(id=pk).first()
         if not obj:
@@ -36,12 +38,17 @@ class MakeModelView(APIView):
         ser = MakeModelSerializer(obj,data=request.data,partial=True)
         if ser.is_valid():
             ser.save()
+            data = ser.data
+            saveuserlog(request.user, f"Model {data['name']} of device type {data['device_type']} updated.")
             return Response({"message":"Model updated succesfully!"},status=status.HTTP_200_OK)
         else:
-            return Response({"message":str(ser.errors)},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"Unable to update model."},status=status.HTTP_400_BAD_REQUEST)
     def delete(self, request, pk, *args, **kwargs):
         obj = MakeModel.objects.filter(id=pk).first()
+        name = obj.name
+        dtype = obj.device_type
         if not obj:
+            saveuserlog(request.user, f"Model {name} of device type {dtype} deleted.")
             return Response({"message":"Model not found"},status=status.HTTP_400_BAD_REQUEST)
         obj.delete()
         return Response({"message":"Model deleted sucessfully!"},status=status.HTTP_200_OK)

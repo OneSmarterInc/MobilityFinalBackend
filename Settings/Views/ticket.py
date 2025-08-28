@@ -6,6 +6,7 @@ from ..models import Ticket
 from authenticate.models import PortalUser
 from ..ser import TicketSerializer, PortalUserSerializer
 from sendmail import send_ticket
+from authenticate.views import saveuserlog
 class TicketView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     def get(self, request):
@@ -24,7 +25,8 @@ class TicketView(APIView):
         print("Data received for ticket creation:", data)
         ticket = Ticket.objects.create(**data)
         send_ticket((data['assign_email'],data['user_email'],"gauravdhale09@gmail.com" ), data['sub_company'], data['vendor'], data['account_no'], data['message'], data['description'], data['priority']) #, ticket_number=ticket.ticket_number)
-   
+    
+        saveuserlog(request.user, "Ticket created.")
     
         return Response({"message": "Ticket created successfully", "ticket_id": ticket.id}, status=status.HTTP_201_CREATED)
     def put(self, request, pk):
@@ -52,6 +54,7 @@ class TicketView(APIView):
             #     print(f"Updating {attr} to {value} for ticket with ID {pk}")
             #     setattr(ticket, attr, value)
             ticket.save()
+            saveuserlog(request.user, "Ticket updated.")
             return Response({"message": "Ticket updated successfully"}, status=status.HTTP_200_OK)
         except Ticket.DoesNotExist:
             return Response({"message": "Ticket not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -63,6 +66,7 @@ class TicketView(APIView):
         try:
             ticket = Ticket.objects.get(id=pk)
             ticket.delete()
+            saveuserlog(request.user, "Ticket deleted.")
             return Response({"message": "Ticket deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
         except Ticket.DoesNotExist:
             return Response({"message": "Ticket not found"}, status=status.HTTP_404_NOT_FOUND)

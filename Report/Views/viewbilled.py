@@ -109,7 +109,7 @@ class ViewBilledReportView(APIView):
                     self.data = showBilledReport(filtered_data, many=True)
                 except Exception as e:
                     print(e)
-                    return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)   
+                    return Response({"message": "Unable to view report."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)   
             elif sub_type == "getZeroUsageReportbilledData":
                 try:
                     filtered_data = Report_Billed_Data.objects.filter(
@@ -121,10 +121,11 @@ class ViewBilledReportView(APIView):
                     self.data = showBilledReport(filtered_data, many=True)
                 except Exception as e:
                     print(e)
-                    return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  
+                    return Response({"message": "Unable to view report."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  
 
             else:
                 return Response({"message": "Invalid sub_type provided."}, status=status.HTTP_400_BAD_REQUEST)
+            saveuserlog(request.user, f"Billed data report excel file of {month}-{year} downloaded.")
         return Response(
             {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "data":self.data.data if self.data else None, "unique_dates":self.unique_dates if self.report_type == "Unbilled_Data_Usage" else None},
             status=status.HTTP_200_OK,
@@ -348,11 +349,13 @@ class ViewBilledReportView(APIView):
                     kwargs=self.change_kwargs(filter_kwargs)
                 )
                 report_file.file.save(f'billed_data_report_{month}_{year}.xlsx', ContentFile(output_with_image.getvalue()))
+
+                saveuserlog(request.user, f"Billed data report excel file of {month}-{year} downloaded.")
                 return Response({"data":report_file.file.url, "message" : "Excel file generated sucessfully!"}, status=status.HTTP_200_OK)
 
             except Exception as e:
                 print(e)
-                return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({"message": "Unable to view report."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         else:
             if sub_type == "getZeroUsageReportbilledExcel":
@@ -439,6 +442,7 @@ class ViewBilledReportView(APIView):
                         kwargs=self.change_kwargs(filter_kwargs)
                     )
                     report_file.file.save(f'zero_usage_billed_data_report_{month}_{year}.xlsx', ContentFile(output_with_formatting.getvalue()))
+                    saveuserlog(request.user, f"Billed data report excel file of {month}-{year} downloaded.")
                     return Response({"data": report_file.file.url, "message" : "Excel file generated sucessfully!"}, status=status.HTTP_200_OK)
 
                     # response = HttpResponse(output_with_formatting, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -448,7 +452,7 @@ class ViewBilledReportView(APIView):
 
                 except Exception as e:
                     print(e)
-                    return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    return Response({"message": "Internal Server Error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             elif sub_type == "getTop10BilledUsers":
                 try:
                     filtered_data = Report_Billed_Data.objects.filter(**filter_kwargs).annotate(
@@ -535,6 +539,7 @@ class ViewBilledReportView(APIView):
                         kwargs = self.change_kwargs(filter_kwargs)
                     )
                     report_file.file.save(f'top_10_usage_billed_data_report_{month}_{year}.xlsx', ContentFile(output_with_formatting.getvalue()))
+                    saveuserlog(request.user, f"Billed data report excel file of {month}-{year} downloaded.")
                     return Response({"data": report_file.file.url, "message" : "Excel file generated successfully!"}, status=status.HTTP_200_OK)
 
                 except Exception as e:

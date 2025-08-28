@@ -5,6 +5,7 @@ from rest_framework import status
 
 from ..ser import ReminderSerializer
 from ..models import Reminder
+from authenticate.views import saveuserlog
 class ReminderView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -20,6 +21,7 @@ class ReminderView(APIView):
         data = request.data  # This should be validated and processed
         print("Data received for reminder creation:", data)
         reminder = Reminder.objects.create(**data)
+        saveuserlog(request.user, "Created reminder.")
         return Response({"message": "Reminder created successfully", "data": data}, status=status.HTTP_201_CREATED)
     def put(self, request, pk):
         # Placeholder for updating a reminder
@@ -30,6 +32,7 @@ class ReminderView(APIView):
                 print(f"Updating {attr} to {value} for reminder with ID {pk}")
                 setattr(reminder, attr, value)
             reminder.save()
+            saveuserlog(request.user, "Reminder updated.")
             return Response({"message": "Reminder updated successfully"}, status=status.HTTP_200_OK)
         except Reminder.DoesNotExist:
             return Response({"error": "Reminder not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -39,6 +42,7 @@ class ReminderView(APIView):
         try:
             reminder = Reminder.objects.get(id=pk)
             reminder.delete()
+            saveuserlog(request.user, "Reminder deleted.")
             return Response({"message": "Reminder deleted successfully"}, status=status.HTTP_200_OK)
         except Reminder.DoesNotExist:
             return Response({"message": "Reminder not found"}, status=status.HTTP_404_NOT_FOUND)

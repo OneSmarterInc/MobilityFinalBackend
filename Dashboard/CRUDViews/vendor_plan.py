@@ -7,6 +7,7 @@ from authenticate.models import PortalUser
 from rest_framework.permissions import IsAuthenticated
 from ..ModelsByPage.Req import VendorPlan
 from OnBoard.Organization.models import Organizations
+from authenticate.views import saveuserlog
 
 class VendorPlanView(APIView):
     # permission_classes = [IsAuthenticated]
@@ -27,9 +28,10 @@ class VendorPlanView(APIView):
         ser = VendorPlanSerializer(data=data)
         if ser.is_valid():
             ser.save()
+            saveuserlog(request.user, f"vendor plan created for account number {ser.data['ban']}")
             return Response({"message": "Vendor plan added successfully!"}, status=status.HTTP_200_OK)
         else:
-            return Response({"message": str(ser.errors)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Unable to add vendor plan."}, status=status.HTTP_400_BAD_REQUEST)
         
     def put(self, request, pk, *args, **kwargs):
         obj = VendorPlan.objects.filter(id=pk).first()
@@ -38,13 +40,16 @@ class VendorPlanView(APIView):
         ser = VendorPlanSerializer(obj, data=request.data, partial=True)
         if ser.is_valid():
             ser.save()
+            saveuserlog(request.user, f"vendor plan updated for account number {obj.ban}")
             return Response({"message": "Vendor plan updated successfully!"}, status=status.HTTP_200_OK)
         else:
-            return Response({"message": str(ser.errors)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Unable to update vendor plan."}, status=status.HTTP_400_BAD_REQUEST)
         
     def delete(self, request, pk, *args, **kwargs):
         obj = VendorPlan.objects.filter(id=pk).first()
         if not obj:
             return Response({"message": "Vendor plan not found"}, status=status.HTTP_400_BAD_REQUEST)
+        ban = obj.ban
         obj.delete()
+        saveuserlog(request.user, f"vendor plan of account number {ban} deleted")
         return Response({"message": "Vendor plan deleted successfully!"}, status=status.HTTP_200_OK)

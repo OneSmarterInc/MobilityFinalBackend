@@ -10,7 +10,7 @@ class Profile(models.Model):
     role = models.ForeignKey(UserRoles, related_name='roles',on_delete=models.CASCADE, null=True)
     email = models.EmailField(max_length=255, null=True, blank=True)
     phone = models.CharField(max_length=12, null=True, blank=True)
-    vendors = models.ManyToManyField(Vendors, related_name='profile_vendors')
+    vendors = models.ManyToManyField(Vendors, related_name='profile_vendors',null=True,blank=True)
     permissions = models.ManyToManyField(Permission, related_name='permissions',blank=True)
 
     class Meta:

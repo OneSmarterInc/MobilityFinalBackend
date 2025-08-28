@@ -305,7 +305,7 @@ class ProcessPdf2:
         
         BaselineDataTable.objects.bulk_create(new_entries)
 
-    def add_tag_to_dict(self, bill_main_id):
+    def add_tag_to_dict(self, bill_main_id, variance):
         print("def add_tag_to_dict")
         baseline = BaselineDataTable.objects.filter(
             company=self.company_name,
@@ -331,7 +331,7 @@ class ProcessPdf2:
             wireless = bill_obj.Wireless_number
             baseline_obj = baseline_dict.get(wireless)
             if baseline_obj:  
-                tagged_object = tagging(baseline_obj.category_object, bill_obj.category_object)
+                tagged_object = tagging(baseline_obj.category_object, bill_obj.category_object, variance)
                 bill_obj.category_object = tagged_object
                 bill_obj.save()
 
@@ -513,7 +513,7 @@ class ProcessPdf2:
             self.reflect_baselinetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id)
             self.reflect_uniquetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id)
             
-            self.add_tag_to_dict(bill_main_id)
+            self.add_tag_to_dict(bill_main_id, onboarded.variance)
             self.check_baseline_approved(UniquePdfDataTable, bill_main_id)
             self.check_baseline_approved(BaselineDataTable, bill_main_id)
 
@@ -568,11 +568,11 @@ class ProcessPdf2:
             return True, message, ProcessTime
         except Exception as e:
             logger.error(f"Error processing PDF: {e}")
-            if self.instance: self.instance.delete()
+            if self.instance and self.instance.pk: self.instance.delete()
             return False, str(e), 0
         
 from addon import parse_until_dict, get_close_match_key
-def tagging(baseline_data, bill_data):
+def tagging(baseline_data, bill_data, variance):
     baseline_data = parse_until_dict(baseline_data)
     bill_data = parse_until_dict(bill_data)
     def compare_and_tag(base, bill):
@@ -600,8 +600,8 @@ def tagging(baseline_data, bill_data):
                     if base_float == 0 and bill_float == 0:
                         bill[key] = {"amount": f'{bill_val}', "approved": True}
                     if base_float != 0:
-                        low_range = bill_float - (5/100 * bill_float)
-                        high_range = bill_float + (5/100 * bill_float)
+                        low_range = bill_float - (variance/100 * bill_float)
+                        high_range = bill_float + (variance/100 * bill_float)
                         if ((base_float < high_range) and (base_float > low_range)):
                             tag = True
                         else:

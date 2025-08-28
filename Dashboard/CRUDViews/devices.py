@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from ..ModelsByPage.Req import Device
 from OnBoard.Organization.models import Organizations
 from ..Serializers.requestser import devicesSerializer, showdevicesSerializer,showOrganizations
+from authenticate.views import saveuserlog
 class DevicesView(APIView):
     # permission_classes = [IsAuthenticated]
 
@@ -29,9 +30,12 @@ class DevicesView(APIView):
         ser = devicesSerializer(data=data)
         if ser.is_valid():
             ser.save()
+            obj = Device.objects.filter(id=ser.data['id']).first()
+
+            saveuserlog(request.user, f"{data['device_type']} device type  created for organization {obj.sub_company.Organization_name}.")
             return Response({"message":"Device added succesfully!"},status=status.HTTP_200_OK)
         else:
-            return Response({"message":str(ser.errors)},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"unable to add device."},status=status.HTTP_400_BAD_REQUEST)
     def put(self, request, pk, *args, **kwargs):
         obj = Device.objects.filter(id=pk).first()
         if not obj:
@@ -39,12 +43,16 @@ class DevicesView(APIView):
         ser = devicesSerializer(obj,data=request.data,partial=True)
         if ser.is_valid():
             ser.save()
+            saveuserlog(request.user, f"{data['device_type']} device updated for organization {data['sub_company']}.")
             return Response({"message":"Device updated succesfully!"},status=status.HTTP_200_OK)
         else:
-            return Response({"message":str(ser.errors)},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"unable to update device."},status=status.HTTP_400_BAD_REQUEST)
     def delete(self, request, pk, *args, **kwargs):
         obj = Device.objects.filter(id=pk).first()
+        org = obj.sub_company.Organization_name
+        dtype = obj.device_type
         if not obj:
+            saveuserlog(request.user, f"{dtype} device deleted for organization {org}.")
             return Response({"message":"Device not found"},status=status.HTTP_400_BAD_REQUEST)
         obj.delete()
         return Response({"message":"Device deleted sucessfully!"},status=status.HTTP_200_OK)

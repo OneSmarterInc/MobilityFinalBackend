@@ -35,6 +35,8 @@ from django.shortcuts import get_object_or_404
 from .models import EmailConfiguration
 from .serializers import EmailConfigurationSerializer
 
+from authenticate.views import saveuserlog
+
 class BatchView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request,org, *args, **kwargs):
@@ -77,8 +79,12 @@ class BatchView(APIView):
                 base_ids = BaseDataTable.objects.filter(id=ids)
             else:
                 base_ids = BaseDataTable.objects.filter(id__in=ids)
-
+            
             base_ids = base_ids.exclude(batch_approved="Pending")
+            if not base_ids:
+                return Response({"message": f"Data not found!"}, status=status.HTTP_404_NOT_FOUND)
+
+            
             df = pd.DataFrame.from_records(base_ids.values())
             df = df.drop(columns=['created', 'updated','auto_pay_enabled','Entry_type','master_account', 'website', 'Total_Current_Charges','plans','charges', 'location','duration','id', 'banUploaded_id','Total_Amount_Due', 'banOnboarded_id', 'viewuploaded_id','viewpapered_id', 'inventory_id','costcenterlevel', 'costcentertype','costcenterstatus', 'CostCenter', 'CostCenterNotes', 'PO','Displaynotesonbillprocessing', 'POamt', 'FoundAcc', 'bantype','invoicemethod', 'vendorCS', 'vendor_alias', 'month', 'year',
             'pdf_filename', 'pdf_path', 'remarks', 'account_password','payor', 'GlCode', 'ContractTerms', 'ContractNumber', 'Services','Billing_cycle', 'BillingDay', 'PayTerm', 'AccCharge','CustomerOfRecord', 'contract_name', 'contract_file', 'paymentType',
@@ -89,8 +95,7 @@ class BatchView(APIView):
 
             print(df.columns)
             
-            if not batch:
-                return Response({"message": f"No data found!"}, status=status.HTTP_404_NOT_FOUND)
+            
 
             # Set the custom headings
             df.rename(columns={
@@ -143,8 +148,10 @@ class BatchView(APIView):
 
             
             if data["action"] == "download":
+                saveuserlog(request.user, f"Batch Report of organization {obj.sub_company} downloaded by user.")
                 return Response({"data": obj.batch_file.url}, status=status.HTTP_200_OK)
             elif data['action'] == "send_mail":
+                
                 rm = data.get('to_mail')
                 print("sending mail...")
                 try:
@@ -162,44 +169,54 @@ class BatchView(APIView):
                         body_text="Please find the attached report.",
                         attachments=[obj.batch_file],           # list, supports FieldFile
                     )
+                    saveuserlog(request.user, f"Batch Report of organization {obj.sub_company} emailed to {rm}.")
                     return Response({"message":f"Email sent successfully sent to {rm}"}, status=status.HTTP_200_OK)
                 except Exception as e:
                     print(e)
-                    return Response({"message":f"Error in sending mail:{e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    return Response({"message":f"Error in sending mail"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             else:
                 return Response({"message":"Invalid action!"}, status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request,org, id, *args, **kwargs):
         try:
-            obj = BaseDataTable.objects.get(id=id)
+            obj = BaseDataTable.objects.filter(id=id).first()
+            if not obj:
+                return Response({'message': 'Batch Report not found'}, status=status.HTTP_404_NOT_FOUND)
             data = request.data
             if 'type' in data:
                 if data['type'] == 'status-change':
                     obj.batch_approved = data['status']
                     obj.batch_approved_changer = request.user.designation.name        
                 obj.save()
-                saveuserlog(request.user, f'Changed approves of Batch Report with ID: {id} to {data["status"]}')
+                saveuserlog(
+                    request.user,
+                    f"Batch Report approval status changed for account {obj.accountnumber}, bill date {obj.bill_date} → {data['status']}"
+                )
+
+
             else:
                 serializer = BaseDataSerializer(obj, data=data, partial=True)
                 if serializer.is_valid():
                     serializer.save()
-                    saveuserlog(request.user, f'Updated Batch Report with ID: {id}')
+                    saveuserlog(request.user, f'Updated Batch Report for account {obj.accountnumber}, bill date {obj.bill_date}')
                     return Response({'message': 'Batch Report updated successfully'}, status=status.HTTP_200_OK)
                 else:
                     print(serializer.errors)
-                    return Response({"message" : serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({"message" : "Unable to update batch."}, status=status.HTTP_400_BAD_REQUEST)
             return Response({'message': 'Batch Report updated successfully'}, status=status.HTTP_200_OK)
         except BatchReport.DoesNotExist:
             return Response({'message': 'Batch Report not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             print(f'Error in Batch Report update: {e}')
-            return Response({'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'message': "Error in Batch Report update"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
     def delete(self, request,org, id, *args, **kwargs):
         try:
             obj = BatchReport.objects.get(id=id)
+            acc = obj.Customer_Vendor_Account_Number
+            bd = obj.billing_day
             obj.delete()
-            saveuserlog(request.user, f'Deleted Batch Report with ID: {id}')
+            saveuserlog(request.user, f'Deleted Batch Report for account {acc}, bill date {bd}')
             return Response({'message': 'Batch Report deleted successfully'}, status=status.HTTP_200_OK)
         except BatchReport.DoesNotExist:
             return Response({'message': 'Batch Report not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -240,6 +257,8 @@ def email_config_list(request):
         serializer = EmailConfigurationSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
+            data = serializer.data
+            saveuserlog(request.user, description=f"Email configuration saved for organization {data['organization']}")
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -257,11 +276,15 @@ def email_config_detail(request, pk):
         serializer = EmailConfigurationSerializer(config, data=request.data, partial=True)  
         if serializer.is_valid():
             serializer.save()
+            data = serializer.data
+            saveuserlog(request.user, description=f"Email configuration updated for organization {data['organization']}")
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     if request.method == 'DELETE':
+        org = config.organization
         config.delete()
+        saveuserlog(request.user, description=f"Email configuration deleted for organization {org}")
         return Response({'message': 'Deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
     
     
@@ -338,6 +361,7 @@ class EmailConfigurationViewSet(viewsets.ModelViewSet):
             use_tls=use_tls, use_ssl=use_ssl,
         )
         code = status.HTTP_200_OK if ok else status.HTTP_400_BAD_REQUEST
+        saveuserlog(request.user, description=f"Email configure verification done for organization {cfg.organization}")
         return Response({
             "ok": ok,
             "message": msg,

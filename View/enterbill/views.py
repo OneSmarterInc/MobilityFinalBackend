@@ -99,15 +99,23 @@ class UploadedBillView(APIView):
         elif action == "is_draft":
             obj.is_draft = True
             obj.is_pending = False
+            saveuserlog(
+            request.user,
+                f"Baseline with account number {obj.account_number} and wireless number {obj.Wireless_number} moved to draft"
+            )
         elif action == "is_pending":
             obj.is_draft = False
             obj.is_pending = True
+            saveuserlog(
+            request.user,
+                f"Baseline with account number {obj.account_number} and wireless number {obj.Wireless_number} moved to pending"
+            )
         else:
             return Response({"message": "Invalid action"}, status=status.HTTP_400_BAD_REQUEST)
         obj.save()
         saveuserlog(
             request.user,
-            f"Baseline with account number {obj.account_number} and invoice number {obj.Wireless_number} Updated with Action: {action}"
+            f"Baseline with account number {obj.account_number} and wireless number {obj.Wireless_number} updated"
         )
         return Response({"message": "Baseline updated successfully"}, status=status.HTTP_200_OK)
     def delete(self, request, pk, *args, **kwargs):
@@ -161,15 +169,23 @@ class PendingView(APIView):
         elif action == "is_draft":
             obj.is_draft = True
             obj.is_pending = False
+            saveuserlog(
+            request.user,
+                f"Baseline with account number {obj.account_number} and wireless number {obj.Wireless_number} moved to draft"
+            )
         elif action == "is_pending":
             obj.is_draft = False
             obj.is_pending = True
+            saveuserlog(
+            request.user,
+                f"Baseline with account number {obj.account_number} and wireless number {obj.Wireless_number} moved to pending"
+            )
         else:
             return Response({"message": "Invalid action"}, status=status.HTTP_400_BAD_REQUEST)
         obj.save()
         saveuserlog(
             request.user,
-            f"Baseline with account number {obj.account_number} and invoice number {obj.Wireless_number} Updated with Action: {action}"
+            f"Baseline with account number {obj.account_number} and wireless number {obj.Wireless_number} updated"
         )
         return Response({"message": "Baseline updated successfully"}, status=status.HTTP_200_OK)
     def delete(self, request, pk, *args, **kwargs):
@@ -220,15 +236,23 @@ class DraftView(APIView):
         elif action == "is_draft":
             obj.is_draft = True
             obj.is_pending = False
+            saveuserlog(
+            request.user,
+                f"Baseline with account number {obj.account_number} and wireless number {obj.Wireless_number} moved to draft"
+            )
         elif action == "is_pending":
             obj.is_draft = False
             obj.is_pending = True
+            saveuserlog(
+            request.user,
+                f"Baseline with account number {obj.account_number} and wireless number {obj.Wireless_number} moved to pending"
+            )
         else:
             return Response({"message": "Invalid action"}, status=status.HTTP_400_BAD_REQUEST)
         obj.save()
         saveuserlog(
             request.user,
-            f"Baseline with account number {obj.account_number} and invoice number {obj.Wireless_number} Updated with Action: {action}"
+            f"Baseline with account number {obj.account_number} and invoice number {obj.Wireless_number} updated"
         )
         return Response({"message": "Baseline updated successfully"}, status=status.HTTP_200_OK)
 
@@ -302,10 +326,12 @@ class UploadfileView(APIView):
         month  = request.data.get('month')
         year  = request.data.get('year')
         found = ViewUploadBill.objects.filter(
+            organization=Organizations.objects.filter(Organization_name=org).first(),
             vendor = Vendors.objects.filter(name=vendor)[0],
             month = month,
             year = year,
-            ban=ban
+            ban=ban,
+            
         ).exists()
         if found:
             return Response({"message": f"{vendor} bill already exists for {month}-{year}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -358,13 +384,16 @@ class UploadfileView(APIView):
                 check = addon.startprocess()
                 print(check)
                 if check['error'] != 0:
-                    obj.delete()
+                    if obj and obj.pk: obj.delete()
                     return Response(
                         {"message": f"Problem to upload file, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
                     )
-            except Ex:
-                obj.delete()
-            
+            except Exception as e:
+                print(e)
+                if obj and obj.pk: obj.delete()
+                return Response(
+                        {"message": f"Problem to upload file, {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
+                    )
             
             buffer_data = json.dumps({'pdf_path': obj.file.path,'vendor_name': obj.vendor.name if obj.vendor else None,'pdf_filename':obj.file.name,'company_name':obj.company.Company_name if obj.company else None,'sub_company_name':obj.organization.Organization_name if obj.organization else None,'types':obj.types, 'month':obj.month, 'year':obj.year, 'email':request.user.email,'account_number':obj.ban})
             print(buffer_data)
@@ -381,7 +410,7 @@ class UploadfileView(APIView):
             check = ProcessExcel(instance=obj, user_mail=request.user.email)
             check = check.process()
             if check['error']!= 0:
-                obj.delete()
+                if obj and obj.pk: obj.delete()
                 return Response(
                     {"message": f"Problem to process excel data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
                 )
@@ -413,22 +442,24 @@ class UploadfileView(APIView):
                 msgobject = excelobj.process_excel()
                 print(msgobject)
                 if msgobject['code'] != 0:
-                    obj.delete()
+                    if obj and obj.pk: obj.delete()
                     return Response({"message":f"{str(msgobject['message'])}"},status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:
                 print(e)
-                obj.delete()
+                if obj and obj.pk: obj.delete()
                 return Response({"message":f"{str(e)}"},status=status.HTTP_400_BAD_REQUEST)
         elif str(file.name).endswith('.zip'):
             addon = ProcessZip(obj)
             check = addon.startprocess()
             print(check)
             if check['error'] == -1:
+                if obj and obj.pk: obj.delete()
                 return Response(
                     {"message": f"Problem to add data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
                 )
             
         else:
+
             return Response({"message": "Invalid file type"}, status=status.HTTP_400_BAD_REQUEST)
         paylod_data = BaseDataTable.objects.filter(viewuploaded=obj).first()
         self.paylod_data = {
@@ -440,7 +471,7 @@ class UploadfileView(APIView):
         print(paylod_data)
         saveuserlog(
             request.user,
-            f"Uploading file if {obj.vendor.name}-{obj.ban} for {obj.month}-{obj.year}"
+            f"{filetype} file of {obj.vendor.name}-{obj.ban} for {obj.month}-{obj.year} uploaded."
         )
         return Response(
             {"message": "File uploaded successfully!" if filetype in ("zip","excel") else "The bill upload is currently in progress and may take some time. You will receive an email notification once the process is complete.", "payload":self.paylod_data},
@@ -480,13 +511,14 @@ class UploadfileView(APIView):
         allobjs = BaselineDataTableShowSerializer(BaselineDataTable.objects.filter(viewuploaded=obj.viewuploaded, is_pending=False, is_draft=False), many=True)
         saveuserlog(
             request.user,
-            f"Baseline with account number {obj.account_number} and invoice number {obj.Wireless_number} Updated with Action: {action}"
+            f"Baseline with account number {obj.account_number} and invoice number {obj.Wireless_number} updated"
         )
         return Response({"message": "Baseline updated successfully", "baseline":allobjs.data}, status=status.HTTP_200_OK)
     def delete(self, request, pk, *args, **kwargs):
         pass
 
 import json
+
 def parse_until_dict(data):
     while isinstance(data, str):
         try:
@@ -495,51 +527,71 @@ def parse_until_dict(data):
             break
     return data
 from addon import get_close_match_key
-def tagging(baseline_data, bill_data):
+
+def compare_values(base_val, bill_val,variance):
+        """
+        Compare numeric/string values and return (amount, approved_flag).
+        """
+        try:
+            base_val = str(base_val).replace('$', '').replace('-', '')
+            bill_val_init = str(bill_val).replace('$', '')
+            bill_val_clean = bill_val_init.replace('-', '')
+
+            base_float = float(base_val)
+            bill_float = float(bill_val_clean)
+
+            # Case 1: both zero
+            if base_float == 0 and bill_float == 0:
+                return bill_val_clean, True
+
+            # Case 2: baseline non-zero → check tolerance
+            if base_float != 0:
+                low_range = bill_float - (variance / 100 * bill_float)
+                high_range = bill_float + (variance / 100 * bill_float)
+                approved = low_range < base_float < high_range
+            else:
+                approved = False
+
+            # Preserve negative sign if originally present
+            amount = f"-{bill_val_clean}" if "-" in bill_val_init else bill_val_clean
+            return amount, approved
+
+        except (ValueError, TypeError):
+            return bill_val, False
+
+def tagging(baseline_data, bill_data, variance):
     baseline_data = parse_until_dict(baseline_data)
     bill_data = parse_until_dict(bill_data)
-    def compare_and_tag(base, bill):
+
+    def compare_and_tag(base, bill, variance):
+        """
+        Recursively walk through dicts and tag bill_data entries.
+        """
         for key in list(bill.keys()):
-            if not key in base.keys():
-                closely_matched = get_close_match_key(key,list(base.keys()))
+            # Find close match if exact key not found
+            if key not in base:
+                closely_matched = get_close_match_key(key, list(base.keys()))
             else:
                 closely_matched = key
+
+            # No matching key → auto reject
             if not closely_matched:
-                print("not closely matched!",key)
-                bill[key] = {"amount": f'{str(bill[key]).strip().replace("$","")}', "approved": False}
+                bill[key] = {"amount": str(bill[key]).strip().replace("$", ""), "approved": False}
                 continue
+
             base_val = base[closely_matched]
             bill_val = bill[key]
 
+            # Nested dicts → recurse
             if isinstance(bill_val, dict) and isinstance(base_val, dict):
-                compare_and_tag(base_val, bill_val)
+                compare_and_tag(base_val, bill_val,variance)
             else:
-                try:
-                    base_val = str(base_val).replace('$','').replace('-','')
-                    bill_val_init = str(bill_val).replace('$','')
-                    bill_val = bill_val_init.replace('-','')
-                    base_float = float(base_val)
-                    bill_float = float(bill_val)
-                    if base_float == 0 and bill_float == 0:
-                        bill[key] = {"amount": f'{bill_val}', "approved": True}
-                    if base_float != 0:
-                        low_range = bill_float - (5/100 * bill_float)
-                        high_range = bill_float + (5/100 * bill_float)
-                        if ((base_float < high_range) and (base_float > low_range)):
-                            tag = True
-                        else:
-                            tag = False
-                        if '-' in bill_val_init:
-                            bill[key] = {"amount":f'-{bill_val}', "approved":tag}
-                        else:
-                            bill[key] = {"amount":bill_val, "approved":tag}
-                except (ValueError, TypeError):
-                    print("error")
-                    bill[key] = {"amount":bill_val, "approved":False}
+                amount, approved = compare_values(base_val, bill_val,variance)
+                bill[key] = {"amount": amount, "approved": approved}
 
-    compare_and_tag(baseline_data, bill_data)
-    json_string = json.dumps(bill_data)
-    return json_string
+    compare_and_tag(baseline_data, bill_data, variance)
+    return json.dumps(bill_data)
+
 
 
 
@@ -610,6 +662,7 @@ class InitialProcessPdf:
                     'message': f'Unable to process pdf may be due to unsupported format',
                     'error': -1
                 }
+
 
         if "verizon" in self.vendor.lower():
             self.file_acc, self.file_bill_date, self.file_billing_name = checkVerizon(matching_page_basic)
@@ -774,16 +827,16 @@ class ProcessZip:
                 bill_date = data_base.pop('bill_date').replace(",","").split(" ")
                 data_base['bill_date'] = " ".join(bill_date)
                 if acc_no != self.ban:
-                    self.instance.delete()
+                    if self.instance and self.instance.pk: self.instance.delete()
                     return {'message' : f'Account number from the RDD file did not matched with input ban', 'error' : -1}
                 if not (bill_date[0] in str(self.month)):
-                    self.instance.delete()
+                    if self.instance and self.instance.pk: self.instance.delete()
                     return {'message' : f'Bill date from the RDD file did not matched with input month', 'error' : -1}
                 if self.year != bill_date[2]:
-                    self.instance.delete()
+                    if self.instance and self.instance.pk: self.instance.delete()
                     return {'message' : f'Bill date from the RDD file did not matched with input year', 'error' : -1}
                 if BaseDataTable.objects.filter(accountnumber=acc_no, company=self.company, sub_company=self.org, month=self.month, year=self.year).exists():
-                    self.instance.delete()
+                    if self.instance and self.instance.pk: self.instance.delete()
                     return {'message' : f'Bill already exists for account number {acc_no}', 'error' : -1}
                 else:
                     obj = BaseDataTable.objects.create(viewuploaded=self.instance,month=self.month, year=self.year,net_amount=self.net_amount, **data_base)
@@ -791,7 +844,7 @@ class ProcessZip:
                     self.account_number = obj.accountnumber
                     obj.save()
                 bill_main_id = obj.viewuploaded.id
-                onboarded_id = BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(sub_company=obj.sub_company, vendor=obj.vendor, accountnumber=obj.accountnumber).first().banOnboarded
+                onboarded_id = BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(sub_company=obj.sub_company, vendor=obj.vendor, accountnumber=obj.accountnumber).first()
                 print('done')
                 self.save_to_pdf_data_table(data_pdf, v, t,obj)
                 print("saved to pdf data table")
@@ -873,9 +926,9 @@ class ProcessZip:
 
                 except Exception as e:
                     print(e)
-                self.reflect_uniquetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id)
-                self.reflect_baselinetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id)
-                self.add_tag_to_dict(bill_main_id)
+                self.reflect_uniquetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id.banOnboarded)
+                self.reflect_baselinetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id.banOnboarded)
+                self.add_tag_to_dict(bill_main_id,onboarded_id.variance)
                 self.reflect_category_object(bill_main_id)
                 self.check_baseline_approved(UniquePdfDataTable, bill_main_id)
                 self.check_baseline_approved(BaselineDataTable, bill_main_id)
@@ -888,7 +941,7 @@ class ProcessZip:
                 return {'message' : 'RDD uploaded successfully!', 'error' : 1}
         except Exception as e:
             print(f'Error occurred while processing zip file: {str(e)}')
-            self.instance.delete()
+            if self.instance and self.instance.pk: self.instance.delete()
             return {'message' : f'Error occurred while processing zip file: {str(e)}', 'error' : -1}
     
             
@@ -1156,7 +1209,7 @@ class ProcessZip:
         
         BaselineDataTable.objects.bulk_create(new_entries)
     
-    def add_tag_to_dict(self, bill_main_id):
+    def add_tag_to_dict(self, bill_main_id,variance):
         print("def add_tag_to_dict")
         baseline = BaselineDataTable.objects.filter(
             company=self.company,
@@ -1179,7 +1232,7 @@ class ProcessZip:
             wireless = bill_obj.Wireless_number
             baseline_obj = baseline_dict.get(wireless)
             if baseline_obj:  
-                tagged_object = tagging(baseline_obj.category_object, bill_obj.category_object)
+                tagged_object = tagging(baseline_obj.category_object, bill_obj.category_object,variance)
                 bill_obj.category_object = tagged_object
                 bill_obj.save()
 
@@ -1790,14 +1843,44 @@ class ApproveView(APIView):
                 base_instance = base_obj.first()
                 base_instance.is_baseline_approved = False if False in approved_wireless_list else True
                 base_instance.save()
+
+            saveuserlog(request.user, f"Wireless number {wn} of bill date {base_obj.first().bill_date} approved")
             
             filtered_baseline = BaselinedataSerializer(enter_bill_baseline_objs, many=True, context={'onboarded_objects': onboard_baseline_objs})
             return Response({"message": "Baseline updated successfully!", "baseline":filtered_baseline.data}, status=status.HTTP_200_OK)
 
         except Exception as e:
             print(e)
-            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Unable to update baseline."}, status=status.HTTP_400_BAD_REQUEST)
 
+class AddFullBaselineView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        sub_cmpny = request.GET.get('org')
+        vendor = request.GET.get('vendor')
+        ban = request.GET.get('ban')
+        bill_date = request.GET.get('bill_date')
+        onboarded = BaseDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(sub_company=sub_cmpny,vendor=vendor, accountnumber=ban).first()
+        main = BaseDataTable.objects.filter(sub_company=sub_cmpny,vendor=vendor, accountnumber=ban, bill_date=bill_date).first()
+        if not main:
+            return Response({"message":"Bill not found!"},status=status.HTTP_400_BAD_REQUEST)
+        
+        onboardbaselines = BaselineDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=sub_cmpny,vendor=vendor, accountnumber=ban)
+        baselines = BaselineDataTable.objects.filter(viewpapered=main.viewpapered, viewuploaded=main.viewuploaded)
+        uniquelines = UniquePdfDataTable.objects.filter(viewpapered=main.viewpapered, viewuploaded=main.viewuploaded)
+
+        baseline_dict = {b.Wireless_number: b for b in onboardbaselines if b.Wireless_number}
+        for bill_obj in baselines:
+            wireless = bill_obj.Wireless_number
+            baseline_obj = baseline_dict.get(wireless)
+            if baseline_obj:  
+                tagged_object = tagging(baseline_obj.category_object, bill_obj.category_object,onboarded.variance)
+                bill_obj.category_object = tagged_object
+                bill_obj.save()
+        
+
+       
 class ApproveFullView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -1817,6 +1900,7 @@ class ApproveFullView(APIView):
         main.save()
         onboard_baseline_objs = BaselineDataTable.objects.filter(viewuploaded=None,viewpapered=None, sub_company=sub_cmpny, vendor=main.vendor, account_number=main.accountnumber)
         filtered_baseline = BaselinedataSerializer(baselines, many=True, context={'onboarded_objects': onboard_baseline_objs})
+        saveuserlog(request.user, f"{ban} bill of date {bill_date} approved.")
         return Response({"message":"Bill Approved Successfully", "baseline":filtered_baseline.data},status=status.HTTP_200_OK)
         
     def process_approval(self,queryset):
@@ -1862,9 +1946,10 @@ class AprroveAllView(APIView):
                 base_instance.save()
             onboard_baseline_objs = BaselineDataTable.objects.filter(viewuploaded=None,viewpapered=None, vendor=main_uploaded_id.vendor, account_number=main_uploaded_id.account_number)
             filtered_baseline = BaselinedataSerializer(enter_bill_baseline_objs, many=True, context={'onboarded_objects': onboard_baseline_objs})
+            saveuserlog(request.user, f"wireless number {main_uploaded_id.Wireless_number} of ban {main_uploaded_id.account_number} approved")
             return Response({"message": "Baseline updated successfully!", "baseline":filtered_baseline.data}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({"message":str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"Unable to update baseline."}, status=status.HTTP_400_BAD_REQUEST)
 
 class AddNoteView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1880,6 +1965,7 @@ class AddNoteView(APIView):
             return Response({"message":"Bill not found!"},status=status.HTTP_400_BAD_REQUEST)
         base_obj.baseline_notes = str(notes).strip()
         base_obj.save()
+        saveuserlog(request.user, f"Note added in bill of account number {ban} of date {bill_date}")
         return Response({"message":"Notes added successfully!"},status=status.HTTP_200_OK)
     
 def check_true_false(cat):
@@ -2003,6 +2089,7 @@ class PaperBillView(APIView):
                 Wireless_number__in=wireless_numbers
             )
             self.filtered_baseline = BaselinedataSerializer(baseline, many=True, context={'onboarded_objects': Onboardedobjects}).data
+            saveuserlog(request.user, f"Paper bill added to the account {ban} with invoice number {invoice_number} and date {billdate}.")
         return Response(
             {"orgs": orgs.data, "vendors": vendors.data, "onborded": onboarded.data, "filtered_baseline": self.filtered_baseline},
             status=status.HTTP_200_OK,

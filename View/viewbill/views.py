@@ -42,32 +42,31 @@ class ViewBill(APIView):
     def post(self, request, *args, **kwargs):
         pass
     def put(self, request, pk, *args, **kwargs):
-        try:
-            obj = BaseDataTable.objects.get(id=pk)
-        except BaseDataTable.DoesNotExist:
+        obj = BaseDataTable.objects.filter(id=pk).first()
+
+        if not obj:
             return Response({"message": "Base Data not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
         print(request.data)
         if request.data['type'] == 'change-payment':
             obj.paymentType = request.data['paymentType']
             saveuserlog(
-                request.user, "Changed payment type to " + request.data['paymentType'] + " for Base Data with ID: " + str(pk)
+                request.user, "Changed payment type to " + request.data['paymentType'] + " for: " + {obj.accountnumber}-{obj.bill_date}
             )
         elif request.data['type'] == 'change-status':
             obj.billstatus = request.data['status']
             saveuserlog(
-                request.user, "Changed bill status to " + request.data['status'] + " for Base Data with ID: " + str(pk)
+                request.user, "Changed bill status to " + request.data['status'] + " for: " + {obj.accountnumber}-{obj.bill_date}
             )
         elif request.data['type'] == 'change-check':
             obj.Check = request.data['check']
             saveuserlog(
-                request.user, "Changed check to " + request.data['check'] + " for Base Data with ID: " + str(pk)
+                request.user, "Changed check to " + request.data['check'] + " for: " + {obj.accountnumber}-{obj.bill_date}
             )
         elif request.data['type'] == 'add-summaryfile':
             obj.summary_file = request.data['file']
             saveuserlog(
-                request.user, "Added summary file for Base Data with ID: " + str(pk)
+                request.user, "Added summary file" + " for: " + {obj.accountnumber}-{obj.bill_date}
             )
         else:
             return Response(
@@ -81,12 +80,9 @@ class ViewBill(APIView):
         }, status=status.HTTP_200_OK)
     
     def delete(self, request,pk, *args, **kwargs):
-        try:
-            obj = BaseDataTable.objects.get(id=pk)
-        except BaseDataTable.DoesNotExist:
+        obj = BaseDataTable.objects.filter(id=pk).first()
+        if not obj:
             return Response({"message": "Base Data not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         acc = obj.account_password
         bd = obj.bill_date
         if obj.viewuploaded:
@@ -97,7 +93,7 @@ class ViewBill(APIView):
             main_obj.delete()
         else:
             obj.delete()
-        saveuserlog(request.user, f"Bill of account number {acc} and bill date {bd} deletec successfully!")
+        saveuserlog(request.user, f"Bill of account number {acc} and bill date {bd} deleted successfully!")
         return Response({"message": "Bill deleted successfully deleted!"}, status=status.HTTP_200_OK)
 
 from datetime import datetime
@@ -140,16 +136,23 @@ class ViewBillBaseline(APIView):
         elif action == "is_draft":
             obj.is_draft = True
             obj.is_pending = False
+            saveuserlog(
+            request.user,
+                f"Baseline with account number {obj.account_number} and wireless number {obj.Wireless_number} moved to draft"
+            )
         elif action == "is_pending":
             obj.is_draft = False
             obj.is_pending = True
+            saveuserlog(
+            request.user,
+                f"Baseline with account number {obj.account_number} and wireless number {obj.Wireless_number} moved to pending"
+            )
         else:
             return Response({"message": "Invalid action"}, status=status.HTTP_400_BAD_REQUEST)
         obj.save()
-        allobjs = BaselineDataTableShowSerializer(BaselineDataTable.objects.filter(viewuploaded=obj.viewuploaded, is_pending=False, is_draft=False), many=True)
         saveuserlog(
             request.user,
-            f"Baseline with account number {obj.account_number} and invoice number {obj.Wireless_number} Updated with Action: {action}"
+            f"Baseline with account number {obj.account_number} and wireless number {obj.Wireless_number} updated"
         )
         return Response({"message": "Baseline updated successfully", "baseline":allobjs.data}, status=status.HTTP_200_OK)
     

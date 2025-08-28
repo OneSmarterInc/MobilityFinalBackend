@@ -57,7 +57,7 @@ class viewContractView(APIView):
 
             
         except Exception as e:
-            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"message": "Intenal Server Error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     def put(self, request, pk, *args, **kwargs):
         data = request.data
         try:
@@ -70,13 +70,13 @@ class viewContractView(APIView):
             if ser.is_valid():
                 ser.save()
             else:
-                return Response({"message": ser.errors}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message": "Unable to update contract"}, status=status.HTTP_400_BAD_REQUEST)
             saveuserlog(request.user, f'Contract with name: {obj.contract_name} updated successfully!')  # TODO: log user action with ID and details.
             return Response({"message": "Contract updated successfully"}, status=status.HTTP_200_OK)
         except Contracts.DoesNotExist:
             return Response({"message": "Contract not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"message": "Internal Server Error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
     def delete(self, request, pk, *args, **kwargs):
         try:
@@ -90,4 +90,4 @@ class viewContractView(APIView):
         except Contracts.DoesNotExist:
             return Response({"message": "Contract not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"message": "Unable to delete Contract"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

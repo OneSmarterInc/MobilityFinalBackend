@@ -11,6 +11,7 @@ import ast
 from OnBoard.Organization.models import Organizations
 from addon import parse_until_dict
 import json
+from authenticate.views import saveuserlog
 
 class InventoryView(APIView):
     permission_classes = [IsAuthenticated]
@@ -54,7 +55,7 @@ class InventoryView(APIView):
                         ser.save()
                     else:
                         print(ser.errors)
-                        return Response({"message":f"Unexpected error {ser.errors}"}, status=status.HTTP_400_BAD_REQUEST)
+                        continue
                     wn = inv.get('Wireless_number')
                     inv['Wireless_number'] = wn
                     baseline_obj = BaselineDataTable.objects.filter(sub_company=org).filter(account_number=obj.account_number, Wireless_number=obj.wireless_number, vendor=obj.vendor)
@@ -64,11 +65,12 @@ class InventoryView(APIView):
                             baselineser.save()
                         else:
                             print(ser.errors)
-                            return Response({"message":f"Unexpected error {ser.errors}"}, status=status.HTTP_400_BAD_REQUEST)
+                            continue
+                saveuserlog(request.user, f"Inventory in bulk updated for {org}.")
                 return Response({"message":"Inventories updated successfully"}, status=status.HTTP_200_OK)
             except Exception as e:
                 print(e)
-                return Response({"message":f"Unexpected error {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message":"unable to update inventory."}, status=status.HTTP_400_BAD_REQUEST)
             
 
         
@@ -96,6 +98,8 @@ class InventoryView(APIView):
                     obj1 = baseline_obj[0]
                     obj1.account_number = ban
                     obj1.save()
+
+                    saveuserlog(request.user, f"Inventory of {org} of wireless number {obj1.Wireless_number} updated.")
                 return Response({"message":f"Ban successfully moved from {prev} to {ban}"},status=status.HTTP_200_OK)
         unique_ser = UniqueTableShowSerializer(unique_obj[0], data, partial=True)
         if unique_ser.is_valid():
@@ -106,24 +110,27 @@ class InventoryView(APIView):
                 baseline_ser = BaselineTableShowSerializer(baseline_obj[0], data, partial=True)
                 if baseline_ser.is_valid():
                     baseline_ser.save()
+                    saveuserlog(request.user, f"wireless number {wn} updated successfully.")
                 else:
                     print(baseline_ser.errors)
-                    return Response({"message": str(baseline_ser.errors)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    return Response({"message": "unable to update inventory"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             return Response({"message": "inventory updated successfully!"}, status=status.HTTP_200_OK)
             
         else:
-                return Response({"message": str(unique_ser.errors)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({"message": "unable to update inventory."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     def delete(self, request,org, pk, *args, **kwargs):
         try:
-            inventoryunique = UniquePdfDataTable.objects.filter(sub_company=org).get(id=pk)
+            inventoryunique = UniquePdfDataTable.objects.filter(sub_company=org).filter(id=pk).first()
             inventorybaseline = BaselineDataTable.objects.filter(sub_company=org).filter(banUploaded=inventoryunique.banUploaded, banOnboarded=inventoryunique.banOnboarded).get(Wireless_number=inventoryunique.wireless_number)
+            num = inventoryunique.wireless_number
             inventoryunique.delete()
             inventorybaseline.delete()
+            saveuserlog(request.user, f"wireless number {num} deleted successfully.")
             return Response({"message": "Inventory deleted successfully"}, status=status.HTTP_200_OK)
         except UniquePdfDataTable.DoesNotExist:
             return Response({"message": "Inventory not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "unable to delete inventory."}, status=status.HTTP_400_BAD_REQUEST)
 
 class MovebanView(APIView):
     def put(self, request, pk, *args, **kwargs):
@@ -156,6 +163,7 @@ class MovebanView(APIView):
         UniqueMobileObj.update(**newUpdatedBan)
         if BaselineMobileObj:
             BaselineMobileObj.update(**newUpdatedBan)
+            saveuserlog(request.user, f"wireless number moved to ban {ban} from {searchBan.accountnumber}")
 
         return Response({"message":f"Mobile {UniqueMobileObj[0].wireless_number} moved to ban {searchBan.accountnumber} successfully!"},status=status.HTTP_200_OK)
 
@@ -193,16 +201,17 @@ class AddNewInventoryView(APIView):
             uniqueser.save()
         else:
             print(uniqueser.errors)
-            return Response({"message":str(uniqueser.errors)},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":""},status=status.HTTP_400_BAD_REQUEST)
         wn = data.get('wireless_number')
         data['Wireless_number'] = wn
         baselineser = BaselineTableSaveSerializer(data=data)
         if baselineser.is_valid():
             baselineser.save()
-            return Response({"message":"New inventory created successfully!"}, status=status.HTTP_200_OK)
+            saveuserlog(request.user, f"new inventory with wireless number {wn} in organization {sub_company}")
+            return Response({"message":"Inventory created successfully!"}, status=status.HTTP_200_OK)
         else:
             print(baselineser.errors)
-            return Response({"message":str(baselineser.errors)},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"Unable to create inventory."},status=status.HTTP_400_BAD_REQUEST)
     
 from django.forms.models import model_to_dict
 import pandas as pd
@@ -245,6 +254,7 @@ class DownloadInventoryExcel(APIView):
         # Save the DataFrame to Excel
         inventory_data.to_excel(file_path, index=False)
 
+        saveuserlog(request.user, f"organization {org} inventory downloaded")
         # Return relative media URL
         return Response({
             "message": "Excel downloaded successfully!",

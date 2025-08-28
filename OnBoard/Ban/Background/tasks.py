@@ -54,7 +54,7 @@ def verizon_att_onboardPDF_processor(buffer_data, instance_id,btype):
             msg = f"{msg}\nYour pdf {pdf_filename} took {ProcessTime} to process"
         send_custom_email(company=com, organization=sc,to=email, subject=sub, body_text=msg)
         if not check:
-            if instance: instance.delete()
+            if instance and instance.pk: instance.delete()
             send_custom_email(company=com, organization=sc,to="gauravdhale09@gmail.com", subject=sub, body_text=msg)
     except Exception as e:
         errormsg = get_error_message()
@@ -65,7 +65,7 @@ def verizon_att_onboardPDF_processor(buffer_data, instance_id,btype):
         """
         send_custom_email(company=com, organization=sc,to=email, subject=sub, body_text=msg)
         send_custom_email(company=com, organization=sc,to="gauravdhale09@gmail.com", subject=sub, body_text=msg)
-        if instance: instance.delete()
+        if instance and instance.pk: instance.delete()
     
 from OnBoard.Ban.Background.pp import ProcessPdf
 @shared_task
@@ -89,7 +89,7 @@ def process_pdf_task(buffer_data, instance_id):
             {e}
         """
         send_custom_email(company= buffer_data_dict.get('company_name'),to="gauravdhale09@gmail.com", subject=sub, body_text=msg)
-        instance.delete()
+        if instance and instance.pk: instance.delete()
 
 
 # @background(schedule=3600)
@@ -116,6 +116,6 @@ def process_csv(instance_id, buffer_data,type=None):
         return process
     except Exception as e:
         print("Internal Server Error")
-        instance.delete()
+        if instance and instance.pk: instance.delete()
         return {"message": f"{e}", "code": 1}
     

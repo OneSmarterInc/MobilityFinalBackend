@@ -28,7 +28,7 @@ class AnalysisView(APIView):
                 ser = AnalysisShowSerializer(analysis)
                 return Response({"data": ser.data}, status=status.HTTP_200_OK)
             except Analysis.DoesNotExist:
-                return Response({"message": "Analysis not found"}, status=status.HTTP_404_NOT_FOUND)
+                return Response({"message": "File not found"}, status=status.HTTP_404_NOT_FOUND)
             except Exception as e:
                 return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -36,30 +36,31 @@ class AnalysisView(APIView):
         try:
             check = prove_bill_ID(vendor_name=request.data['vendor'],bill_path=request.data['uploadBill'])
             if not check:
-                return Response({"message":f"Uploaded file is not {request.data['vendor']} file!"},status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message": f"Invalid file: expected a {request.data['vendor']} file."},status=status.HTTP_400_BAD_REQUEST)
             
             ser = AnalysisSaveSerializer(data=request.data)
             if ser.is_valid():
                 ser.save()
             else:
                 print(ser.errors)
-                return Response({"message": ser.errors}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message": "Unable to analyze pdf."}, status=status.HTTP_400_BAD_REQUEST)
             try:
                 id = ser.data['id']
-                obj = Analysis.objects.filter(id=id)[0]
+                obj = Analysis.objects.filter(id=id).first()
                 store, types = None, None
                 buffer_data = json.dumps(
                     {'pdf_path':obj.uploadBill.path, 'vendor_name':obj.vendor.name, 'pdf_filename':obj.uploadBill.name, 'user_id':obj.created_by.id, 'organization':obj.client, 'remark':obj.remark, 'first_name':obj.created_by.first_name, 'last_name':obj.created_by.last_name, 'store':store, 'types':types}
                 )
                 saveuserlog(
                     request.user,
-                    f"{obj.vendor.name} file of client {obj.client} is uploaded for analysis"
+                    f"{request.user.email} uploaded {obj.vendor.name} file for client {obj.client} to analyze"
                 )
+
                 process_analysis_task.delay(buffer_data, obj.id)
                 return Response({"message":f"File Analysis is in progress,It will take some time.\n Please check inventory page later."})
             except Exception as e:
                 print(e)
-                return Response({"message": f'Data saved but error processing file!{str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({"message": f'Error processing file!{str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             print(e)
             return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -70,11 +71,11 @@ class AnalysisView(APIView):
             ser = AnalysisSaveSerializer(analysis, data=request.data)
             if ser.is_valid():
                 ser.save()
-                return Response({"message": "Analysis updated successfully!", "data": ser.data}, status=status.HTTP_200_OK)
+                return Response({"message": "pdf analysis updated successfully!", "data": ser.data}, status=status.HTTP_200_OK)
         except Analysis.DoesNotExist:
-            return Response({"message": "Analysis not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "pdf not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def delete(self, request, pk):
         try:
@@ -85,13 +86,14 @@ class AnalysisView(APIView):
             analysis.delete()
             saveuserlog(
                 request.user,
-                f"{vendor} file with name {file} of client {client if client else '-'} has been deleted from Analysis!"
+                f"{request.user.email} deleted {vendor} file '{file}' for client {client if client else '-'} from Analysis"
             )
-            return Response({"message": "Analysis deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+
+            return Response({"message": "Analysis file deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
         except Analysis.DoesNotExist:
-            return Response({"message": "Analysis not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "Analysis file not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 import json
 class ProcessAnanalysis:

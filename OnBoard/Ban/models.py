@@ -336,7 +336,6 @@ class BaseDataTable(models.Model):
     viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewbase', on_delete=models.CASCADE, null=True, blank=True)
     viewpapered = models.ForeignKey(PaperBill, related_name='paperbase', on_delete=models.CASCADE, null=True, blank=True)
     inventory = models.ForeignKey(InventoryUpload, related_name='inventorybase', on_delete=models.CASCADE, null=True, blank=True)
-    
     bill_date = models.CharField(max_length=255, blank=True, null=True, default="")
     date_due = models.CharField(max_length=255, blank=True, null=True, default="")
     accountnumber = models.CharField(max_length=255, blank=True, null=True, default="")
@@ -387,6 +386,7 @@ class BaseDataTable(models.Model):
 
     costcenterlevel = models.CharField(max_length=255, null=True, blank=True, default="")
     costcentertype = models.CharField(max_length=255, null=True, blank=True, default="")
+
     costcenterstatus = models.BooleanField(default=False)
     CostCenter = models.CharField(max_length=255, null=True, blank=True)
     CostCenterNotes = models.TextField(null=True, blank=True)
@@ -441,6 +441,13 @@ class BaseDataTable(models.Model):
     net_amount = models.CharField(max_length=255, blank=True, null=True, default=0)
 
     batch_file = models.FileField(upload_to='batchfiles/', null=True, blank=True, default=None)
+    variance = models.FloatField(default=5)
+
+    def save(self, *args, **kwargs):
+        
+        if self.viewuploaded or self.viewpapered:
+            self.variance = 0
+        super().save(*args, **kwargs)
 
     class Meta:
         db_table = 'BaseDataTable'

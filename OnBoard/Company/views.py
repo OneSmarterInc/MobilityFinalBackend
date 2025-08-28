@@ -33,7 +33,7 @@ class CompanyView(APIView):
             saveuserlog(request.user, f"company named {serializer.data['Company_name']} created successfully!")
             return Response({"message" : "Comapany created successfully!", "data" : serializer.data}, status=status.HTTP_201_CREATED)
         print(serializer.errors)
-        return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"message": "Unable to create company."}, status=status.HTTP_400_BAD_REQUEST)
     
     def put(self, request, pk):
         company = Company.objects.get(Company_name=pk)
@@ -42,7 +42,7 @@ class CompanyView(APIView):
             serializer.save()
             saveuserlog(request.user, f"company named {pk} updated successfully!") 
             return Response({"message" : "Company updated successfully!", "data" : serializer.data}, status=status.HTTP_200_OK)
-        return Response({"message" : serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"message" : "Unable to update company."}, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, pk):
         try:

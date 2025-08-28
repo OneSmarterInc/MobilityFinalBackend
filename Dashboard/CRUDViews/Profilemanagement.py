@@ -11,6 +11,7 @@ from ..Serializers.promange import OrganizationsShowSerializer, showdesignations
 from ..ModelsByPage.DashAdmin import UserRoles
 from authenticate.models import PortalUser
 from ..ModelsByPage.ProfileManage import Profile
+from authenticate.views import saveuserlog
 
 class GetUserbyOrgView(APIView):
     # permission_classes = [IsAuthenticated]
@@ -51,6 +52,7 @@ class ProfileManageView(APIView):
             ser = ProfileSaveSerializer(obj, data=data, partial=True)
             if ser.is_valid():
                 ser.save()
+                saveuserlog(request.user, f"user profile {obj.email} updated.")
                 return Response({"message": "Profile updated successfully!"}, status=status.HTTP_200_OK)
             else:
                 print(ser.errors)
@@ -58,10 +60,12 @@ class ProfileManageView(APIView):
         ser = ProfileSaveSerializer(data=data)
         if ser.is_valid():
             ser.save()
+            data = ser.data
+            saveuserlog(request.user, f"new user profile for {data['email']} created.")
             return Response({"message": "New User added successfully!"}, status=status.HTTP_200_OK)
         else:
             print(ser.errors)
-            return Response({"message": f"{str(ser.errors)}"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Unable to create new profile"}, status=status.HTTP_400_BAD_REQUEST)
     def put(self, request,pk, *args, **kwargs):
         org = Organizations.objects.filter(id=pk)
         if not org.exists():
@@ -69,13 +73,16 @@ class ProfileManageView(APIView):
         org = org[0]
         data = request.data.copy().get('contacts')
         for contact in data:
-            obj = Profile.objects.get(id=contact.get('id'))
+            obj = Profile.objects.filter(id=contact.get('id')).first()
+            if not obj:
+                continue
             ser = ProfileSaveSerializer(obj, data=contact, partial=True)
             if ser.is_valid():
                 ser.save()
             else:
                 print(ser.errors)
-                return Response({"message": f"{str(ser.errors)}"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message": "Unable to update profile."}, status=status.HTTP_400_BAD_REQUEST)
+        saveuserlog(request.user, f"user profile {obj.email} updated.")
         return Response({"message": f"Contact list for organization {org.Organization_name} updated successfully!"}, status=status.HTTP_200_OK)
     def delete(self, request, pk, *args, **kwargs):
         return Response({"message": "Delete"}, status=status.HTTP_200_OK)
@@ -90,15 +97,16 @@ class ProfilePermissionsView(APIView):
         role = Profile.objects.filter(id=pk)
         if not role.exists():
             return Response({"message":"UserRole not found!"}, status=status.HTTP_400_BAD_REQUEST)
-        role = role[0]
+        role = role.first()
         data = request.data.copy()
         ser = ProfileSaveSerializer(role, data=data, partial=True)
         if ser.is_valid():
             ser.save()
+            saveuserlog(request.user, f"permissions for {role.email} updated.")
             return Response({"message": f"Permission list for {role.role.name} updated successfully!"}, status=status.HTTP_200_OK)
         else:
             print(ser.errors)
-            return Response({"message": f"{str(ser.errors)}"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Unable to update permissions."}, status=status.HTTP_400_BAD_REQUEST)
         
 class ProfileUpdateView(APIView):
     # permission_classes = [IsAuthenticated]
@@ -110,6 +118,7 @@ class ProfileUpdateView(APIView):
         ser = ProfileSaveSerializer(obj, data=request.data, partial=True)
         if ser.is_valid():
             ser.save()
+            saveuserlog(request.user, f"user profile {obj.email} updated.")
             return Response({"message": "Profile updated successfully!"}, status=status.HTTP_200_OK)
         else:
             print(ser.errors)

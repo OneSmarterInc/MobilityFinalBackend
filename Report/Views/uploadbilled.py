@@ -67,7 +67,7 @@ class UploadBilledReportView(APIView):
                         return Response({"message": "Unsupported file format"}, status=status.HTTP_400_BAD_REQUEST)
                 except Exception as e:
 
-                    return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({"message":"Unsupported file format"}, status=status.HTTP_400_BAD_REQUEST)
                 column_mappings = {
                     'Wireless Number': 'wireless_number',
                     'User Name': 'user_name',
@@ -150,7 +150,7 @@ class UploadBilledReportView(APIView):
                 }, status=status.HTTP_200_OK)
             except Exception as e:
                 print(e)
-                return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message": "Unable to upload file."}, status=status.HTTP_400_BAD_REQUEST)
         else:
             return Response({"message": "Invalid report type"}, status=status.HTTP_400_BAD_REQUEST)
     
@@ -191,4 +191,4 @@ class UploadBilledReportView(APIView):
             return Response({"message": f"{self.report_type} Report deleted successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
             print(e)
-            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Unable to delete report."}, status=status.HTTP_400_BAD_REQUEST)

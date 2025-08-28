@@ -7,6 +7,7 @@ from authenticate.models import PortalUser
 from rest_framework.permissions import IsAuthenticated
 from ..ModelsByPage.Req import VendorDevice
 from OnBoard.Organization.models import Organizations
+from authenticate.views import saveuserlog
 
 class VendorDeviceView(APIView):
     permission_classes = [IsAuthenticated]
@@ -28,9 +29,12 @@ class VendorDeviceView(APIView):
         ser = VendorDeviceSerializer(data=data)
         if ser.is_valid():
             ser.save()
+            data = ser.data
+            obj = VendorDevice.objects.get(id=data['id'])
+            saveuserlog(request.user, f"New vendor device created for vendor {obj.vendor.name}")
             return Response({"message":"vendor device added succesfully!"},status=status.HTTP_200_OK)
         else:
-            return Response({"message":str(ser.errors)},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"Unable to create vendor device."},status=status.HTTP_400_BAD_REQUEST)
         
     def put(self, request, pk, *args, **kwargs):
         obj = VendorDevice.objects.filter(id=pk).first()
@@ -41,7 +45,7 @@ class VendorDeviceView(APIView):
             ser.save()
             return Response({"message":"vendor device updated succesfully!"},status=status.HTTP_200_OK)
         else:
-            return Response({"message":str(ser.errors)},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"Unable to update vendor device."},status=status.HTTP_400_BAD_REQUEST)
         
     def delete(self, request, pk, *args, **kwargs):
         obj = VendorDevice.objects.filter(id=pk).first()

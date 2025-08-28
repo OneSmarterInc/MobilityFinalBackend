@@ -97,3 +97,10 @@ class CompanyShowSerializer(serializers.ModelSerializer):
     class Meta:
         model = Company
         fields = ['Company_name', ]
+
+class EmailSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+class OTPVerifySerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
