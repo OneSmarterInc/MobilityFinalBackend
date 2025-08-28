@@ -261,7 +261,7 @@ class BanInfoView(APIView):
             return Response({"message":f"Ban with account number {ban} not found!"},status=status.HTTP_400_BAD_REQUEST)
         acc = obj.account_number
         obj.delete()
-        saveuserlog(request.user, f"account number {obj.accountnumber} deleted successfully.")
+        saveuserlog(request.user, f"account number {acc} deleted successfully.")
         return Response({"message":f"Ban with account number {ban} deleted successfully!"},status=status.HTTP_200_OK)
         
 

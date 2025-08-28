@@ -1947,7 +1947,7 @@ class AprroveAllView(APIView):
             onboard_baseline_objs = BaselineDataTable.objects.filter(viewuploaded=None,viewpapered=None, vendor=main_uploaded_id.vendor, account_number=main_uploaded_id.account_number)
             filtered_baseline = BaselinedataSerializer(enter_bill_baseline_objs, many=True, context={'onboarded_objects': onboard_baseline_objs})
             saveuserlog(request.user, f"wireless number {main_uploaded_id.Wireless_number} of ban {main_uploaded_id.account_number} approved")
-            return Response({"message": "Baseline updated successfully!", "baseline":filtered_baseline.data}, status=status.HTTP_200_OK)
+            return Response({"message": f"Baseline of wireless number {main_uploaded_id.Wireless_number} approved successfully!", "baseline":filtered_baseline.data}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"message":"Unable to update baseline."}, status=status.HTTP_400_BAD_REQUEST)
 

@@ -361,7 +361,7 @@ class EmailConfigurationViewSet(viewsets.ModelViewSet):
             use_tls=use_tls, use_ssl=use_ssl,
         )
         code = status.HTTP_200_OK if ok else status.HTTP_400_BAD_REQUEST
-        saveuserlog(request.user, description=f"Email configure verification done for organization {cfg.organization}")
+        saveuserlog(request.user, description=f"Email configure verification done for organization")
         return Response({
             "ok": ok,
             "message": msg,
