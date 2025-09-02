@@ -269,7 +269,7 @@ class UploadBANView(APIView):
                 print(f"Error in line creation: {e}")
                 return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        return Response({"message": "BAN created successfully!", "data":showBaseDataSerializer(obj).data}, status=status.HTTP_201_CREATED)
+        return Response({"message": "BAN onboarded successfully!", "data":showBaseDataSerializer(obj).data}, status=status.HTTP_201_CREATED)
     def remove_filds(self, model, data):
         valid_fields = {field.name for field in model._meta.get_fields()}
 

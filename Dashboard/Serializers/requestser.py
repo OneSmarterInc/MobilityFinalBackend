@@ -106,18 +106,19 @@ class showVendorInformationSerializer(serializers.ModelSerializer):
         }
     def get_vendor_plan(self, obj):
         if (not obj.vendor_plan) and obj.existing_plan:
-            obj = BaselineDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(sub_company=obj.sub_company.Organization_name,vendor=obj.vendor.name,plans=obj.existing_plan).first()
+            Vobj = BaselineDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(sub_company=obj.sub_company.Organization_name,vendor=obj.vendor.name,plans=obj.existing_plan).first()
+            print("obj==",Vobj)
             return {
                 'id': None,
-                'plan': obj.plans,
-                'plan_type': obj.plan_type,
-                'data_allotment': obj.data_allotment,
-                'plan_fee': obj.plan_fee,
-                'smartphone': obj.smartphone,
-                'tablet_computer': obj.tablet_computer,
-                'mifi': obj.mifi,
-                'wearables': obj.wearables,
-            }
+                'plan': Vobj.plans,
+                'plan_type': Vobj.plan_type,
+                'data_allotment': Vobj.data_allotment,
+                'plan_fee': Vobj.plan_fee,
+                'smartphone': Vobj.smartphone,
+                'tablet_computer': Vobj.tablet_computer,
+                'mifi': Vobj.mifi,
+                'wearables': Vobj.wearables,
+            } if Vobj else {}
         return {
             'id': obj.vendor_plan.id,
             'plan': obj.vendor_plan.plan,
