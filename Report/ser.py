@@ -8,10 +8,11 @@ from .models import Report_Unbilled_Data, Report_Billed_Data
 class OrganizationShowSerializer(serializers.ModelSerializer):
     vendors = serializers.StringRelatedField(many=True)
     locations = serializers.StringRelatedField(many=True)
+    company = serializers.CharField()
 
     class Meta:
         model = Organizations
-        fields = ['id', 'Organization_name', 'vendors', 'locations']
+        fields = ['id', 'Organization_name', 'vendors', 'locations','company']
 
 
 class VendorShowSerializer(serializers.ModelSerializer):

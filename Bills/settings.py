@@ -198,7 +198,7 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'grddeveloper.py@gmail.com'
-SENDERS_NAME = "SimpleTek"
-EMAIL_HOST_PASSWORD = 'znal juyy lruk wxjz '  
+SENDERS_NAME = "OneSmarters"
+EMAIL_HOST_PASSWORD = 'znal juyy lruk wxjz'  
 DEFAULT_FROM_EMAIL = f"{SENDERS_NAME} <{EMAIL_HOST_USER}>"
 

@@ -69,39 +69,64 @@ class LocationView(APIView):
         
     def put(self, request, org, pk, *args, **kwargs):
         print(pk)
-        if type(org) is str:
+        if isinstance(org, str):
             org = Organizations.objects.filter(Organization_name=org).first()
         else:
             org = Organizations.objects.get(id=org)
+
         try:
             location = Location.objects.get(id=pk)
         except Location.DoesNotExist:
             return Response({"message": "Location not found"}, status=status.HTTP_404_NOT_FOUND)
+
         try:
-            
             request_data = request.data.copy()
-            
-            division_name = request_data.pop('division')  # Now it's mutable, no error
+            division_name = request_data.pop('division', None)
             division = Division.objects.filter(name=division_name, organization=location.organization)
-            
-            data = {'division': division[0] if division else None, **request_data}
-            cleaned_data = {key: value[0] if isinstance(value, list) else value for key, value in data.items()}
-            
-            # Update fields
+
+            # --- Capture Original Data ---
+            original_data = {
+                field.name: getattr(location, field.name)
+                for field in location._meta.fields
+                if field.name in request_data or field.name == "division"
+            }
+
+            # --- Update Fields ---
             for key, value in request_data.items():
                 setattr(location, key, value[0] if isinstance(value, list) else value)
-            
-            if division:
-                location.division = division  
-            
-            location.save()  
-            saveuserlog(request.user, f"location with site name {location.site_name} updated successfully!")
-            
+
+            if division.exists():
+                location.division = division[0]
+
+            location.save()
+
+            # --- Capture Updated Data ---
+            updated_data = {
+                field: getattr(location, field)
+                for field in original_data
+            }
+
+            # --- Prepare Change Log ---
+            change_log_lines = []
+            for field, old_val in original_data.items():
+                new_val = updated_data.get(field)
+                if old_val != new_val:
+                    change_log_lines.append(f"{field}: '{old_val}' → '{new_val}'")
+
+            change_log = "; ".join(change_log_lines) if change_log_lines else "No changes detected."
+
+            # --- Save Log Entry ---
+            saveuserlog(
+                request.user,
+                f"Location '{location.site_name}' updated. Changes: {change_log}"
+            )
+
             return Response({"message": "Location updated successfully!"}, status=status.HTTP_200_OK)
 
         except Exception as e:
             print(e)
             return Response({"message": "Unable to update location."}, status=status.HTTP_400_BAD_REQUEST)
+
 
         # serializer = LocationSaveSerializer(location, data=request.data)
         # if serializer.is_valid():

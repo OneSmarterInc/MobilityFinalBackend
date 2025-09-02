@@ -59,13 +59,42 @@ class OnboardOrganizationView(APIView):
             organization = Organizations.objects.get(id=pk)
         except Organizations.DoesNotExist:
             return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
-        print(request.data)
+
+        # Capture original values before update
+        original_data = {
+            field.name: getattr(organization, field.name)
+            for field in organization._meta.fields
+            if field.name in request.data
+        }
+
         serializer = OrganizationSaveSerializer(organization, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            saveuserlog(request.user, f'Organization {organization.Organization_name} updated successfully!')  
-            return Response({"message" : "Organization updated successfully!", "data": serializer.data}, status=status.HTTP_200_OK)
-        return Response({"message": "Unable to update organization."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Capture updated values
+            updated_data = {
+                field: request.data[field]
+                for field in request.data
+                if field in original_data and original_data[field] != request.data[field]
+            }
+
+            # Format the change log
+            change_log_lines = []
+            for field, new_val in updated_data.items():
+                old_val = original_data.get(field, 'N/A')
+                change_log_lines.append(f"{field}: '{old_val}' → '{new_val}'")
+            change_log = "; ".join(change_log_lines) if change_log_lines else "No changes detected."
+
+            # Save user log
+            saveuserlog(
+                request.user,
+                f"Organization '{organization.Organization_name}' updated. Changes: {change_log}"
+            )
+
+            return Response({"message": "Organization updated successfully!", "data": serializer.data}, status=status.HTTP_200_OK)
+
+        return Response({"message": "Unable to update organization.", "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
     
     def delete(self, request, pk):
         print(pk)
@@ -125,22 +154,67 @@ class DivisionView(APIView):
             company_name = organization.company.Company_name
         except Organizations.DoesNotExist:
             return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
+
         try:
             division = Division.objects.get(organization=org, id=pk)
         except Division.DoesNotExist:
             return Response({"message": "Division not found"}, status=status.HTTP_404_NOT_FOUND)
-        try:
 
-            serializer = DivisionSerializer(division, data={"organization": org_name, 'company' : company_name, **request.data})
+        try:
+            # --- Capture Original Values ---
+            original_data = {
+                field.name: getattr(division, field.name)
+                for field in division._meta.fields
+                if field.name in request.data
+            }
+
+            # --- Build Full Data Payload for Serializer ---
+            serializer = DivisionSerializer(
+                division,
+                data={
+                    "organization": org_name,
+                    "company": company_name,
+                    **request.data
+                },
+                partial=True
+            )
+
             if serializer.is_valid():
                 serializer.save()
-                saveuserlog(request.user, f'Division {division.name} updated successfully!')
-                return Response({"message" : "Division updated successfully!", "data": serializer.data}, status=status.HTTP_200_OK)
+
+                # --- Capture Updated Values After Save ---
+                updated_data = {
+                    field: getattr(division, field)
+                    for field in original_data
+                }
+
+                # --- Compare and Build Change Log ---
+                change_log_lines = []
+                for field, old_val in original_data.items():
+                    new_val = updated_data.get(field)
+                    if old_val != new_val:
+                        change_log_lines.append(f"{field}: '{old_val}' → '{new_val}'")
+
+                change_log = "; ".join(change_log_lines) if change_log_lines else "No changes detected."
+
+                # --- Log User Activity ---
+                saveuserlog(
+                    request.user,
+                    f"Division '{division.name}' updated. Changes: {change_log}"
+                )
+
+                return Response({
+                    "message": "Division updated successfully!",
+                    "data": serializer.data
+                }, status=status.HTTP_200_OK)
+
             else:
-                return Response({"message": "Unable to update division."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message": "Unable to update division.", "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
         except Exception as e:
             print(e)
             return Response({"message": "Unable to update division."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     
     def delete(self, request, org, pk):
         try:
@@ -191,17 +265,56 @@ class LinksView(APIView):
                 return Response({"message": "Link not found"}, status=status.HTTP_404_NOT_FOUND)
     
     def put(self, request, org, pk):
-
         try:
             link = Links.objects.filter(id=pk).first()
+            if not link:
+                return Response({"message": "Link not found"}, status=status.HTTP_404_NOT_FOUND)
         except Links.DoesNotExist:
             return Response({"message": "Link not found"}, status=status.HTTP_404_NOT_FOUND)
-        serializer = LinkSerializer(link, data=request.data,partial=True)
+
+        # --- Capture Original Values Before Update ---
+        original_data = {
+            field.name: getattr(link, field.name)
+            for field in link._meta.fields
+            if field.name in request.data
+        }
+
+        serializer = LinkSerializer(link, data=request.data, partial=True)
+
         if serializer.is_valid():
             serializer.save()
-            saveuserlog(request.user, f'Link {link.name} updated successfully!')
-            return Response({"message" : "Link updated successfully!", "data": serializer.data}, status=status.HTTP_200_OK)
-        return Response({"message": "Unable to update link."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # --- Capture New Values After Save ---
+            updated_data = {
+                field: getattr(link, field)
+                for field in original_data
+            }
+
+            # --- Compare and Log Changes ---
+            change_log_lines = []
+            for field, old_val in original_data.items():
+                new_val = updated_data.get(field)
+                if old_val != new_val:
+                    change_log_lines.append(f"{field}: '{old_val}' → '{new_val}'")
+
+            change_log = "; ".join(change_log_lines) if change_log_lines else "No changes detected."
+
+            # --- Save to Log ---
+            saveuserlog(
+                request.user,
+                f"Link '{link.name}' updated. Changes: {change_log}"
+            )
+
+            return Response({
+                "message": "Link updated successfully!",
+                "data": serializer.data
+            }, status=status.HTTP_200_OK)
+
+        return Response({
+            "message": "Unable to update link.",
+            "errors": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
     
     def delete(self, request, org, pk):
         print(pk)

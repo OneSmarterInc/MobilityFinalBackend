@@ -201,6 +201,7 @@ class UploadBANView(APIView):
                 FoundAcc = upload_ban.FoundAcc,
                 bantype = upload_ban.bantype.name if upload_ban.bantype else "",
                 invoicemethod = upload_ban.invoicemethod.name if upload_ban.invoicemethod else "",
+                variance=upload_ban.variance
 
 
             )
@@ -439,7 +440,8 @@ class OnboardBanView(APIView):
                         masteraccount=masteraccount,
                         uploadBill = rd.pop('uploadBill', None),
                         addDataToBaseline = False if etype.name == "Master Account" else rd.pop('baselineCheck', False),
-                        is_it_consolidatedBan = rd.pop('is_it_consolidatedBan', False)
+                        is_it_consolidatedBan = rd.pop('is_it_consolidatedBan', False),
+                        variance = rd.pop('variance',5)
                     )
                     obj.save()
                     if obj.uploadBill.name.endswith('.zip'):
@@ -498,6 +500,7 @@ class OnboardBanView(APIView):
                         addDataToBaseline = False if etype.name == "Master Account" else ed.pop('baselineCheck', False),
                         is_it_consolidatedBan = ed.pop('is_it_consolidatedBan', False),
                         uploadBill = ed.pop('uploadBill', None),
+                        variance = ed.pop('variance',5)
                     )
                     obj.save()
                     map = ed.pop('mapping_object', None)
@@ -519,7 +522,7 @@ class OnboardBanView(APIView):
                         if obj.location:
                             site = obj.location.site_name
 
-                        buffer_data = json.dumps({'excel_csv_path': obj.uploadBill.path,'company':obj.organization.company.Company_name,'sub_company':obj.organization.Organization_name,'vendor':obj.vendor.name,'entry_type':obj.entryType.name,"mapping_json":mapping_json,'location':site,'master_account':ma,'email':request.user.email
+                        buffer_data = json.dumps({'excel_csv_path': obj.uploadBill.path,'company':obj.organization.company.Company_name,'sub_company':obj.organization.Organization_name,'vendor':obj.vendor.name,'entry_type':obj.entryType.name,"mapping_json":mapping_json,'location':site,'master_account':ma,'email':request.user.email, "variance":obj.variance
                         })
 
                         print("process_csv")
@@ -551,6 +554,7 @@ class OnboardBanView(APIView):
                 return Response({"message" : f"The uploaded file is not {request.data.get('vendor')} file!"}, status=status.HTTP_400_BAD_REQUEST)
         mutable_data = {k: v for k, v in request.data.items() if not hasattr(v, 'read')}
         mutable_data = {key: (value if value != "" else None) for key, value in mutable_data.items()}
+        print(mutable_data)
         boolean_fields = ["is_it_consolidatedBan", "addDataToBaseline"]
         for field in boolean_fields:
             mutable_data[field] = self.str_to_bool(mutable_data.get(field, False))
@@ -584,7 +588,8 @@ class OnboardBanView(APIView):
                uploadBill = bill,
                billType = btype,
                addDataToBaseline = False if etype.name == "Master Account" else mutable_data.pop('addDataToBaseline', False),
-               is_it_consolidatedBan = mutable_data.pop('is_it_consolidatedBan', False)
+               is_it_consolidatedBan = mutable_data.pop('is_it_consolidatedBan', False),
+                variance = mutable_data.pop('variance', 5)
             )
             if 'mobile' in str(obj.vendor.name.lower()).lower() and obj.uploadBill.path.endswith('.pdf'):
                 tp = check_tmobile_type(obj.uploadBill.path)
@@ -626,7 +631,7 @@ class OnboardBanView(APIView):
                 types = []
                 print(obj)
 
-                buffer_data = json.dumps({'pdf_path': obj.uploadBill.path, 'company_name': obj.organization.company.Company_name, 'vendor_name': obj.vendor.name, 'pdf_filename': obj.uploadBill.name, 'month': month, 'year': year, 'sub_company': obj.organization.Organization_name,'entry_type':obj.entryType.name,'user_email':request.user.email,'types':types,'baseline_check':obj.addDataToBaseline,'location':obj.location.site_name if obj.location else None,'master_account':obj.masteraccount.account_number if obj.masteraccount else None})
+                buffer_data = json.dumps({'pdf_path': obj.uploadBill.path, 'company_name': obj.organization.company.Company_name, 'vendor_name': obj.vendor.name, 'pdf_filename': obj.uploadBill.name, 'month': month, 'year': year, 'sub_company': obj.organization.Organization_name,'entry_type':obj.entryType.name,'user_email':request.user.email,'types':types,'baseline_check':obj.addDataToBaseline,'location':obj.location.site_name if obj.location else None,'master_account':obj.masteraccount.account_number if obj.masteraccount else None, 'variance':obj.variance})
                 
 
                 verizon_att_onboardPDF_processor.delay(buffer_data,obj.id,btype=tp)
@@ -730,6 +735,7 @@ class ExcelUploadView(APIView):
             addDataToBaseline = False if etype.name == "Master Account" else ed.pop('baselineCheck', False),
             is_it_consolidatedBan = ed.pop('is_it_consolidatedBan', False),
             uploadBill = ed.pop('uploadBill', None),
+            variance = ed.pop('variance',5)
         )
         obj.save()
         map = ed.pop('mapping_object', None)
@@ -1192,6 +1198,7 @@ class ProcessZip:
                 data_base['RemittanceAdd'] = list(required_df['Remittance Address'])[0]
                 data_base['BillingName'] = list(required_df['Bill Name'])[0]
                 data_base['Total_Amount_Due'] = list(required_df['Total Amount Due'])[0]
+                data_base['variance'] = self.instance.variance
 
                 v, t = None, None
                 category_data = data_pdf.to_dict(orient='records')
@@ -1224,7 +1231,7 @@ class ProcessZip:
                 dataforbatch = data_base
                 dataforbatch["Vendor_Address_1"] = dataforbatch.pop("RemittanceAdd")
                 dataforbatch.pop("BillingName")
-                self.save_to_batch_report(dataforbatch, self.vendor)
+                # self.save_to_batch_report(dataforbatch, self.vendor)
                 print('saved to batch report')
                 if self.entrytype != "Master Account":
                     self.save_to_unique_pdf_data_table(data_pdf, v, t)
@@ -1235,8 +1242,8 @@ class ProcessZip:
                 tmp_df.rename(columns={'Item Category':'Item_Category','Item Description':'Item_Description','Wireless Number':'Wireless_number'},inplace=True)
                 for idx, row in tmp_df.iterrows():
                             wireless_number = row['Wireless_number']
-                            item_category = str(row['Item_Category']).strip().upper()
-                            item_description = str(row['Item_Description']).strip().upper()
+                            item_category = str(row['Item_Category']).replace(",","").replace(" & ", " and ").strip().upper()
+                            item_description = str(row['Item_Description']).replace(",","").replace(" & ", " and ").strip().upper()
                             charges = str(row['Charges']).replace("$",'')
                             if pd.notna(item_category) and pd.notna(item_description) and pd.notna(charges):
                                 wireless_data[wireless_number][item_category][item_description] = charges

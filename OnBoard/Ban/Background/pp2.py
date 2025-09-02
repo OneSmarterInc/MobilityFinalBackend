@@ -27,6 +27,7 @@ class ProcessPdf2:
         self.type = self.buffer_data.get('types')
         self.email = self.buffer_data.get('user_email')
         self.sub_company = self.buffer_data.get('sub_company')
+        self.variance = self.buffer_data.get('variance')
         self.t_mobile_type = btype if btype else 0
 
         logger.info(f'Processing PDF from buffer: {self.pdf_path}, {self.company_name}, {self.vendor_name}, {self.pdf_filename}')
@@ -37,6 +38,7 @@ class ProcessPdf2:
         self.account_number = None
         
     def base_data_table(self, data):
+        print("variance==", self.variance)
         baseDatamapped = {
             "accountnumber": data.get("Account Number"),
             "invoicenumber": data.get("Invoice Number"),
@@ -59,6 +61,7 @@ class ProcessPdf2:
             "location": self.location,
             "master_account": self.master_account,
             "Entry_type":self.entry_type,
+            "variance":self.variance
         }
         BaseDataTable.objects.create(**baseDatamapped)
         self.instance.account_number = self.account_number
@@ -150,8 +153,8 @@ class ProcessPdf2:
 
 
     def build_category_object(self, group):
-        group['Item Category'] = group['Item Category'].str.upper()
-        group['Item Description'] = group['Item Description'].str.upper()
+        group['Item Category'] = (group['Item Category'].str.replace(",", "", regex=False).str.replace(" & ", " and ", regex=False).str.upper())
+        group['Item Description'] = (group['Item Description'].str.replace(",", "", regex=False).str.replace(" & ", " and ", regex=False).str.upper())
         group['Charges'] = (
             group['Charges']
             .astype(str)                              

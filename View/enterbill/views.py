@@ -10,6 +10,8 @@ from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, Bas
 from .ser import OrganizationShowSerializer, VendorShowSerializer, BaselineDataTableShowSerializer, showOnboardedSerializer
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 from checkbill import prove_bill_ID
+from baselineTag import object_tagging
+
 from ..viewbill.ser import BaselinedataSerializer
 class UploadedBillView(APIView):
     
@@ -559,41 +561,6 @@ def compare_values(base_val, bill_val,variance):
         except (ValueError, TypeError):
             return bill_val, False
 
-def tagging(baseline_data, bill_data, variance):
-    baseline_data = parse_until_dict(baseline_data)
-    bill_data = parse_until_dict(bill_data)
-
-    def compare_and_tag(base, bill, variance):
-        """
-        Recursively walk through dicts and tag bill_data entries.
-        """
-        for key in list(bill.keys()):
-            # Find close match if exact key not found
-            if key not in base:
-                closely_matched = get_close_match_key(key, list(base.keys()))
-            else:
-                closely_matched = key
-
-            # No matching key → auto reject
-            if not closely_matched:
-                bill[key] = {"amount": str(bill[key]).strip().replace("$", ""), "approved": False}
-                continue
-
-            base_val = base[closely_matched]
-            bill_val = bill[key]
-
-            # Nested dicts → recurse
-            if isinstance(bill_val, dict) and isinstance(base_val, dict):
-                compare_and_tag(base_val, bill_val,variance)
-            else:
-                amount, approved = compare_values(base_val, bill_val,variance)
-                bill[key] = {"amount": amount, "approved": approved}
-
-    compare_and_tag(baseline_data, bill_data, variance)
-    return json.dumps(bill_data)
-
-
-
 
 # from .tasks import process_view_bills
 from View.enterbill.tasks import process_view_bills, process_view_excel, verizon_att_enterBill_processor
@@ -859,8 +826,15 @@ class ProcessZip:
                 tmp_df.rename(columns={'Item Category':'Item_Category','Item Description':'Item_Description','Wireless Number':'Wireless_number'},inplace=True)
                 for idx, row in tmp_df.iterrows():
                     wireless_number = row['Wireless_number']
-                    item_category = str(row['Item_Category']).strip().upper() if 'Item_Category' in row else None
-                    item_description = str(row['Item_Description']).strip().upper() if 'Item_Description' in row else None
+                    item_category = (
+                        str(row['Item_Category']).replace(",", "").replace("&", " and").strip().upper()
+                        if 'Item_Category' in row and pd.notna(row['Item_Category']) else None
+                    )
+
+                    item_description = (
+                        str(row['Item_Description']).replace(",", "").replace("&", " and").strip().upper()
+                        if 'Item_Description' in row and pd.notna(row['Item_Description']) else None
+                    )
                     charges = str(row['Charges']).replace("$",'')
                     if pd.notna(item_category) and pd.notna(item_description) and pd.notna(charges):
                         wireless_data[wireless_number][item_category][item_description] = charges
@@ -1232,7 +1206,7 @@ class ProcessZip:
             wireless = bill_obj.Wireless_number
             baseline_obj = baseline_dict.get(wireless)
             if baseline_obj:  
-                tagged_object = tagging(baseline_obj.category_object, bill_obj.category_object,variance)
+                tagged_object = object_tagging(baseline_obj.category_object, bill_obj.category_object,variance)
                 bill_obj.category_object = tagged_object
                 bill_obj.save()
 
@@ -1847,11 +1821,33 @@ class ApproveView(APIView):
             saveuserlog(request.user, f"Wireless number {wn} of bill date {base_obj.first().bill_date} approved")
             
             filtered_baseline = BaselinedataSerializer(enter_bill_baseline_objs, many=True, context={'onboarded_objects': onboard_baseline_objs})
-            return Response({"message": "Baseline updated successfully!", "baseline":filtered_baseline.data}, status=status.HTTP_200_OK)
+            return Response({"message": f"{wn} approved successfully!", "baseline":filtered_baseline.data}, status=status.HTTP_200_OK)
 
         except Exception as e:
             print(e)
             return Response({"message": "Unable to update baseline."}, status=status.HTTP_400_BAD_REQUEST)
+
+from django.db.models import OuterRef, Subquery
+
+def simplify_category_object(data):
+    def simplify(d):
+        if isinstance(d, dict):
+            # if dict has both amount & approved → keep only amount
+            if set(d.keys()) == {"amount", "approved"} or set(d.keys()) == {"approved", "amount"}:
+                return d["amount"]
+            else:
+                return {k: simplify(v) for k, v in d.items()}
+        elif isinstance(d, list):
+            return [simplify(x) for x in d]
+        else:
+            return d
+
+    if isinstance(data, str):
+        parsed = json.loads(data)
+    else:
+        parsed = data
+    simplified = simplify(parsed)
+    return json.dumps(simplified)
 
 class AddFullBaselineView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1861,24 +1857,46 @@ class AddFullBaselineView(APIView):
         vendor = request.GET.get('vendor')
         ban = request.GET.get('ban')
         bill_date = request.GET.get('bill_date')
+        print(sub_cmpny, vendor, ban, bill_date)
         onboarded = BaseDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(sub_company=sub_cmpny,vendor=vendor, accountnumber=ban).first()
         main = BaseDataTable.objects.filter(sub_company=sub_cmpny,vendor=vendor, accountnumber=ban, bill_date=bill_date).first()
         if not main:
             return Response({"message":"Bill not found!"},status=status.HTTP_400_BAD_REQUEST)
         
-        onboardbaselines = BaselineDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=sub_cmpny,vendor=vendor, accountnumber=ban)
+        onboardbaselines = BaselineDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=sub_cmpny,vendor=vendor, account_number=ban)
+
         baselines = BaselineDataTable.objects.filter(viewpapered=main.viewpapered, viewuploaded=main.viewuploaded)
         uniquelines = UniquePdfDataTable.objects.filter(viewpapered=main.viewpapered, viewuploaded=main.viewuploaded)
 
-        baseline_dict = {b.Wireless_number: b for b in onboardbaselines if b.Wireless_number}
-        for bill_obj in baselines:
-            wireless = bill_obj.Wireless_number
-            baseline_obj = baseline_dict.get(wireless)
-            if baseline_obj:  
-                tagged_object = tagging(baseline_obj.category_object, bill_obj.category_object,onboarded.variance)
-                bill_obj.category_object = tagged_object
-                bill_obj.save()
+        onboarduniquelines = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=sub_cmpny,vendor=vendor, account_number=ban)
+
+        bill_dict = {b.Wireless_number: b for b in baselines if b.Wireless_number}
+        bill_unique_dict = {b.wireless_number: b for b in uniquelines if b.wireless_number}
+
+        for onboarded_obj in onboardbaselines:
+            wireless = onboarded_obj.Wireless_number
+            bill_obj = bill_dict.get(wireless)
+            if bill_obj:
+                print("baseline==", bill_obj.category_object)
+                simplified_json = simplify_category_object(bill_obj.category_object)
+                onboarded_obj.category_object = simplified_json
+                onboarded_obj.save()
+
+        for onboarded_unique_obj in onboarduniquelines:
+            wireless = onboarded_unique_obj.wireless_number
+            bill_obj = bill_unique_dict.get(wireless)
+            if bill_obj:
+                simplified_json = simplify_category_object(bill_obj.category_object)
+                onboarded_unique_obj.category_object = simplified_json
+                onboarded_unique_obj.save()
         
+
+        onboardbaselines = BaselineDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=sub_cmpny,vendor=vendor, account_number=ban)
+
+        filtered_baseline = BaselinedataSerializer(baselines, many=True, context={'onboarded_objects': onboardbaselines})
+        saveuserlog(request.user, f"{ban} baseline replaced successfully with bill of date {bill_date}.")
+        return Response({"message":"baseline replaced successfully", "baseline":filtered_baseline.data},status=status.HTTP_200_OK)
+
 
        
 class ApproveFullView(APIView):
@@ -1886,9 +1904,10 @@ class ApproveFullView(APIView):
 
     def get(self, request, *args, **kwargs):
         sub_cmpny = request.GET.get('org')
+        vendor = request.GET.get('vendor')
         ban = request.GET.get('ban')
         bill_date = request.GET.get('bill_date')
-        main = BaseDataTable.objects.filter(sub_company=sub_cmpny, accountnumber=ban, bill_date=bill_date).first()
+        main = BaseDataTable.objects.filter(sub_company=sub_cmpny,vendor=vendor, accountnumber=ban, bill_date=bill_date).first()
         if not main:
             return Response({"message":"Bill not found!"},status=status.HTTP_400_BAD_REQUEST)
         baselines = BaselineDataTable.objects.filter(viewpapered=main.viewpapered, viewuploaded=main.viewuploaded)

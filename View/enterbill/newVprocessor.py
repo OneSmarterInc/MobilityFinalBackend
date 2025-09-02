@@ -13,6 +13,7 @@ from django.conf import settings
 from ..models import ProcessedWorkbook
 from django.core.files import File
 logging.basicConfig(level=logging.INFO)
+from baselineTag import object_tagging
 logger = logging.getLogger(__name__)
 class ProcessPdf2:
     def __init__(self, buffer_data,btype,instance=None):
@@ -154,8 +155,8 @@ class ProcessPdf2:
 
 
     def build_category_object(self, group):
-        group['Item Category'] = group['Item Category'].str.upper()
-        group['Item Description'] = group['Item Description'].str.upper()
+        group['Item Category'] = (group['Item Category'].str.replace(",", "", regex=False).str.replace(" & ", " and ", regex=False).str.upper())
+        group['Item Description'] = (group['Item Description'].str.replace(",", "", regex=False).str.replace(" & ", " and ", regex=False).str.upper())
         group['Charges'] = (
             group['Charges']
             .astype(str)                              
@@ -331,7 +332,7 @@ class ProcessPdf2:
             wireless = bill_obj.Wireless_number
             baseline_obj = baseline_dict.get(wireless)
             if baseline_obj:  
-                tagged_object = tagging(baseline_obj.category_object, bill_obj.category_object, variance)
+                tagged_object = object_tagging(baseline_obj.category_object, bill_obj.category_object, variance)
                 bill_obj.category_object = tagged_object
                 bill_obj.save()
 
@@ -570,50 +571,4 @@ class ProcessPdf2:
             logger.error(f"Error processing PDF: {e}")
             if self.instance and self.instance.pk: self.instance.delete()
             return False, str(e), 0
-        
-from addon import parse_until_dict, get_close_match_key
-def tagging(baseline_data, bill_data, variance):
-    baseline_data = parse_until_dict(baseline_data)
-    bill_data = parse_until_dict(bill_data)
-    def compare_and_tag(base, bill):
-        for key in list(bill.keys()):
-            if not key in base.keys():
-                closely_matched = get_close_match_key(key,list(base.keys()))
-            else:
-                closely_matched = key
-            if not closely_matched:
-                print("not closely matched!")
-                bill[key] = {"amount": f'{str(bill[key]).strip().replace("$","")}', "approved": False}
-                continue
-            base_val = base[closely_matched]
-            bill_val = bill[key]
-
-            if isinstance(bill_val, dict) and isinstance(base_val, dict):
-                compare_and_tag(base_val, bill_val)
-            else:
-                try:
-                    base_val = str(base_val).replace('$','').replace('-','')
-                    bill_val_init = str(bill_val).replace('$','')
-                    bill_val = bill_val_init.replace('-','')
-                    base_float = float(base_val)
-                    bill_float = float(bill_val)
-                    if base_float == 0 and bill_float == 0:
-                        bill[key] = {"amount": f'{bill_val}', "approved": True}
-                    if base_float != 0:
-                        low_range = bill_float - (variance/100 * bill_float)
-                        high_range = bill_float + (variance/100 * bill_float)
-                        if ((base_float < high_range) and (base_float > low_range)):
-                            tag = True
-                        else:
-                            tag = False
-                        if '-' in bill_val_init:
-                            bill[key] = {"amount":f'-{bill_val}', "approved":tag}
-                        else:
-                            bill[key] = {"amount":bill_val, "approved":tag}
-                except (ValueError, TypeError):
-                    print("error")
-                    bill[key] = {"amount":bill_val, "approved":False}
-
-    compare_and_tag(baseline_data, bill_data)
-    json_string = json.dumps(bill_data)
-    return json_string
+    

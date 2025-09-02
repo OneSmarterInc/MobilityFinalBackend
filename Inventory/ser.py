@@ -41,6 +41,7 @@ class VendorGetAllDataSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vendors
         fields = '__all__'
+from OnBoard.Ban.PortalInfo.ser import showPortalInfoser
 
 class OrganizationGetAllDataSerializer(serializers.ModelSerializer):
     vendors = VendorNameSerializer(many=True)
@@ -49,6 +50,8 @@ class OrganizationGetAllDataSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organizations
         fields = '__all__'
+
+    
 
 class CompanygetAllDataSerializer(serializers.ModelSerializer):
     vendors = VendorNameSerializer(many=True)
@@ -113,6 +116,24 @@ class OrganizationShowOnboardSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organizations
         fields = ['id', 'Organization_name', 'vendors', 'locations']
+
+from OnBoard.Ban.models import PortalInformation
+
+class showallSerializer(serializers.ModelSerializer):
+    costcenterlevel = serializers.CharField()
+    costcentertype = serializers.CharField()
+    costcenterstatus = serializers.CharField()
+    bantype = serializers.CharField()
+    invoicemethod = serializers.CharField()
+    paymentType = serializers.CharField()
+    portal_info = serializers.SerializerMethodField()
+    class Meta:
+        model = BaseDataTable
+        fields = "__all__"
+
+    def get_portal_info(self,obj):
+        portalObj = PortalInformation.objects.filter(banOnboarded=obj.banOnboarded, banUploaded=obj.banUploaded).first()
+        return showPortalInfoser(portalObj).data
 
 class BanShowSerializer(serializers.ModelSerializer):
     costcenterlevel = serializers.CharField()

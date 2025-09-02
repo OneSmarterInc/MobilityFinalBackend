@@ -63,7 +63,7 @@ class ViewBilledReportView(APIView):
             vendor = request.GET.get('vendor')
             year = request.GET.get('year')
             if not (company and sub_company and report_type and month and vendor and year):
-                return Response({"message":"all data required!"},status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message":"Missing required fields."},status=status.HTTP_400_BAD_REQUEST)
             filter_kwargs = {}
             if company:
                 filter_kwargs['company'] = Company.objects.filter(Company_name=company)[0]
@@ -154,7 +154,7 @@ class ViewBilledReportView(APIView):
         year = request.data.get('year')
         vendor = request.data.get('vendor')
         if not (company and sub_company and ban and report_type and month and vendor and year):
-            return Response({"message":"all data required!"},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"Missing required fields."},status=status.HTTP_400_BAD_REQUEST)
         
         if company:
             filter_kwargs['company'] = Company.objects.filter(Company_name=company)[0]

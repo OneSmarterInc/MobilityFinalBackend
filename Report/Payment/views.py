@@ -44,23 +44,23 @@ class GetPaymentReportByDueDate(APIView):
             if company:
                 queryset = queryset.filter(company=company)
                 if not queryset.exists():
-                    return Response({"message": f"No data found for the given company {company}"}, status=status.HTTP_404_NOT_FOUND)
+                    return Response({"message": f"Payment report not found for given company {company}"}, status=status.HTTP_404_NOT_FOUND)
             if sub_company:
                 queryset = queryset.filter(sub_company=sub_company)
                 if not queryset.exists():
-                    return Response({"message": f"No data found for the given sub_company {sub_company}"}, status=status.HTTP_404_NOT_FOUND)
+                    return Response({"message": f"Payment report not found for the given sub_company {sub_company}"}, status=status.HTTP_404_NOT_FOUND)
             if vendor:
                 queryset = queryset.filter(vendor=vendor)
                 if not queryset.exists():
-                    return Response({"message": f"No data found for the given vendor {vendor}"}, status=status.HTTP_404_NOT_FOUND)
+                    return Response({"message": f"Payment report not found for the given vendor {vendor}"}, status=status.HTTP_404_NOT_FOUND)
             if ban:
                 queryset = queryset.filter(accountnumber=ban)
                 if not queryset.exists():
-                    return Response({"message": f"No data found for the given ban {ban}"}, status=status.HTTP_404_NOT_FOUND)
+                    return Response({"message": f"Payment report not found for the given ban {ban}"}, status=status.HTTP_404_NOT_FOUND)
             if due_date:
                 queryset = queryset.filter(date_due=formatted_due_date)
                 if not queryset.exists():
-                    return Response({"message": f"No data found for the given due_date {due_date}"}, status=status.HTTP_404_NOT_FOUND)
+                    return Response({"message": f"Payment report not found for the given due_date {due_date}"}, status=status.HTTP_404_NOT_FOUND)
 
             self.data = [{**obj, 'due_date': due_date} for obj in baselinedataserializer(BaselineDataTable.objects.filter(viewuploaded=queryset[0].viewuploaded), many=True).data]
         return Response({"data": self.data, "orgs":all_companys.data, "bans":all_accounts.data}, status=status.HTTP_200_OK)

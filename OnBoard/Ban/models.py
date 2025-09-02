@@ -100,6 +100,7 @@ class UploadBAN(models.Model):
     RemittanceCity = models.CharField(max_length=255, null=False, blank=False)
     RemittanceCountry = models.CharField(max_length=255, null=True, blank=True)
     RemittanceAtn = models.CharField(max_length=255, null=True, blank=True)
+    
     RemittanceNotes = models.CharField(max_length=255, null=True, blank=True)
 
     remarks = models.CharField(max_length=2550, null=True, blank=True)
@@ -110,6 +111,7 @@ class UploadBAN(models.Model):
 
     current_annual_review = models.CharField(max_length=2550, null=True, blank=True)
     previous_annual_review = models.CharField(max_length=2550, null=True, blank=True)
+    variance = models.FloatField(default=5)
 
     class Meta:
         db_table = 'UploadBAN'
@@ -199,6 +201,7 @@ class OnboardBan(models.Model):
     billType = models.ForeignKey(BillType, related_name='billtypes', on_delete=models.SET_NULL, null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True, null=True)
+    variance = models.FloatField(default=5)
     is_processed = models.BooleanField(default=False) 
     
     class Meta:

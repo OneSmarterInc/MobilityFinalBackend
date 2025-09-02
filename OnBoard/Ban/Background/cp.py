@@ -100,6 +100,7 @@ class ProcessCSVOnboard:
         base_dict['Entry_type'] = self.entry_type
         base_dict['location'] = self.location
         base_dict['master_account'] = self.master_account
+        base_dict['variance'] = self.instance.variance
 
         keys_to_keep = ['company', 'vendor', 'sub_company', 'accountnumber', 'Entry_type', 'location', 'master_account']
         b_dict = {key: base_dict[key] for key in keys_to_keep if key in base_dict}

@@ -9,7 +9,7 @@ from OnBoard.Location.models import Location
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 from .ser import OrganizationgetNameSerializer, CompanygetNameSerializer, LocationGetNameSerializer, VendorNameSerializer
 from .ser import OrganizationGetAllDataSerializer, CompanygetAllDataSerializer, LocationGetAllDataSerializer, VendorGetAllDataSerializer
-from .ser import CompanyShowOnboardSerializer, OrganizationShowOnboardSerializer, BanShowSerializer, OnboardBanshowserializer, BaseDataTableShowSerializer, UploadBANSerializer, UniqueTableShowSerializer, BaselineSaveSerializer
+from .ser import CompanyShowOnboardSerializer, OrganizationShowOnboardSerializer, BanShowSerializer, OnboardBanshowserializer, BaseDataTableShowSerializer, UploadBANSerializer, UniqueTableShowSerializer, BaselineSaveSerializer, showallSerializer
 from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
 from OnBoard.Ban.models import UploadBAN, OnboardBan, BaseDataTable, BaselineDataTable
@@ -232,18 +232,52 @@ class BanInfoView(APIView):
         }, status=status.HTTP_200_OK)
     
     def put(self, request, org, vendor, ban, *args, **kwargs):
-        obj = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban)
-        if not obj:
-            return Response({"message":f"Ban with account number {ban} not found!"},status=status.HTTP_400_BAD_REQUEST)
+        obj_qs = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban)
+
+        if not obj_qs.exists():
+            return Response({"message": f"BAN with account number {ban} not found!"}, status=status.HTTP_400_BAD_REQUEST)
+
+        instance = obj_qs.first()
         data = request.data.copy()
-        print(data)
-        ser = BanSaveSerializer(obj.first(), data=data, partial=True)
-        if ser.is_valid():
-            ser.save()
-            saveuserlog(request.user, f"account number {obj.first().accountnumber} updated successfully.")
-            return Response({"message":"Ban updated successfully"}, status=status.HTTP_200_OK)
+
+        # Get field names that are model fields (excluding auto fields like id, timestamps, etc.)
+        model_fields = {field.name for field in instance._meta.fields}
+
+        # --- Capture original values before update (only model fields) ---
+        original_data = {field: getattr(instance, field) for field in model_fields}
+
+        # Convert incoming string values to native Python types using serializer
+        serializer = BanSaveSerializer(instance, data=data, partial=True)
+
+        if serializer.is_valid():
+            serializer.save()
+
+            # --- Refresh from DB to get updated values ---
+            instance.refresh_from_db()
+            updated_data = {field: getattr(instance, field) for field in original_data}
+
+            # --- Compare and track changed fields with type casting ---
+            change_log_lines = []
+            for field in original_data:
+                old_val = original_data[field]
+                new_val = updated_data[field]
+
+                if str(old_val) != str(new_val):  # Compare stringified values to handle type mismatch
+                    change_log_lines.append(f"{field}: '{old_val}' → '{new_val}'")
+
+            change_log = "; ".join(change_log_lines) if change_log_lines else "No changes detected."
+
+            # --- Save log ---
+            saveuserlog(
+                request.user,
+                f"BAN '{instance.accountnumber}' updated. Changes: {change_log}"
+            )
+
+            return Response({"message": "Ban updated successfully"}, status=status.HTTP_200_OK)
+
         else:
-            return Response({"message":"Unable to update ban."},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Unable to update ban.", "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
     def delete(self, request, org, vendor, ban, *args, **kwargs):
         
         base = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban)
@@ -379,7 +413,7 @@ class MobileView(APIView):
                 baseser = BaselineSaveSerializer(data=data)
                 if baseser.is_valid():
                     baseser.save()
-                saveuserlog(request.user, f"new line with wireless number {data['wireless_number']} in account {data["account_number"]} created successfully!")
+                saveuserlog(request.user, f"new line with wireless number {data['wireless_number']} in account {data['account_number']} created successfully!")
                 return Response({
                     "message": f"new line with wireless number {data['wireless_number']} created successfully!"
                 },status=status.HTTP_201_CREATED)
@@ -462,4 +496,70 @@ class OnboardedBaselineView(APIView):
             return Response({"data": serializer.data}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"message": "Unable to get baseline data."}, status=status.HTTP_400_BAD_REQUEST)
+        
+class SearchView(APIView):
+    # permission_classes = [permissions.IsAuthenticated]
+
+    def return_msg(self, field):
+        return Response({"message":f"query results for ban {field} not found"},status=status.HTTP_400_BAD_REQUEST)
+
+    def return_respose(self,orgser,field,fieldser):
+        return Response({
+            "organization": orgser.data,
+            f"{field}": fieldser.data,
+            }, status=status.HTTP_200_OK)
+
+    def get(self, request, *args, **kwargs):
+        get_query = request.GET
+
+        org = get_query.get('sub_company')
+        ban = get_query.get('ban')
+
+        la = get_query.get('location_address')
+        lc = get_query.get('location_city')
+        lcn = get_query.get('location_contact_name')
+        ld = get_query.get('location_division')
+        lp = get_query.get('location_phone')
+        ln = get_query.get('location_name')
+        ls = get_query.get('location_state')
+        lz = get_query.get('location_zip')
+
+        wn = get_query.get('wireless_number')
+        username = get_query.get('username') 
+
+        orgobj = Organizations.objects.filter(Organization_name=org).first()
+        if not orgobj:
+            return self.return_msg(org)
+        orgser = OrganizationGetAllDataSerializer(orgobj)
+
+        banobjects = BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(sub_company=org)
+        locs = Location.objects.filter(organization=orgobj)
+        lines = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(sub_company=org)
+        
+
+        if ban:
+            banobjects = banobjects.filter(accountnumber=ban)
+            banser = showallSerializer(banobjects, many=True)
+            return self.return_respose(orgser=orgser,field="bans", fieldser=banser)
+        if not banobjects:return self.return_msg(ban)
+
+        if wn: 
+            lines=lines.filter(wireless_number=wn)
+            lineser = UniqueTableSaveSerializer(lines, many=True)
+            return self.return_respose(orgser=orgser,field="lines", fieldser=lineser)
+        if not lines: return self.return_msg(wn)
+        if username: 
+            lines=lines.filter(user_name=username)
+            return self.return_respose(orgser=orgser,field="lines", fieldser=lineser)
+        if not lines: 
+            return self.return_msg(username)
+
+        
+        return Response({"message": "query not found!"},status=status.HTTP_400_BAD_REQUEST)
+
+    
+        
+        
+        
+
         

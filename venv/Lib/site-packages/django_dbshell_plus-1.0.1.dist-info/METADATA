@@ -1,0 +1,55 @@
+Metadata-Version: 2.0
+Name: django-dbshell-plus
+Version: 1.0.1
+Summary: A dbshell_plus management command for Django that selects pgcli or mycli when available.
+Home-page: https://github.com/simonpercivall/django-dbshell-plus
+Author: Simon Percivall
+Author-email: percivall@gmail.com
+License: BSD
+Keywords: django-dbshell-plus
+Platform: UNKNOWN
+Classifier: Development Status :: 2 - Pre-Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 2.6
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.3
+Requires-Dist: Django
+
+====================
+Django DB Shell Plus
+====================
+
+
+.. image:: https://badge.fury.io/py/django_dbshell_plus.png
+    :target: http://badge.fury.io/py/django-dbshell-plus
+
+.. image:: https://pypip.in/d/django_dbshell_plus/badge.png
+    :target: https://crate.io/packages/django-dbshell-plus?version=latest
+
+
+A dbshell_plus management command for Django that selects `pgcli` or `mycli` when available.
+
+* Free software: BSD license
+* Documentation: http://django-dbshell-plus.rtfd.org.
+
+
+=========
+Changelog
+=========
+
+Here's the recent changes to Django DB Shell Plus.
+
+.. changelog::
+    :version: 1.0.1
+    :released: 2015-08-12
+
+    .. change::
+        :tags: general
+
+        Initial version, use `pgcli` or `mycli` when available.
+
+

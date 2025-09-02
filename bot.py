@@ -1,6 +1,6 @@
 
-import google.generativeai as genai
-
+# import google.generativeai as genai
+from google import generativeai as genai
 genai.configure(api_key="AIzaSyBpjOEwkB7bIV5s0CYgXt0wpiXzCJil7pQ")
 
 uploaded_file = genai.upload_file(path="Bills/media/BanUploadBill/ATT Mobility MPP.pdf", display_name="My PDF Report")

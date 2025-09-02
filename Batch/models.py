@@ -81,8 +81,9 @@ class BatchAutomation(models.Model):
     
     
     
-    
+from OnBoard.Organization.models import Organizations
 class EmailConfiguration(models.Model):
+    sub_company = models.ForeignKey(Organizations, related_name='organization_configuration', on_delete=models.CASCADE, null=True, blank=True)
    
     company = models.CharField(max_length=255, null=False, blank=False)
     organization = models.CharField(max_length=255, null=True, blank=True)

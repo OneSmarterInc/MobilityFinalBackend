@@ -93,8 +93,9 @@ class ViewUnbilledReportView(APIView):
             vendor = request.GET.get('vendor')
             year = request.GET.get('year')
             week = request.GET.get('week')
+            print("company==", company,sub_company, ban, report_type,month,vendor,year)
             if not (company and sub_company and ban and report_type and month and vendor and year):
-                return Response({"message":"all data required!"},status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message":"Missing required fields."},status=status.HTTP_400_BAD_REQUEST)
             filter_kwargs = {}
             if company:
                 filter_kwargs['company'] = Company.objects.filter(Company_name=company)[0]
@@ -213,8 +214,9 @@ class ViewUnbilledReportView(APIView):
         report_type = request.data.get('report_type')
         year = request.data.get('year')
         vendor = request.data.get('vendor')
+        print("company==", company,sub_company, ban, report_type,month,vendor,year)
         if not (company and sub_company and ban and report_type and month and vendor and year):
-            return Response({"message":"all data required!"},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"Missing required fields."},status=status.HTTP_400_BAD_REQUEST)
 
         if company:
             filter_kwargs['company'] = Company.objects.filter(Company_name=company)[0]
