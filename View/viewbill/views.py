@@ -94,7 +94,7 @@ class ViewBill(APIView):
         else:
             obj.delete()
         saveuserlog(request.user, f"Bill of account number {acc} and bill date {bd} deleted successfully!")
-        return Response({"message": "Bill deleted successfully deleted!"}, status=status.HTTP_200_OK)
+        return Response({"message": "Bill deleted successfully."}, status=status.HTTP_200_OK)
 
 from datetime import datetime
 class ViewBillBaseline(APIView):

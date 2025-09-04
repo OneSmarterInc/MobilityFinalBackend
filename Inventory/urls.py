@@ -1,11 +1,16 @@
 from django.urls import path
-from .views import InventorySubjectView, InventoryDataView, BanInfoView, UploadConsolidated, MobileView, OnboardedBaselineView, Homepageview,GetCompanyView,SearchView
+from .views import BanInfoNoVendorView,InventorySubjectView, InventoryDataView, BanInfoView, UploadConsolidated, MobileView, OnboardedBaselineView, Homepageview,GetCompanyView,SearchView
 
 urlpatterns = [
     path('filter-inventory-subjects/', InventorySubjectView.as_view(), name='get-post'),
     path('filter-inventory-data/<subject>/', InventoryDataView.as_view(), name='get-data'),
     path('filter-inventory-data/<subject>/<id>/', InventoryDataView.as_view(), name='delete-data'),
     path('ban-info/<org>/<vendor>/<ban>/', BanInfoView.as_view(), name='ban-info'),
+    path(
+        'ban-search/<slug:org>/<slug:search_by>/<path:criteria>/',
+        BanInfoNoVendorView.as_view(),
+        name='ban-search',
+    ),
     path('search/', SearchView.as_view(), name='search-info'),
     path('upload-consolidated/', UploadConsolidated.as_view(), name='upload-consolidated'),
     path('mobiles/<account_number>/', MobileView.as_view(), name='mobiles-info-get'),

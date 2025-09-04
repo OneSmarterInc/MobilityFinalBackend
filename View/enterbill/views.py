@@ -1818,10 +1818,10 @@ class ApproveView(APIView):
                 base_instance.is_baseline_approved = False if False in approved_wireless_list else True
                 base_instance.save()
 
-            saveuserlog(request.user, f"Wireless number {wn} of bill date {base_obj.first().bill_date} approved")
+            saveuserlog(request.user, f"Baseline of wireless number {wn} of bill date {base_obj.first().bill_date} approved")
             
             filtered_baseline = BaselinedataSerializer(enter_bill_baseline_objs, many=True, context={'onboarded_objects': onboard_baseline_objs})
-            return Response({"message": f"{wn} approved successfully!", "baseline":filtered_baseline.data}, status=status.HTTP_200_OK)
+            return Response({"message": f"baseline of {wn} approved successfully!", "baseline":filtered_baseline.data}, status=status.HTTP_200_OK)
 
         except Exception as e:
             print(e)
@@ -1877,7 +1877,6 @@ class AddFullBaselineView(APIView):
             wireless = onboarded_obj.Wireless_number
             bill_obj = bill_dict.get(wireless)
             if bill_obj:
-                print("baseline==", bill_obj.category_object)
                 simplified_json = simplify_category_object(bill_obj.category_object)
                 onboarded_obj.category_object = simplified_json
                 onboarded_obj.save()
@@ -1893,8 +1892,17 @@ class AddFullBaselineView(APIView):
 
         onboardbaselines = BaselineDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=sub_cmpny,vendor=vendor, account_number=ban)
 
+        BaseDataTable.objects.filter(
+            sub_company=sub_cmpny,
+            vendor=vendor,
+            accountnumber=ban
+        ).exclude(id=main.id).update(is_baseline_replaced=False)
+
+
         filtered_baseline = BaselinedataSerializer(baselines, many=True, context={'onboarded_objects': onboardbaselines})
         saveuserlog(request.user, f"{ban} baseline replaced successfully with bill of date {bill_date}.")
+        main.is_baseline_replaced = True
+        main.save()
         return Response({"message":"baseline replaced successfully", "baseline":filtered_baseline.data},status=status.HTTP_200_OK)
 
 
@@ -1965,7 +1973,7 @@ class AprroveAllView(APIView):
                 base_instance.save()
             onboard_baseline_objs = BaselineDataTable.objects.filter(viewuploaded=None,viewpapered=None, vendor=main_uploaded_id.vendor, account_number=main_uploaded_id.account_number)
             filtered_baseline = BaselinedataSerializer(enter_bill_baseline_objs, many=True, context={'onboarded_objects': onboard_baseline_objs})
-            saveuserlog(request.user, f"wireless number {main_uploaded_id.Wireless_number} of ban {main_uploaded_id.account_number} approved")
+            saveuserlog(request.user, f"baseline of wireless number {main_uploaded_id.Wireless_number} of ban {main_uploaded_id.account_number} approved")
             return Response({"message": f"Baseline of wireless number {main_uploaded_id.Wireless_number} approved successfully!", "baseline":filtered_baseline.data}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"message":"Unable to update baseline."}, status=status.HTTP_400_BAD_REQUEST)

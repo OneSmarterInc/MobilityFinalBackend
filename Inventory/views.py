@@ -149,6 +149,8 @@ class InventoryDataView(APIView):
                 return Response({"message" : "Invalid subject"}, status=status.HTTP_400_BAD_REQUEST)
         except:
             return Response({"message": "Error getting data"}, status=status.HTTP_401_UNAUTHORIZED)
+
+
 from OnBoard.Organization.ser import DivisionNameSerializer
 from OnBoard.Organization.models import Division
 from OnBoard.Ban.models import PortalInformation
@@ -558,8 +560,473 @@ class SearchView(APIView):
         return Response({"message": "query not found!"},status=status.HTTP_400_BAD_REQUEST)
 
     
+
+# views.py
+from django.db.models import Q
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status, permissions
+
+# class BanInfoNoVendorView(APIView):
+#     permission_classes = [permissions.IsAuthenticated]
+
+#     def _get_ban_queryset(self, org, ban):
+#         """
+#         Centralizes the base queryset for BAN lookups so all methods behave consistently.
+#         """
+#         return (BaseDataTable.objects
+#                 .filter(viewuploaded=None, viewpapered=None)
+#                 .filter(sub_company=org, accountnumber=ban))
+
+#     def _resolve_vendor_and_ban(self, org, ban):
+#         """
+#         Returns (banobject, vendorobject) after inferring vendor from BAN.
+#         If multiple or none are found, raises appropriate DRF error responses.
+#         """
+#         qs = self._get_ban_queryset(org, ban)
+
+#         count = qs.count()
+#         if count == 0:
+#             return Response({"message": "Ban not found"}, status=status.HTTP_404_NOT_FOUND)
+
+#         if count > 1:
+#             # Multiple rows for same org+ban — ambiguous vendor.
+#             # If you want a tie-breaker (e.g., latest updated), implement here.
+#             vendors = list(qs.values_list("vendor", flat=True).distinct())
+#             return Response(
+#                 {
+#                     "message": "Multiple vendors found for this BAN; cannot infer a single vendor.",
+#                     "vendors": vendors,
+#                 },
+#                 status=status.HTTP_400_BAD_REQUEST,
+#             )
+
+#         banobject = qs.first()
+#         vendor_name = getattr(banobject, "vendor", None)
+#         if not vendor_name:
+#             return Response({"message": "Vendor not linked to BAN"}, status=status.HTTP_400_BAD_REQUEST)
+
+#         try:
+#             vendorobject = Vendors.objects.get(name=vendor_name)
+#         except Vendors.DoesNotExist:
+#             return Response({"message": "Vendor not found"}, status=status.HTTP_404_NOT_FOUND)
+
+#         return banobject, vendorobject
+
+#     def get(self, request, org, ban, *args, **kwargs):
+#         # Resolve org
+#         try:
+#             orgobject = Organizations.objects.get(Organization_name=org)
+#         except Organizations.DoesNotExist:
+#             return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
+
+#         locobj = Location.objects.filter(organization=orgobject)
+#         divisions_qs = Division.objects.filter(organization=orgobject)
+
+#         # Infer vendor from BAN
+#         resolved = self._resolve_vendor_and_ban(org, ban)
+#         if isinstance(resolved, Response):
+#             return resolved  # error response bubbled up
+
+#         banobject, vendorobject = resolved
+
+#         # Portal info (same logic as original)
+#         portalinfo = None
+#         try:
+#             if banobject.banUploaded:
+#                 portalinfo = PortalInformation.objects.get(banUploaded=banobject.banUploaded.id)
+#             elif banobject.banOnboarded:
+#                 portalinfo = PortalInformation.objects.get(banOnboarded=banobject.banOnboarded.id)
+#         except PortalInformation.DoesNotExist:
+#             portalinfo = None
+
+#         # Serializers
+#         orgser = OrganizationGetAllDataSerializer(orgobject)
+#         vendorser = VendorGetAllDataSerializer(vendorobject)
+#         banser = BanShowSerializer(banobject)
+#         locser = LocationGetAllDataSerializer(locobj, many=True)
+#         divisions = DivisionNameSerializer(divisions_qs, many=True)
+
+#         allonboards_qs = (BaseDataTable.objects
+#                           .filter(viewuploaded=None, viewpapered=None)
+#                           .filter(sub_company=org))
+#         allonboards = BaseDataTableAllShowSerializer(allonboards_qs, many=True)
+
+#         banlines = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None)
+#         pser = showPortalInfoser(portalinfo) if portalinfo else None
+
+#         return Response({
+#             "organization": orgser.data,
+#             "vendor": vendorser.data,
+#             "ban": banser.data,
+#             "locations": locser.data,
+#             "onboarded": allonboards.data,
+#             "divisions": divisions.data,
+#             "linesall": UniqueTableShowSerializer(banlines, many=True).data,
+#             "portal": (pser.data if pser else None),
+#         }, status=status.HTTP_200_OK)
+
+#     def post(self, request, org, ban, *args, **kwargs):
+#         qs = self._get_ban_queryset(org, ban)
+#         if not qs.exists():
+#             return Response({"message": "Ban not found"}, status=status.HTTP_404_NOT_FOUND)
+#         if qs.count() > 1:
+#             return Response(
+#                 {"message": "Multiple records for this BAN. Unable to infer vendor uniquely."},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         obj = qs.first()
+
+#         req_type = request.data.get('type')
+#         if req_type == 'add-remark':
+#             obj.remarks = request.data.get('remarks', '')
+#             obj.save()
+#         elif req_type == 'add-contract':
+#             obj.contract_file = request.data.get('file')
+#             obj.contract_name = request.data.get('filename')
+#             obj.save()
+#         else:
+#             return Response({"message": "Invalid request type."}, status=status.HTTP_400_BAD_REQUEST)
+
+#         saveuserlog(request.user, f"account number {obj.accountnumber} updated successfully.")
+#         return Response({"message": "Ban information updated successfully!"}, status=status.HTTP_200_OK)
+
+#     def put(self, request, org, ban, *args, **kwargs):
+#         qs = BaseDataTable.objects.filter(sub_company=org, accountnumber=ban)
+#         if not qs.exists():
+#             return Response({"message": f"BAN with account number {ban} not found!"}, status=status.HTTP_400_BAD_REQUEST)
+#         if qs.count() > 1:
+#             return Response(
+#                 {"message": "Multiple records for this BAN. Unable to infer vendor uniquely."},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         instance = qs.first()
+#         data = request.data.copy()
+
+#         # Model fields for comparison
+#         model_fields = {field.name for field in instance._meta.fields}
+
+#         # Capture original values
+#         original_data = {field: getattr(instance, field) for field in model_fields}
+
+#         serializer = BanSaveSerializer(instance, data=data, partial=True)
+
+#         if not serializer.is_valid():
+#             return Response(
+#                 {"message": "Unable to update ban.", "errors": serializer.errors},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         serializer.save()
+
+#         instance.refresh_from_db()
+#         updated_data = {field: getattr(instance, field) for field in model_fields}
+
+#         change_log_lines = []
+#         for field in model_fields:
+#             old_val = original_data.get(field)
+#             new_val = updated_data.get(field)
+#             if str(old_val) != str(new_val):
+#                 change_log_lines.append(f"{field}: '{old_val}' → '{new_val}'")
+
+#         change_log = "; ".join(change_log_lines) if change_log_lines else "No changes detected."
+
+#         saveuserlog(request.user, f"BAN '{instance.accountnumber}' updated. Changes: {change_log}")
+#         return Response({"message": "Ban updated successfully"}, status=status.HTTP_200_OK)
+
+#     def delete(self, request, org, ban, *args, **kwargs):
+#         qs = BaseDataTable.objects.filter(sub_company=org, accountnumber=ban)
+
+#         if not qs.exists():
+#             return Response({"message": f"Ban {ban} not found!"}, status=status.HTTP_400_BAD_REQUEST)
+#         if qs.count() > 1:
+#             return Response({"message": f"Cannot delete ban {ban}: multiple vendor records found."},
+#                             status=status.HTTP_400_BAD_REQUEST)
+
+#         base = qs.first()
+#         # Follow same linkage logic
+#         if base.banOnboarded:
+#             obj = OnboardBan.objects.get(id=base.banOnboarded.id)
+#         elif base.banUploaded:
+#             obj = UploadBAN.objects.get(id=base.banUploaded.id)
+#         else:
+#             return Response({"message": f"Ban with account number {ban} not found!"},
+#                             status=status.HTTP_400_BAD_REQUEST)
+
+#         acc = obj.account_number
+#         obj.delete()
+#         saveuserlog(request.user, f"account number {acc} deleted successfully.")
+#         return Response({"message": f"Ban with account number {ban} deleted successfully!"},
+#                         status=status.HTTP_200_OK)
         
         
         
 
-        
+from django.db.models import Q
+from django.core.exceptions import FieldError
+from rest_framework import permissions, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+class BanInfoNoVendorView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    # ---------- helpers ------------------------------------------------------
+
+    def _ban_base_qs(self):
+        # Only live, de-duped base rows
+        return BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None)
+
+    def _get_org(self, org_slug: str):
+        try:
+            return Organizations.objects.get(Organization_name=org_slug)
+        except Organizations.DoesNotExist:
+            return None
+
+    def _build_search_queryset(self, org: str, search_by: str, criteria: str):
+        """
+        Returns a queryset of BaseDataTable filtered by org + search key.
+        search_by: 'ban' | 'wireless' | 'location'
+        """
+        search = (search_by or "").strip().lower()
+        base = self._ban_base_qs().filter(sub_company=org)
+
+        # 1) BAN → BaseDataTable.accountnumber
+        if search == "ban":
+            return base.filter(accountnumber=criteria)
+
+        # 2) wireless → UniquePdfDataTable.wireless_number → distinct account_number → BaseDataTable.accountnumber
+        if search in ("wireless", "wireless-number", "msisdn", "mobile"):
+            up_lines = UniquePdfDataTable.objects.filter(
+                viewuploaded=None, viewpapered=None,
+                sub_company=org,
+                wireless_number=criteria
+            ).values_list("account_number", flat=True).distinct()
+            acc_list = [a for a in up_lines if a]  # drop blanks/nulls
+            if not acc_list:
+                return self._ban_base_qs().none()
+            return base.filter(accountnumber__in=acc_list)
+
+        # 3) location → resolve Location in this org, then match BaseDataTable.location == str(Location.id)
+        if "location" in search:
+            orgobj = self._get_org(org)
+            if not orgobj:
+                return self._ban_base_qs().none()
+
+            loc_qs = Location.objects.filter(organization=orgobj)
+            loc = None
+
+            # exact id
+            if criteria.isdigit():
+                loc = loc_qs.filter(id=int(criteria)).first()
+
+            # soft match by common fields if not numeric (you can trim these if you only want id)
+
+            if not loc:
+                loc = loc_qs.filter(
+                    Q(site_name__iexact=criteria) |
+                    Q(alias__iexact=criteria) |
+                    Q(physical_city__iexact=criteria) |
+                    Q(physical_address__iexact=criteria)
+                ).first()
+
+            if not loc:
+                return self._ban_base_qs().none()
+
+            return_query = base.filter(location=str(loc.site_name))
+            # BaseDataTable.location is CharField that stores the Location.id (as string)
+            return return_query
+
+        # Unknown mode → empty
+        return self._ban_base_qs().none()
+
+    def _resolve_vendor_obj(self, vendor_name: str):
+        if not vendor_name:
+            return None, Response({"message": "Vendor not linked to BAN"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            return Vendors.objects.get(name=vendor_name), None
+        except Vendors.DoesNotExist:
+            return None, Response({"message": "Vendor not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    # ---------- HTTP methods -------------------------------------------------
+
+    def get(self, request, org, search_by, criteria, *args, **kwargs):
+        # Org must exist
+        orgobj = self._get_org(org)
+        if not orgobj:
+            return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        qs = self._build_search_queryset(org, search_by, criteria)
+        count = qs.count()
+
+        if count == 0:
+            return Response({"message": "No matches found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if count > 1:
+            # Let the UI decide which BAN; send a compact serializer over BaseDataTable
+            return Response(
+                {
+                    "message": "Multiple matches.",
+                    "count": count,
+                    "results": BaseDataTableAllShowSerializer(qs, many=True).data
+                },
+                status=status.HTTP_200_OK
+            )
+
+        # Exactly one BAN → full payload
+        banobject = qs.first()
+        vendorobj, vend_err = self._resolve_vendor_obj(banobject.vendor)
+        if vend_err:
+            return vend_err
+
+        # Portal info (prefer uploaded, then onboarded)
+        portalinfo = None
+        try:
+            if banobject.banUploaded:
+                portalinfo = PortalInformation.objects.get(banUploaded=banobject.banUploaded.id)
+            elif banobject.banOnboarded:
+                portalinfo = PortalInformation.objects.get(banOnboarded=banobject.banOnboarded.id)
+        except PortalInformation.DoesNotExist:
+            portalinfo = None
+
+        # Scoped related data
+        loc_list_qs = Location.objects.filter(organization=orgobj)
+        divisions_qs = Division.objects.filter(organization=orgobj)
+        allonboards_qs = self._ban_base_qs().filter(sub_company=org)
+
+        # Lines for this BAN (note: account_number in lines table)
+        banlines = UniquePdfDataTable.objects.filter(
+            viewuploaded=None, viewpapered=None,
+            sub_company=org,
+            account_number=banobject.accountnumber
+        )
+
+        data = {
+            "organization": OrganizationGetAllDataSerializer(orgobj).data,
+            "vendor": VendorGetAllDataSerializer(vendorobj).data,
+            "ban": BanShowSerializer(banobject).data,
+            "locations": LocationGetAllDataSerializer(loc_list_qs, many=True).data,
+            "onboarded": BaseDataTableAllShowSerializer(allonboards_qs, many=True).data,
+            "divisions": DivisionNameSerializer(divisions_qs, many=True).data,
+            "linesall": UniqueTableShowSerializer(banlines, many=True).data,
+            "portal": (showPortalInfoser(portalinfo).data if portalinfo else None),
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+    def post(self, request, org, search_by, criteria, *args, **kwargs):
+        qs = self._build_search_queryset(org, search_by, criteria)
+        count = qs.count()
+
+        if count == 0:
+            return Response({"message": "No matches found."}, status=status.HTTP_404_NOT_FOUND)
+        if count > 1:
+            return Response(
+                {
+                    "message": "Multiple matches; cannot apply a single update.",
+                    "count": count,
+                    "results": BaseDataTableAllShowSerializer(qs, many=True).data[:20],
+                },
+                status=status.HTTP_409_CONFLICT
+            )
+
+        obj = qs.first()
+        req_type = request.data.get('type')
+
+        if req_type == 'add-remark':
+            obj.remarks = request.data.get('remarks', '')
+            obj.save(update_fields=["remarks"])
+
+        elif req_type == 'add-contract':
+            file = request.FILES.get('file')
+            filename = request.data.get('filename')
+            if not file:
+                return Response({"message": "file is required"}, status=status.HTTP_400_BAD_REQUEST)
+            obj.contract_file = file
+            if filename:
+                obj.contract_name = filename
+                obj.save(update_fields=["contract_file", "contract_name"])
+            else:
+                obj.save(update_fields=["contract_file"])
+
+        else:
+            return Response({"message": "Invalid request type."}, status=status.HTTP_400_BAD_REQUEST)
+
+        saveuserlog(request.user, f"account number {obj.accountnumber} updated successfully.")
+        return Response({"message": "Ban information updated successfully!"}, status=status.HTTP_200_OK)
+
+    def put(self, request, org, search_by, criteria, *args, **kwargs):
+        qs = self._build_search_queryset(org, search_by, criteria)
+        count = qs.count()
+
+        if count == 0:
+            return Response({"message": "No matches found."}, status=status.HTTP_404_NOT_FOUND)
+        if count > 1:
+            return Response(
+                {
+                    "message": "Multiple matches; cannot update uniquely.",
+                    "count": count,
+                    "results": BaseDataTableAllShowSerializer(qs, many=True).data[:20],
+                },
+                status=status.HTTP_409_CONFLICT
+            )
+
+        instance = qs.first()
+        data = request.data.copy()
+
+        # Diff for audit
+        model_fields = {f.name for f in instance._meta.fields}
+        original_data = {f: getattr(instance, f) for f in model_fields}
+
+        serializer = BanSaveSerializer(instance, data=data, partial=True)
+        if not serializer.is_valid():
+            return Response(
+                {"message": "Unable to update BAN.", "errors": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        serializer.save()
+
+        instance.refresh_from_db()
+        updated_data = {f: getattr(instance, f) for f in model_fields}
+        changes = []
+        for f in model_fields:
+            if str(original_data.get(f)) != str(updated_data.get(f)):
+                changes.append(f"{f}: '{original_data.get(f)}' → '{updated_data.get(f)}'")
+        change_log = "; ".join(changes) if changes else "No changes detected."
+
+        saveuserlog(request.user, f"BAN '{instance.accountnumber}' updated. Changes: {change_log}")
+        return Response({"message": "Ban updated successfully"}, status=status.HTTP_200_OK)
+
+    def delete(self, request, org, search_by, criteria, *args, **kwargs):
+        qs = self._build_search_queryset(org, search_by, criteria)
+        count = qs.count()
+
+        if count == 0:
+            return Response({"message": "No matches found."}, status=status.HTTP_404_NOT_FOUND)
+        if count > 1:
+            return Response(
+                {
+                    "message": "Multiple matches; cannot delete uniquely.",
+                    "count": count,
+                    "results": BaseDataTableAllShowSerializer(qs, many=True).data[:20],
+                },
+                status=status.HTTP_409_CONFLICT
+            )
+
+        base = qs.first()
+
+        # Follow same linkage logic (uploaded first, then onboarded)
+        if base.banOnboarded:
+            obj = OnboardBan.objects.get(id=base.banOnboarded.id)
+        elif base.banUploaded:
+            obj = UploadBAN.objects.get(id=base.banUploaded.id)
+        else:
+            return Response({"message": "BAN linkage not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        acc = getattr(obj, "account_number", base.accountnumber)
+        obj.delete()
+        saveuserlog(request.user, f"account number {acc} deleted successfully.")
+        return Response({"message": f"Ban with account number {base.accountnumber} deleted successfully!"},
+                        status=status.HTTP_200_OK)
+

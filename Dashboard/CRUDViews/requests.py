@@ -14,6 +14,7 @@ from OnBoard.Ban.models import BaseDataTable, UniquePdfDataTable
 from authenticate.models import PortalUser
 from Dashboard.ModelsByPage.ProfileManage import Profile
 from authenticate.views import saveuserlog
+from django.forms.models import model_to_dict
 
 class RequestsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -43,7 +44,19 @@ class RequestsView(APIView):
         if ser.is_valid():
             ser.save()
             data = ser.data
-            saveuserlog(request.user, f"Request {data['request_type']} updated.")
+            org_name = getattr(obj, "organization", None)
+            vendor_name = getattr(obj, "vendor", None)
+            
+            ban_number = getattr(obj, "ban", None)
+            print(org_name, vendor_name,ban_number)
+            log_msg = (
+                f"Request {data.get('request_type')} updated"
+                f"{' for organization ' + str(org_name) if org_name else ''}"
+                f"{' | vendor ' + str(vendor_name) if vendor_name else ''}"
+                f"{' | BAN ' + str(ban_number) if ban_number else ''}."
+            )
+
+            saveuserlog(request.user, log_msg)
             return Response({"message":"Request updated successfully!"},status=status.HTTP_200_OK)
         else:
             return Response({"message":"Unable to update request."},status=status.HTTP_400_BAD_REQUEST)
@@ -110,7 +123,7 @@ class OnlineFormView(APIView):
             if ser.is_valid():
                 ser.save()
                 data = request.data
-                saveuserlog(request.user, f"request {r_type} created for organization {org_name} and line {line['mobile']}") 
+                saveuserlog(request.user, f"request with type {r_type} created in organization {org_name}") 
             else:
                 print(ser.errors)
                 return Response({"message":"Unable to create request"},status=status.HTTP_400_BAD_REQUEST)
@@ -146,7 +159,7 @@ class RequestLogsView(APIView):
         if ser.is_valid():
             ser.save()
             data = ser.data
-            saveuserlog(request.user, f"request {obj.request_type} updated for organization {org} and line {obj.mobile}")
+            saveuserlog(request.user, f"request of type {obj.request_type} updated for organization {org}")
             return Response({"message":"Request updated successfully!"},status=status.HTTP_200_OK)
         else:
             return Response({"message":"Unable to update request."},status=status.HTTP_400_BAD_REQUEST)
@@ -158,7 +171,7 @@ class RequestLogsView(APIView):
             rt = re.request_type
             mobile = re.mobile
             re.delete()
-            saveuserlog(request.user, f"request {rt} deleted for organization {org} and line {obj.mobile}")
+            saveuserlog(request.user, f"request of type {rt} of organization {org} deleted.")
             return Response({"message": "Request deleted successfully!"}, status=status.HTTP_200_OK)
         except Requests.DoesNotExist:
             return Response({"message": "request does not exist"}, status=status.HTTP_400_BAD_REQUEST)

@@ -432,6 +432,7 @@ class BaseDataTable(models.Model):
     Check = models.CharField(max_length=255, null=True, blank=True)
     summary_file = models.FileField(upload_to='view_summary_files/', null=True, blank=True)
     is_baseline_approved = models.BooleanField(default=False)
+    is_baseline_replaced = models.BooleanField(default=False)
     batch_approved = models.CharField(max_length=255, null=True, blank=True, default='Pending')
     batch_approved_changer = models.CharField(max_length=255, null=True, blank=True, default='')
     created = models.DateTimeField(auto_now_add=True)

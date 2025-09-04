@@ -89,10 +89,15 @@ class showaccountbasetable(serializers.ModelSerializer):
     class Meta:
         model = BaseDataTable
         fields = ('accountnumber', 'vendor', 'sub_company')
+
 class showbaselinenotesSerializer(serializers.ModelSerializer):
+    variance = serializers.SerializerMethodField()
     class Meta:
         model = BaseDataTable
-        fields = ('id','baseline_notes')
+        fields = ('id','baseline_notes', 'variance', 'is_baseline_approved', 'is_baseline_replaced')
+    def get_variance(self, obj):
+        mainObj = BaseDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=obj.sub_company, vendor=obj.vendor, accountnumber=obj.accountnumber).first()
+        return mainObj.variance if mainObj else 5
 
 class BaselineWithOnboardedCategorySerializer(serializers.ModelSerializer):
     onboarded_category = serializers.SerializerMethodField()
