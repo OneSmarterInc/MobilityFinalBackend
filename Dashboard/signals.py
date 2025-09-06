@@ -1,4 +1,4 @@
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save,post_delete
 from .ModelsByPage.DashAdmin import Vendors
 from .ModelsByPage.cat import BaselineCategories
 from OnBoard.Ban.models import BaselineDataTable, UniquePdfDataTable
@@ -55,7 +55,6 @@ def reflect_to_category_object(sender, instance, created, **kwargs):
         for obj in baselines:
             co = parse_until_dict(obj.category_object)
             lst = co.keys()
-            print(item_category, lst)
             if item_category in lst:
                 subDescriptions = list(co.get(item_category).keys())
                 updated = [item for item in item_descriptions if item not in subDescriptions]
@@ -69,10 +68,40 @@ def reflect_to_category_object(sender, instance, created, **kwargs):
             obj.save()
             uniqelines.filter(wireless_number=obj.Wireless_number).update(category_object=json.dumps(co))
     else:
-        print("updated")
-        # baselines = BaselineDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=instance.organization.Organization_name, vendor=instance.vendor.name, account_number=instance.ban)        
-        # uniqelines = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=instance.organization.Organization_name, vendor=instance.vendor.name, account_number=instance.ban)
-        # for obj in baselines:
-        #     co = parse_until_dict(obj.category_object)
-        #     lst = co.keys()
-        #     print(item_category, lst)
+        
+        baselines = BaselineDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=instance.organization.Organization_name, vendor=instance.vendor.name, account_number=instance.ban)        
+        uniqelines = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=instance.organization.Organization_name, vendor=instance.vendor.name, account_number=instance.ban)
+        for obj in baselines:
+            co = parse_until_dict(obj.category_object) or {}
+            values = co.get(item_category, {})
+
+            new_co = {
+                **co, 
+                item_category: {
+                    item: values.get(item, 0) for item in item_descriptions
+                }
+            }
+            serialized = json.dumps(new_co)
+            obj.category_object = serialized
+            obj.save()
+
+            uniqelines.filter(wireless_number=obj.Wireless_number).update(category_object=serialized)
+
+@receiver(post_delete, sender=BaselineCategories)
+def reflect_to_category_object_on_delete(sender, instance, **kwargs):
+
+    item_category = instance.category
+    item_descriptions = instance.sub_categories
+    baselines = BaselineDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=instance.organization.Organization_name, vendor=instance.vendor.name, account_number=instance.ban)        
+    uniqelines = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=instance.organization.Organization_name, vendor=instance.vendor.name, account_number=instance.ban)
+
+
+    for obj in baselines:
+        co = parse_until_dict(obj.category_object) or {}
+        if item_category in co.keys():
+            co.pop(item_category)
+        serialized = json.dumps(co)
+        obj.category_object = serialized
+        obj.save()
+        uniqelines.filter(wireless_number=obj.Wireless_number).update(category_object=serialized)
+    

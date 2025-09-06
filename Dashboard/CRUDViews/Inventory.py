@@ -24,7 +24,6 @@ class InventoryView(APIView):
             all_accnts = showBaseDataser(BaseDataTable.objects.filter(sub_company=org).filter(viewuploaded=None,viewpapered=None), many=True)
         else:
             all_accnts = showBaseDataser(BaseDataTable.objects.filter(sub_company=org).filter(viewuploaded=None,viewpapered=None).filter(company=request.user.company.Company_name), many=True)
-        print(all_accnts.data)
         serializer = UniqueTableShowSerializer(inventory, many=True)
         return Response({"data":serializer.data, "accounts":all_accnts.data}, status=status.HTTP_200_OK)
     
@@ -41,9 +40,7 @@ class InventoryView(APIView):
         if not pk:
             try:
                 for inv in data:
-                    print(inv)
                     obj = UniquePdfDataTable.objects.filter(sub_company=org).get(id=inv.get('id'))
-                    print(obj)
                     
                     if (obj.banOnboarded):
                         inv['banOnboarded'] = obj.banOnboarded.id
@@ -86,7 +83,6 @@ class InventoryView(APIView):
             return Response({"message": "Inventory not found in unique table!"}, status=status.HTTP_404_NOT_FOUND)
         except BaselineDataTable.DoesNotExist:
             return Response({"message": "Inventory not found in baseline table!"}, status=status.HTTP_404_NOT_FOUND)
-        print(data)
         if 'action' in data:
             if data['action'] == 'move-ban':
                 ban = data['ban']
@@ -140,30 +136,26 @@ class MovebanView(APIView):
             return Response({"message":"ban not found"}, status=status.HTTP_400_BAD_REQUEST)
 
         UniqueMobileObj = UniquePdfDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(id=pk)
+        old_account = UniqueMobileObj[0].account_number
         
         if not UniqueMobileObj:
             return Response({"message":"Mobile not found"}, status=status.HTTP_400_BAD_REQUEST)
-        BaselineMobileObj = UniquePdfDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(Wireless_number=UniqueMobileObj[0].wireless_number)
+        BaselineMobileObj = BaselineDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(Wireless_number=UniqueMobileObj[0].wireless_number)
 
         searchBan = BaseDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(accountnumber=ban).first()
 
         if not searchBan:
             return Response({"message":"ban not found"}, status=status.HTTP_400_BAD_REQUEST)
         
-        newUpdatedBan = {
+        newUpdatedMobile = {
             "account_number": searchBan.accountnumber,
-            "banUploaded":searchBan.banUploaded if searchBan.banUploaded else None,
-            "banOnboarded":searchBan.banOnboarded if searchBan.banOnboarded else None,
-            "vendor":searchBan.vendor if searchBan.vendor else None,
-            "company":searchBan.company if searchBan.company else None,
-            "sub_company":searchBan.sub_company if searchBan.sub_company else None,
-            "viewuploaded":searchBan.viewuploaded if searchBan.viewuploaded else None,
-            "viewpapered": searchBan.viewpapered if searchBan.viewpapered else None,
+            "banUploaded":searchBan.banUploaded,
+            "banOnboarded":searchBan.banOnboarded,
         }
-        UniqueMobileObj.update(**newUpdatedBan)
+        UniqueMobileObj.update(**newUpdatedMobile)
         if BaselineMobileObj:
-            BaselineMobileObj.update(**newUpdatedBan)
-            saveuserlog(request.user, f"wireless number moved to ban {ban} from {searchBan.accountnumber}")
+            BaselineMobileObj.update(**newUpdatedMobile)
+            saveuserlog(request.user, f"wireless number {UniqueMobileObj[0].wireless_number} moved to ban {ban} from {old_account}")
 
         return Response({"message":f"Mobile {UniqueMobileObj[0].wireless_number} moved to ban {searchBan.accountnumber} successfully!"},status=status.HTTP_200_OK)
 
