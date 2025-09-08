@@ -519,6 +519,7 @@ class UniquePdfDataTable(models.Model):
     Location_city = models.CharField(max_length=255, blank=True, null=True, default="")
     Location_state = models.CharField(max_length=255, blank=True, null=True, default="")
     Location_zip = models.CharField(max_length=255, blank=True, null=True, default="")
+    Location_code = models.CharField(max_length=255, blank=True, null=True, default="")
     site_name = models.CharField(max_length=255, blank=True, null=True, default="")
     upgrade_eligible_date = models.CharField(max_length=255, blank=True, null=True, default="")
     voice_plan_mins = models.CharField(max_length=255, blank=True, null=True, default="")
