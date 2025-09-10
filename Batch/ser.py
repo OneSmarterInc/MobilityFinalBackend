@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from OnBoard.Ban.models import BatchReport, BaseDataTable
 from OnBoard.Organization.models import Organizations
+from .models import Notification
 
 class BatchReportSerializer(serializers.ModelSerializer):
     class Meta:
@@ -17,3 +18,8 @@ class BaseDataSerializer(serializers.ModelSerializer):
     class Meta:
         model = BaseDataTable
         fields = '__all__'
+    
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ["id", "company_id", "description", "created_at"]

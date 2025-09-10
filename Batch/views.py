@@ -9,6 +9,8 @@ from OnBoard.Organization.models import Organizations
 from OnBoard.Company.models import Company
 from OnBoard.Ban.models import BatchReport, OnboardBan, BaseDataTable
 from .ser import BatchReportSerializer, OrganizationShowSerializer, BaseDataSerializer
+# import permission classes
+
 from openpyxl import Workbook
 from sendmail import send_custom_email
 # call update_or_create a django method
@@ -369,3 +371,37 @@ class EmailConfigurationViewSet(viewsets.ModelViewSet):
                 "use_ssl": use_ssl, "use_tls": use_tls, "smtp_port": smtp_port
             }
         }, status=code)    
+
+
+from .models import Notification
+from .ser import NotificationSerializer
+from rest_framework.decorators import api_view, permission_classes
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def notifications_by_company(request):
+    """
+    GET /api/notifications?company_id=123
+    """
+    company_id = request.query_params.get("company_id")
+    if not company_id:
+        return Response({"detail": "company_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    qs = Notification.objects.filter(company_id=company_id).order_by("-created_at")
+    data = NotificationSerializer(qs, many=True).data
+    return Response(data)
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def delete_notification(request, pk: int):
+    """
+    DELETE /api/notifications/<id>/
+    """
+    try:
+        n = Notification.objects.get(pk=pk)
+    except Notification.DoesNotExist:
+        return Response(status=status.HTTP_204_NO_CONTENT)  # idempotent delete
+
+    n.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)

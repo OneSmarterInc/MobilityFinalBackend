@@ -16,10 +16,10 @@ class Organizations(models.Model):
     company = models.ForeignKey(
         Company, related_name='company_organizations', on_delete=models.CASCADE, default=None
     )
-    tax_id = models.CharField(max_length=255, unique=True, null=False)
-    Domain = models.CharField(max_length=255, unique=True, null=False)
-    other_domains = models.CharField(max_length=255, unique=True, null=True)
-    Phone = models.CharField(max_length=255, unique=True, null=False)
+    tax_id = models.CharField(max_length=255, null=False)
+    Domain = models.CharField(max_length=255, null=False)
+    other_domains = models.CharField(max_length=255, null=True)
+    Phone = models.CharField(max_length=255, null=False)
     Country = models.CharField(max_length=255, null=False)
     Fax = models.CharField(max_length=255, null=True, blank=True)
     DM_first_name = models.CharField(max_length=255, null=False)

@@ -2,6 +2,7 @@ from django.contrib import admin
 from .ModelsByPage.DashAdmin import *
 from .ModelsByPage.ProfileManage import Profile
 from .ModelsByPage.cat import BaselineCategories
+from .ModelsByPage.aimodels import BotChats
 # Register your models here.
 
 from django.apps import apps
@@ -63,3 +64,18 @@ class BaselineCategoriesAdmin(admin.ModelAdmin):
     def display_subcategories(self, obj):
         return ', '.join(obj.sub_categories) if obj.sub_categories else '-'
     display_subcategories.short_description = 'Sub Categories'
+
+@admin.register(BotChats)
+class BotChatsAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'short_question', 'short_response', 'created_at')
+    search_fields = ('user__username', 'question', 'response')
+    list_filter = ('created_at',)
+    ordering = ('-created_at',)
+
+    def short_question(self, obj):
+        return (obj.question[:75] + '...') if len(obj.question) > 75 else obj.question
+    short_question.short_description = 'Question'
+
+    def short_response(self, obj):
+        return (obj.response[:75] + '...') if len(obj.response) > 75 else obj.response
+    short_response.short_description = 'Response'

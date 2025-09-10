@@ -104,3 +104,15 @@ class EmailConfiguration(models.Model):
 
 
     
+from django.db import models
+
+class Notification(models.Model):
+    company_id = models.IntegerField(db_index=True)  # Organization id
+    description = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.company_id} - {self.description[:40]}"

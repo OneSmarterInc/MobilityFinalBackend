@@ -284,6 +284,6 @@ class ProcessPdf2:
             return True, "PDF Onboarded successfully", ProcessTime
         except Exception as e:
             logger.error(f"Error processing PDF: {e}")
-            if instance and instance.pk: self.instance.delete()
+            if self.instance and self.instance.pk: self.instance.delete()
             return False, str(e), 0
         

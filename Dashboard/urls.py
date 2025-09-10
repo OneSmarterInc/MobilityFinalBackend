@@ -259,3 +259,9 @@ trakingurls = [
     path("request-tracking/<int:pk>/", view=TrackingInfoView.as_view(), name='request-tracking-detail'),
 ]
 urlpatterns.extend(trakingurls)
+
+from .CRUDViews.chatbot import ChatBotView
+chatboturls = [
+    path("chatbot/", view=ChatBotView.as_view(), name='chatbot'),
+]
+urlpatterns.extend(chatboturls)

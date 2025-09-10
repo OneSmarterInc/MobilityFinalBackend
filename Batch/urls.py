@@ -1,6 +1,7 @@
 # urls.py (order matters!)
 from django.urls import path
 from .views import BatchView, BatchAutomationViewSet,email_config_list,email_config_detail,EmailConfigurationViewSet
+from .views import notifications_by_company, delete_notification
 
 urlpatterns = [
       
@@ -21,6 +22,8 @@ urlpatterns = [
 
     path('<str:org>/', BatchView.as_view(), name='batch-detail-post'),
     path('<str:org>/<int:id>/', BatchView.as_view(), name='batch-update-delete'),
+    path("notifications/", notifications_by_company, name="notifications-by-company"),
+    path("notifications/<int:pk>/", delete_notification, name="notifications-delete"),
     
    
 ]
