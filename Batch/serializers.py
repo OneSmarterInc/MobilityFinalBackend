@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import BatchAutomation,EmailConfiguration
+from OnBoard.Organization.models import Organizations
 
 class DayProductionSerializer(serializers.Serializer):
     day = serializers.ChoiceField(choices=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"])
@@ -49,6 +50,13 @@ class BatchAutomationSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        sub_company_id = validated_data.pop("sub_company", None) or validated_data.get("company_id", None)
+        if sub_company_id:
+            try:
+                sub_company = Organizations.objects.get(id=sub_company_id)
+                validated_data["sub_company"] = sub_company
+            except Organizations.DoesNotExist:
+                raise serializers.ValidationError("Invalid sub_company ID.")
         return BatchAutomation.objects.create(**validated_data)
 
     def update(self, instance, validated_data):

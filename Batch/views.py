@@ -380,17 +380,15 @@ from rest_framework.decorators import api_view, permission_classes
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
-def notifications_by_company(request):
+def notifications_by_company(request,*args, **kwargs):
     """
-    GET /api/notifications?company_id=123
+    GET /api/notifications?company_id=OneSmarter
     """
-    company_id = request.query_params.get("company_id")
-    if not company_id:
-        return Response({"detail": "company_id is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-    qs = Notification.objects.filter(company_id=company_id).order_by("-created_at")
+    qs = Notification.objects.filter(company_key=request.user.company) if request.user.company else Notification.objects.all()
+    qs = qs.order_by("-created_at")
     data = NotificationSerializer(qs, many=True).data
-    return Response(data)
+    print(data)
+    return Response({"data": data}, status=status.HTTP_200_OK)
 
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
@@ -400,6 +398,20 @@ def delete_notification(request, pk: int):
     """
     try:
         n = Notification.objects.get(pk=pk)
+    except Notification.DoesNotExist:
+        return Response(status=status.HTTP_204_NO_CONTENT)  # idempotent delete
+
+    n.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def delete_all_notification(request):
+    """
+    DELETE /api/notifications/<id>/
+    """
+    try:
+        n = Notification.objects.filter(company_key=request.user.company) if request.user.company else Notification.objects.all()
     except Notification.DoesNotExist:
         return Response(status=status.HTTP_204_NO_CONTENT)  # idempotent delete
 

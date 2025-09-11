@@ -1,6 +1,9 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from OnBoard.Organization.models import Organizations
+from OnBoard.Company.models import Company
+
 
 # Create your models here.
 
@@ -17,6 +20,7 @@ class BatchAutomation(models.Model):
 
     # Denormalized company info (no FK)
     company_id = models.IntegerField(help_text="Organization id from external source/UI")
+    sub_company = models.ForeignKey(Organizations, related_name='organization_automation', on_delete=models.CASCADE, null=True, blank=True)
     company_name = models.CharField(max_length=255, blank=True, default="")
 
     frequency = models.CharField(max_length=16, choices=FREQ_CHOICES)
@@ -81,7 +85,6 @@ class BatchAutomation(models.Model):
     
     
     
-from OnBoard.Organization.models import Organizations
 class EmailConfiguration(models.Model):
     sub_company = models.ForeignKey(Organizations, related_name='organization_configuration', on_delete=models.CASCADE, null=True, blank=True)
    
@@ -107,7 +110,8 @@ class EmailConfiguration(models.Model):
 from django.db import models
 
 class Notification(models.Model):
-    company_id = models.IntegerField(db_index=True)  # Organization id
+    company_key = models.ForeignKey(Company, related_name='company_notifications', on_delete=models.CASCADE, null=True, blank=True)
+    company = models.CharField(max_length=255,default="OneSmarter")
     description = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -115,4 +119,4 @@ class Notification(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.company_id} - {self.description[:40]}"
+        return f"{self.company} - {self.description[:40]}"

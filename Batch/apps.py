@@ -1,16 +1,12 @@
-from django.apps import AppConfig
-
-
-class BatchConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'Batch'
-
-from django.apps import AppConfig
+import atexit
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from django.apps import AppConfig
 from django.core.management import call_command
-import atexit
 from datetime import datetime
+
+scheduler = None  # global
+
 
 def run_batch_reports():
     print("Running batch reports...", datetime.now())
@@ -22,37 +18,34 @@ def run_notifications():
     call_command("send_notification")
 
 
-# class BatchConfig(AppConfig):
-#     name = 'Batch'
-
-#     def ready(self):
-#         scheduler = BackgroundScheduler()
-
-#         scheduler.add_job(run_batch_reports, 'interval', hours=3)
-#         scheduler.start()
-#         atexit.register(lambda: scheduler.shutdown())
-
 class BatchConfig(AppConfig):
     name = "Batch"
 
     def ready(self):
-        scheduler = BackgroundScheduler()
+        global scheduler
+        if scheduler and scheduler.running:
+            return
 
-        # Run auto_send_batch_reports daily at 10:00 PM
+        from django.conf import settings
+
+        scheduler = BackgroundScheduler(timezone=settings.TIME_ZONE)
+
         scheduler.add_job(
             run_batch_reports,
-            trigger=CronTrigger(hour=21, minute=10),
+            trigger=CronTrigger(hour=1, minute=0),
             id="batch_reports",
             replace_existing=True,
         )
 
-        # Run send_notification daily at 1:00 AM
         scheduler.add_job(
             run_notifications,
-            trigger=CronTrigger(hour=1, minute=0),
+            trigger=CronTrigger(hour=22, minute=0),
             id="notifications",
             replace_existing=True,
         )
+
+        # scheduler.add_job(run_notifications, "interval",seconds=10, id="test_job")
+
 
         scheduler.start()
 

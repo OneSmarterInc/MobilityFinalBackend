@@ -19,7 +19,7 @@ class EmailConfigurationAdmin(admin.ModelAdmin):
 
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
-    list_display = ('id', 'company_id', 'description', 'created_at')
-    search_fields = ('company_id', 'description')
+    list_display = ('id', 'company', 'description', 'created_at')
+    search_fields = ('company', 'description')
     list_filter = ('created_at',)
     ordering = ('-created_at',)

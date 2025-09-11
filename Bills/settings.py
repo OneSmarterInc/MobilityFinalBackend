@@ -45,6 +45,7 @@ OTHER_DEPENDIES = [
     'corsheaders',
     'django_celery_results',
     'django_celery_beat',
+    'django_apscheduler',
 ]
 
 MY_APPS = [

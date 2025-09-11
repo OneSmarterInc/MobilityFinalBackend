@@ -29,29 +29,64 @@ def get_database(db_path="db.sqlite3"):
 
     return conn, schema
 
-def make_case_insensitive(query: str) -> str:
-    # Replace WHERE clauses like: column = 'value'
-    return query.replace(" = ", " COLLATE NOCASE = ")
+# def get_database(db_path="db.sqlite3"):
+#     conn = sqlite3.connect(db_path, check_same_thread=False)
+#     cursor = conn.cursor()
+
+#     # Only keep these tables
+#     allowed_tables = {"Vendors", "UniquePdfDataTable", "BaseDataTable", "BaselineDataTable", "Company", "Organizations"}
+
+#     # Fetch CREATE TABLE statements
+#     schema = {}
+#     cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='table';")
+#     for name, sql in cursor.fetchall():
+#         if name in allowed_tables and sql is not None:
+#             schema[name] = sql.strip()  # Full CREATE TABLE statement
+
+#     return conn, schema
+
+import re
+
+def clean_sql_query(query: str) -> str:
+    # Step 1: Sanitize query by slicing from first SQL keyword
+    keywords = ("SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP")
+    upper_q = query.upper()
+    for kw in keywords:
+        idx = upper_q.find(kw)
+        if idx != -1:
+            query = query[idx:]
+            break
+
+    # Step 2: Make WHERE clause comparisons case-insensitive
+    pattern = r"(\w+)\s*=\s*'([^']*)'"
+    replacement = r"\1 COLLATE NOCASE = '\2'"
+    query = re.sub(pattern, replacement, query)
+
+    return query
+
 
 def get_sql_from_gemini(user_prompt, schema):
     model = genai.GenerativeModel("gemini-2.5-flash-lite")
 
     prompt = f"""
-        You are an expert SQL generator. Your task is to translate a natural language question into a syntactically correct SQL query.
+        You are an expert SQL query generator. Your job is to convert a natural language question into a valid SQLite SQL query.
 
-        - Always use the provided database schema.
-        - Only use the tables and columns explicitly mentioned in the schema in the dictionary format.
-        - If the user’s question cannot be answered with the given schema, respond with "NO_SQL".
-        - Use proper SQL syntax compatible with SQLite.
+        ### Rules:
+        - Use **only** the tables and columns explicitly provided in the database schema below. Do not assume or invent anything not in the schema.
+        - If the question cannot be answered with the given schema, return exactly: NO_SQL
+        - Output only the SQL query. Do not include explanations, comments, or extra text.
+        - Queries must be **syntactically correct** for SQLite.
+        - Respect table relationships:
+        - **First-class foreign keys**: `banOnboarded_id` and `banUploaded_id` → represent onboarded account numbers under an organization.
+        - **Second-class foreign keys**: `viewuploaded_id` and `viewpapered_id` → represent bills uploaded under the onboarded account numbers.
 
-        Database Schema:
+        ### Database Schema:
         {schema}
 
-        User Question:
+        ### User Question:
         {user_prompt}
-
-        Return only the SQL query (no explanation, no text before or after).
         """
+
 
     response = model.generate_content(prompt)
     sql_query = response.text.strip()
@@ -61,7 +96,6 @@ def get_sql_from_gemini(user_prompt, schema):
     sql_query = sql_query.replace("SQL Query:", "").replace("sql", "").replace("SQL", "")
     sql_query = sql_query.strip()
 
-    # Ensure query starts correctly
     if not sql_query.upper().startswith(("SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP")):
         return "NO_SQL"
 
@@ -70,7 +104,7 @@ def get_sql_from_gemini(user_prompt, schema):
 
 def execute_sql_query(conn, query):
     try:
-        query = make_case_insensitive(query)
+        query = clean_sql_query(query)
         print(query)
         df = pd.read_sql_query(query, conn)
         return df
@@ -103,6 +137,7 @@ def get_response_from_gemini(user_prompt, dataframe):
 # def main():
 #     # db_connection = setup_database()
 #     db_connection,schema  = get_database("Bills/db.sqlite3")
+#     print(schema)
     
 #     # print("schema==", schema)
     

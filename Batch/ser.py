@@ -22,4 +22,4 @@ class BaseDataSerializer(serializers.ModelSerializer):
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
-        fields = ["id", "company_id", "description", "created_at"]
+        fields = ["id", "company", "description", "created_at"]

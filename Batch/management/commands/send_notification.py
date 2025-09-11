@@ -1,8 +1,8 @@
 
 from django.core.management.base import BaseCommand
-from Batch.models import Notification
-from OnBoard.Ban.models import BatchAutomation
+from Batch.models import Notification, BatchAutomation
 from django.utils import timezone
+from OnBoard.Company.models import Company
 
 VALID_DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
 
@@ -24,6 +24,7 @@ def is_batch_today(ba, now=None) -> bool:
             day_map[day] = bool(d.get("production"))
 
     return bool(day_map.get(weekday, False))
+    # return True
 
 class Command(BaseCommand):
     help = "Create 'batch runs today' notifications for organizations that run today."
@@ -38,11 +39,16 @@ class Command(BaseCommand):
                 continue
 
             # Avoid duplicates for the same org on the same day
-            if Notification.objects.filter(company_id=ba.company_id, created_at__date=today).exists():
+            if Notification.objects.filter(company=ba.company_name, created_at__date=today).exists():
+                continue
+
+            company_key = Company.objects.filter(Company_name=ba.company_name).first()
+            if not company_key:
                 continue
 
             Notification.objects.create(
-                company_id=ba.company_id,
+                company_key=company_key,
+                company=ba.company_name,
                 description="Batch report runs today. Please complete bill payments before 10 PM."
             )
             created += 1
