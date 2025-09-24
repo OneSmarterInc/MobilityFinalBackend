@@ -412,6 +412,7 @@ class OnboardBanView(APIView):
                     for field in boolean_fields:
                         rd[field] = self.str_to_bool(rd.get(field, False))
                     rd['uploadBill'] = request.data.get(f'Rddfile_{i}')
+                    contract = request.data.get(f'contract_file_{i}')
                     for k, v in rd.items():
                         if v == '' or v == "":
                             rd[k] = None
@@ -441,7 +442,9 @@ class OnboardBanView(APIView):
                         uploadBill = rd.pop('uploadBill', None),
                         addDataToBaseline = False if etype.name == "Master Account" else rd.pop('baselineCheck', False),
                         is_it_consolidatedBan = rd.pop('is_it_consolidatedBan', False),
-                        variance = rd.pop('variance',5)
+                        variance = rd.pop('variance',5),
+                        contract_name=rd.get('contract_name'),
+                        contract_file=contract
                     )
                     obj.save()
                     if obj.uploadBill.name.endswith('.zip'):
@@ -465,6 +468,7 @@ class OnboardBanView(APIView):
                     for field in boolean_fields:
                         ed[field] = self.str_to_bool(ed.get(field, False))
                     ed['uploadBill'] = request.data.get(f'Excelfile_{i}')
+                    contract = request.data.get(f'contract_file_{i}')
                     print(ed)
                     for k, v in ed.items():
                         if v == '' or v == "":
@@ -500,7 +504,9 @@ class OnboardBanView(APIView):
                         addDataToBaseline = False if etype.name == "Master Account" else ed.pop('baselineCheck', False),
                         is_it_consolidatedBan = ed.pop('is_it_consolidatedBan', False),
                         uploadBill = ed.pop('uploadBill', None),
-                        variance = ed.pop('variance',5)
+                        variance = ed.pop('variance',5),
+                        contract_name=ed.get('contract_name'),
+                        contract_file=contract
                     )
                     obj.save()
                     map = ed.pop('mapping_object', None)
@@ -547,11 +553,13 @@ class OnboardBanView(APIView):
                 return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         bill = request.data.get('uploadBill')
+        contract = request.data.get('contract_file')
         if bill.name.endswith('.pdf'):
             isreal = prove_bill_ID(bill,request.data.get('vendor'))
             print(isreal)
             if not isreal:
                 return Response({"message" : f"The uploaded file is not {request.data.get('vendor')} file!"}, status=status.HTTP_400_BAD_REQUEST)
+        print(request.data)
         mutable_data = {k: v for k, v in request.data.items() if not hasattr(v, 'read')}
         mutable_data = {key: (value if value != "" else None) for key, value in mutable_data.items()}
         print(mutable_data)
@@ -589,7 +597,9 @@ class OnboardBanView(APIView):
                billType = btype,
                addDataToBaseline = False if etype.name == "Master Account" else mutable_data.pop('addDataToBaseline', False),
                is_it_consolidatedBan = mutable_data.pop('is_it_consolidatedBan', False),
-                variance = mutable_data.pop('variance', 5)
+                variance = mutable_data.pop('variance', 5),
+                contract_name=mutable_data.get('contract_name'),
+                contract_file=contract
             )
             if 'mobile' in str(obj.vendor.name.lower()).lower() and obj.uploadBill.path.endswith('.pdf'):
                 tp = check_tmobile_type(obj.uploadBill.path)
@@ -686,6 +696,7 @@ class ExcelUploadView(APIView):
     def post(self, request,*args, **kwargs):
         excel_Data_str = request.data.get('Excelfiles').replace('null', 'None')
         excel_file = request.data.get(f'Excelfile_{0}')
+        contract = request.data.get(f'contract_file_{0}')
         if not excel_file:
           return Response({"message":"Excel file not found!"},status=status.HTTP_400_BAD_REQUEST)  
         try:
@@ -735,7 +746,9 @@ class ExcelUploadView(APIView):
             addDataToBaseline = False if etype.name == "Master Account" else ed.pop('baselineCheck', False),
             is_it_consolidatedBan = ed.pop('is_it_consolidatedBan', False),
             uploadBill = ed.pop('uploadBill', None),
-            variance = ed.pop('variance',5)
+            variance = ed.pop('variance',5),
+            contract_name=ed.get('contract_name'),
+            contract_file=contract
         )
         obj.save()
         map = ed.pop('mapping_object', None)

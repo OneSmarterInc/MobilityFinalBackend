@@ -369,3 +369,8 @@ class UniqueLineView(APIView):
             return Response({"message":f"Line {phone} not found!"},status=status.HTTP_400_BAD_REQUEST)
         ser = PhoneShowSerializer(line)
         return Response({"data":ser.data},status=status.HTTP_200_OK)
+    
+
+
+
+        

@@ -20,20 +20,21 @@ class RegisterView(APIView):
         return Response({"designations": ser.data, "companies" : Comser.data}, status=status.HTTP_200_OK)
     
     def post(self,request):
-        data = request.data
+        data = request.data.copy()
         email = request.data['email']
         if PortalUser.objects.filter(email=email).exists():
             return Response(
                 {"message": "Email address is already in use."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
-        serializer = RegisterSerializer(data=data)
+        data['string_password'] = data.get('password')
+        print(data)
+        
         try:
+            serializer = RegisterSerializer(data=data)
             if serializer.is_valid():
                 user = serializer.save()
-
-                saveuserlog(user, description=f'{user.email} registered successfully!')
+                saveuserlog(request.user, description=f'{user.email} registered successfully!')
                 return Response({
                     'message' : 'User created successfully',
                     'status':True,
@@ -231,7 +232,7 @@ class VerifyOTPView(APIView):
                 else:
                     return Response({"message": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST)
 
-            except (User.DoesNotExist, EmailOTP.DoesNotExist):
+            except (user.DoesNotExist, EmailOTP.DoesNotExist):
                 return Response({"message": "User/OTP not found"}, status=status.HTTP_404_NOT_FOUND)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -259,3 +260,70 @@ class ForgotPassswordView(APIView):
         except Exception as e:
             print(e)
             return Response({"message":"unable to update password."}, status=status.HTTP_400_BAD_REQUEST)
+        
+import pandas as pd
+from addon import parse_until_dict
+from sendmail import send_custom_email
+class BulkUserUpload(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self,request,*args,**kwargs):
+        existance = []
+        data = request.data.copy()
+        file = data.get('file')
+        df = pd.read_excel(file, index_col=False)
+        mapping = parse_until_dict(data.get('mapping'))
+        mapping_inverted = {v: k for k, v in mapping.items()}
+        df = df.rename(columns=(mapping_inverted))
+        company = data.get('company')
+        organization = data.get('organization')
+        vendor = data.get('vendor')
+        ban = data.get('ban')
+        usertpe = data.get('usertype')
+        if not company:
+            return Response({"message":"Company Required"},status=status.HTTP_400_BAD_REQUEST)
+        if not usertpe:
+            return Response({"message":"Usertype Required"},status=status.HTTP_400_BAD_REQUEST)
+        passw = '1234'
+        df['company'] = company
+        df["sub_company"] = organization
+        df["vendor"] = vendor
+        df["account_number"] = ban
+        df['designation'] = usertpe
+        df["username"] = df["email"].str.split("@").str[0]
+        df['string_password'] = passw
+        df['password'] = passw
+        df['password2'] = passw
+
+        records = df.to_dict(orient="records")
+        total_len = len(records)
+
+        for record in records:
+            email = record.get('email')
+            if PortalUser.objects.filter(email=email).exists(): existance.append(email)
+        records = [rec for rec in records if rec["email"] not in existance] if existance else records
+        for record in records:
+            ser = RegisterSerializer(data=record)
+            if ser.is_valid():
+                ser.save()
+        if existance:
+            sub = "Bulk User Upload"
+            email = request.user.email
+            existing_emails = "\n".join(existance)
+
+            msg = f"""
+            Hello {request.user.username},
+
+            Bulk user upload completed with some issues.
+
+            📌 {len(records)} out of {total_len} users were registered successfully.
+            ⚠️ The following {len(existance)} user(s) already exist in the system:
+
+            {existing_emails}
+
+            Regards,
+            Team Mobility
+            """
+            send_custom_email(company=company, to=email, subject=sub, body_text=msg)
+
+        saveuserlog(request.user, description=f'{request.user.email} uploaded bulk users!')
+        return Response({"message":"User added in bulk successfully!"},status=status.HTTP_201_CREATED)

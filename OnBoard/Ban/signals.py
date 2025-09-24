@@ -1,7 +1,8 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import BaseDataTable
+from .models import BaseDataTable, OnboardBan, UploadBAN
 from Dashboard.ModelsByPage.Req import CostCenters
+from View.models import Contracts
 
 @receiver(post_save, sender=BaseDataTable)
 def remittance_format_after_save(sender, instance, created, **kwargs):
@@ -48,3 +49,26 @@ def remittance_format_after_save(sender, instance, created, **kwargs):
             instance.save()
 
     
+@receiver(post_save, sender=OnboardBan)
+def contract_after_save(sender, instance, created, **kwargs):
+    if created and instance.contract_file:
+        data = {
+            'contract_name':instance.contract_name,
+            'contract_file':instance.contract_file,
+            'onboardedban':instance,
+            'sub_company':instance.organization.Organization_name
+        }
+        Contracts.objects.create(**data)
+        print("Contract created successfully!")
+
+@receiver(post_save, sender=UploadBAN)
+def contract_after_save(sender, instance, created, **kwargs):
+    if created and instance.contract_file:
+        data = {
+            'contract_name':instance.contract_name,
+            'contract_file':instance.contract_file,
+            'uploadedban':instance,
+            'sub_company':instance.organization.Organization_name
+        }
+        Contracts.objects.create(**data)
+        print("Contract created successfully!")

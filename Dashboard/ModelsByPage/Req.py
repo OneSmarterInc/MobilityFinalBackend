@@ -314,3 +314,33 @@ class VendorInformation(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['sub_company', 'vendor', 'ban','vendor_plan'], name='unique_vendor_information')
         ]
+
+class upgrade_device_request(models.Model):
+    raised_by = models.ForeignKey(PortalUser, on_delete=models.CASCADE, related_name="upgrade_device_by_user")
+    sub_company = models.ForeignKey(Organizations, on_delete=models.CASCADE,null=False,related_name="sub_company_upgrade_request")
+    wireless_number = models.CharField(max_length=15, null=False)
+    device_type = models.CharField(max_length=255, null=True, blank=True)
+    make = models.CharField(max_length=255, null=True, blank=True)
+    model = models.CharField(max_length=255, null=True, blank=True)
+    os = models.CharField(max_length=255, null=True, blank=True)
+    color = models.CharField(max_length=255, null=True, blank=True)
+    serial_number = models.CharField(max_length=255, null=True, blank=True)
+    storage = models.CharField(max_length=255, null=True, blank=True)
+    imei_number = models.CharField(max_length=255, null=True, blank=True)
+    device_etf = models.CharField(max_length=255, null=True, blank=True)
+    mobile_device = models.CharField(max_length=255, null=True, blank=True)
+    mifi = models.CharField(max_length=255, null=True, blank=True)
+    smartphone = models.CharField(max_length=255, null=True, blank=True)
+    tablet = models.CharField(max_length=255, null=True, blank=True)
+    wearables = models.CharField(max_length=255, null=True, blank=True)
+    device_type = models.CharField(max_length=255, null=True, blank=True)
+    new_upgrade_date = models.CharField(max_length=255, null=True, blank=True)
+
+    created = models.DateTimeField(auto_now_add=True, null=True)
+    updated= models.DateTimeField(auto_now=True,null=True)
+
+    class Meta:
+        db_table = 'upgrade_device_request'
+
+
+    

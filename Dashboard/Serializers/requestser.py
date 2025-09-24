@@ -309,3 +309,35 @@ class CostCentersSaveSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Vendor is required.")
         return data
     
+
+class EmployeeSerializer(serializers.ModelSerializer):
+    sub_company = serializers.SerializerMethodField()
+    vendor = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
+    designation = serializers.SerializerMethodField()
+    user_id = serializers.SerializerMethodField()
+    class Meta:
+        model = UniquePdfDataTable
+        exclude = ("category_object", "inventory")
+    def get_user_id(self, obj):
+        userObj = PortalUser.objects.filter(mobile_number=obj.wireless_number).first()
+        return userObj.id
+    def get_sub_company(self, obj):
+        orgObj = Organizations.objects.filter(Organization_name=obj.sub_company).first()
+        return {"id":orgObj.id, "Organization_name":orgObj.Organization_name}
+    def get_vendor(self, obj):
+        vendorObj = Vendors.objects.filter(name=obj.vendor).first()
+        return {"id":vendorObj.id, "name":vendorObj.name}
+    def get_email(self, obj):
+        userObj = PortalUser.objects.filter(mobile_number=obj.wireless_number).first()
+        return userObj.email
+    def get_designation(self, obj):
+        userObj = PortalUser.objects.filter(mobile_number=obj.wireless_number).first()
+        return userObj.designation.name
+    
+from ..ModelsByPage.Req import upgrade_device_request
+
+class SaveUpgradeDeviceRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = upgrade_device_request
+        fields = "__all__"

@@ -180,12 +180,15 @@ change = [
 urlpatterns.extend(change)
 
 from .CRUDViews.requests import RequestsView, OnlineFormView, RequestLogsView, RequestExcelUploadView, UniqueLineView, RequestUsersExcelUploadView
+from .CRUDViews.employeeRaiseRequest import EmployeeRequest, DeviceUpgradeView
 
 requests = [
     path("requests-management/", RequestsView().as_view(), name='requests-list-create'),
     path("requests-management/<pk>/", RequestsView().as_view(), name='requests-detail'),
     path("unique-line/<phone>/",UniqueLineView.as_view(),name='unique'),
-    path("request-users-excel-upload/<org>/",RequestUsersExcelUploadView.as_view(), name='request-users-excel')
+    path("request-users-excel-upload/<org>/",RequestUsersExcelUploadView.as_view(), name='request-users-excel'),
+    path("employee-request/<email>/",EmployeeRequest.as_view(), name='employee-request'),
+    path("upgrade-device-request/<email>/",DeviceUpgradeView.as_view(), name='upgrade-device-request'),
 ]
 
 urlpatterns.extend(requests)
@@ -265,3 +268,4 @@ chatboturls = [
     path("chatbot/", view=ChatBotView.as_view(), name='chatbot'),
 ]
 urlpatterns.extend(chatboturls)
+

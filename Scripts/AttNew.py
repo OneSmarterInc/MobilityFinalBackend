@@ -198,7 +198,6 @@ class AttClass:
                 newWord = " ".join(separate).strip()
                 words[words.index(word)] = newWord
         return " ".join(words)
-    
     def baseline_data(self,pages,unique_df):
         category_dict = {}
         final_data = []

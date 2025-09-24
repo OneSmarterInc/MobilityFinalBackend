@@ -199,6 +199,8 @@ class OnboardBan(models.Model):
     addDataToBaseline = models.BooleanField(default=False)
     uploadBill = models.FileField(upload_to='BanUploadBill/')
     billType = models.ForeignKey(BillType, related_name='billtypes', on_delete=models.SET_NULL, null=True, blank=True)
+    contract_name = models.CharField(max_length=255, null=True, blank=True)
+    contract_file = models.FileField(upload_to='ban-contracts/', null=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True, null=True)
     variance = models.FloatField(default=5)
@@ -422,9 +424,6 @@ class BaseDataTable(models.Model):
     PayTerm = models.CharField(max_length=255, null=True, blank=True)
     AccCharge = models.CharField(max_length=255, null=True, blank=True)
     CustomerOfRecord = models.CharField(max_length=255, null=True, blank=True)
-
-    contract_name = models.CharField(max_length=255, null=True, blank=True)
-    contract_file = models.FileField(upload_to='ban-contracts/', null=True)
 
     paymentType = models.CharField(max_length=255, null=True, blank=True, default="")
     billstatus = models.CharField(max_length=255, null=True, blank=True, default="Active")

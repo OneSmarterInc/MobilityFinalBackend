@@ -66,7 +66,7 @@ class CostCentersView(APIView):
         ban = obj.ban
         cc = obj.cost_center
         if not obj:
-            saveuserlog(request.user, f"Cost Center {cc} of account {data['ban']} deleted.")
+            saveuserlog(request.user, f"Cost Center {cc} of account {ban} deleted.")
             return Response({"message": "Cost Center not found"}, status=status.HTTP_400_BAD_REQUEST)
         obj.delete()
         return Response({"message": "Cost Center deleted successfully!"}, status=status.HTTP_200_OK)

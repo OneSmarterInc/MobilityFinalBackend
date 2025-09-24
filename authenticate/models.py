@@ -2,6 +2,8 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from Dashboard.ModelsByPage.DashAdmin import UserRoles
 from OnBoard.Company.models import Company
+# from OnBoard.Organization.models import Organizations
+# from Dashboard.ModelsByPage.DashAdmin import Vendors
 # Create your models here.
 
 class PortalUser(AbstractUser):
@@ -22,6 +24,14 @@ class PortalUser(AbstractUser):
         related_name="companyusers",  
 
     )
+
+    organization = models.CharField(max_length=255, null=True, blank=True)
+
+    vendor = models.CharField(max_length=255, null=True, blank=True)
+
+    account_number = models.CharField(max_length=255, null=True, blank=True)
+
+    string_password = models.CharField(max_length=255, null=True, blank=True)
 
     mobile_number = models.CharField(max_length=255, null=True, blank=True)
     phone_number = models.CharField(max_length=255, null=True, blank=True)

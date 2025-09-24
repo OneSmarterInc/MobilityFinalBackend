@@ -65,8 +65,9 @@ class ViewBill(APIView):
             )
         elif request.data['type'] == 'add-summaryfile':
             obj.summary_file = request.data['file']
+   
             saveuserlog(
-                request.user, "Added summary file" + " for: " + {obj.accountnumber}-{obj.bill_date}
+                request.user, f"Added summary file for {obj.accountnumber}-{obj.bill_date}"
             )
         else:
             return Response(
@@ -165,3 +166,79 @@ def reflect(id):
     for base in all_baseline:
         base.bill_date = bill_date
         base.save()
+# from ..bot import get_database, get_response_from_gemini, get_sql_from_gemini, execute_sql_query
+from ..bot1 import init_database, get_sql_from_gemini, run_query, make_human_response
+
+from Dashboard.ModelsByPage.aimodels import BotChats
+from Dashboard.Serializers.chatser import ChatSerializer
+
+class ViewBillBotView(APIView):
+    permission_classes = [IsAuthenticated]
+    connection = None
+    schema = None
+
+    @classmethod
+    def initialize_db(cls, billType, billID):
+        """Initialize DB connection + schema once."""
+        if cls.connection is None or cls.schema is None:
+            cls.connection, cls.schema = init_database("db.sqlite3",billType=billType, billId=billID)
+            
+    def get(self,request,billType,pk,*args,**kwargs):
+        if not pk:
+            return Response({"message":"Key required!"},status=status.HTTP_400_BAD_REQUEST)
+        
+        chats = BotChats.objects.filter(billChat=pk)
+        ser = ChatSerializer(chats, many=True)
+        return Response({"data":ser.data},status=status.HTTP_200_OK)
+        
+    def post(self,request,billType,pk,*args,**kwargs):
+        data = request.data
+        if not pk:
+            return Response({"message":"Key required!"},status=status.HTTP_400_BAD_REQUEST)
+        self.initialize_db(billType=billType, billID=pk)
+
+        data = request.data
+        question = data.get("prompt")
+        baseId = data.get("base_id")
+        try:
+            sql_query = get_sql_from_gemini(question, self.schema)
+
+
+            result_df = run_query(conn=self.connection, sql=sql_query, billType=billType, billId=pk)
+
+            if result_df is None:
+                return Response(
+                    {"message": "No data found for the given query."},
+                    status=status.HTTP_200_OK
+                )
+
+            response_text = make_human_response(question, result_df)
+            print(response_text)
+            BotChats.objects.create(
+                    user=request.user,
+                    question=question,
+                    response=response_text,
+                    billChat=BaseDataTable.objects.filter(id=baseId).first()
+            )
+                
+
+            # saveuserlog(request.user, f"Chatbot query executed: {question} | Response: {response_text}")
+
+            return Response(
+                {"response": response_text},
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"message": f"Error processing request: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    def delete(self,request,pk,*args,**kwargs):
+        try:
+            chats = BotChats.objects.filter(billChat=pk)
+            chats.delete()
+            return Response({"message":"user chat deleted!"},status=status.HTTP_200_OK)
+        except Exception as e:
+            print(e)
+            return Response({"message":"Internal Server Error!"},status=status.HTTP_400_BAD_REQUEST)

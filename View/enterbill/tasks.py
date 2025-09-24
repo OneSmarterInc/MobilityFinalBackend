@@ -27,7 +27,7 @@ def verizon_att_enterBill_processor(buffer_data, instance_id,btype):
 
     try:
         obj = ProcessPdf2(buffer_data=buffer_data_dict,instance=instance,btype=btype)
-        check, msg, ProcessTime = obj.start_process()
+        check, Smsg, ProcessTime = obj.start_process()
         if check:
             instance.is_processed = True
             instance.save()
@@ -45,19 +45,21 @@ def verizon_att_enterBill_processor(buffer_data, instance_id,btype):
         if not check:
             msg = get_error_message()
         else:
-            msg = f"{msg}\nYour pdf {pdf_filename} took {ProcessTime} to process"
+            msg = f"{Smsg}\nYour pdf {pdf_filename} took {ProcessTime} to process"
         send_custom_email(company=com, organization=sc,to=email, subject=sub, body_text=msg)
         if not check:
             if instance and instance.pk: instance.delete()
-            send_custom_email(company=com, organization=sc,to="gauravdhale09@gmail.com", subject=sub, body_text=msg)
+            send_custom_email(company=com, organization=sc,to="gauravdhale09@gmail.com", subject=sub, body_text=f"{msg}\nReason-{Smsg}")
     except Exception as e:
+        print(e)
         errormsg = get_error_message()
         print("Internal Server Error")
         sub = "PDF Upload-Internal Server Error"
         msg = f"""Error occur during processing pdf
             {e}
         """
-        send_custom_email(company=com, organization=sc,to=email, subject=sub, body_text=msg)
+
+        send_custom_email(company=com, organization=sc,to=email, subject=sub, body_text=errormsg)
         send_custom_email(company=com, organization=sc,to="gauravdhale09@gmail.com", subject=sub, body_text=msg)
     
         if instance and instance.pk: instance.delete()

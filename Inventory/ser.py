@@ -20,8 +20,6 @@ class OrganizationgetNameSerializer(serializers.ModelSerializer):
 
 
 
-
-
 class LocationGetNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Location
@@ -118,6 +116,7 @@ class OrganizationShowOnboardSerializer(serializers.ModelSerializer):
         fields = ['id', 'Organization_name', 'vendors', 'locations']
 
 from OnBoard.Ban.models import PortalInformation
+from View.models import Contracts
 
 class showallSerializer(serializers.ModelSerializer):
     costcenterlevel = serializers.CharField()
@@ -127,12 +126,23 @@ class showallSerializer(serializers.ModelSerializer):
     invoicemethod = serializers.CharField()
     paymentType = serializers.CharField()
     portal_info = serializers.SerializerMethodField()
+    contract_file = serializers.SerializerMethodField()
     class Meta:
         model = BaseDataTable
         fields = "__all__"
 
+    def get_contract_file(self, obj):
+        contractObj = Contracts.objects.filter(
+            uploadedban=obj.banUploaded,
+            onboardedban=obj.banOnboarded
+        ).first()
+
+        if contractObj and contractObj.contract_file:
+            return contractObj.contract_file.url  
+        return None
+
     def get_portal_info(self,obj):
-        portalObj = PortalInformation.objects.filter(banOnboarded=obj.banOnboarded, banUploaded=obj.banUploaded).first()
+        portalObj = PortalInformation.objects.filter(uploadedban=obj.banUploaded, onboardedban=obj.banOnboarded).first()
         return showPortalInfoser(portalObj).data
 
 class BanShowSerializer(serializers.ModelSerializer):
@@ -142,9 +152,22 @@ class BanShowSerializer(serializers.ModelSerializer):
     bantype = serializers.CharField()
     invoicemethod = serializers.CharField()
     paymentType = serializers.CharField()
+    contract_file = serializers.SerializerMethodField()
+    
     class Meta:
         model = BaseDataTable
-        fields = ['id', 'location', 'accountnumber', 'Entry_type','company', 'sub_company', 'vendor', 'created', 'costcenterlevel', 'costcentertype', 'costcenterstatus', 'bantype', 'invoicemethod', 'paymentType']
+        fields = ['id', 'location', 'accountnumber', 'Entry_type','company','contract_file', 'sub_company', 'vendor', 'created', 'costcenterlevel', 'costcentertype', 'costcenterstatus', 'bantype', 'invoicemethod', 'paymentType']
+
+    def get_contract_file(self, obj):
+        contractObj = Contracts.objects.filter(
+            uploadedban=obj.banUploaded,
+            onboardedban=obj.banOnboarded
+        ).first()
+
+        if contractObj and contractObj.contract_file:
+            return contractObj.contract_file.url  
+        return None
+
 
     # uploadedlines = serializers.StringRelatedField(many=True)
 
@@ -165,14 +188,35 @@ class CompanyShowOnboardSerializer(serializers.ModelSerializer):
         fields = ['id', 'Company_name', 'company_organizations']
 
 class BaseDataTableShowSerializer(serializers.ModelSerializer):
+    contract_file = serializers.SerializerMethodField()
+
     class Meta:
         model = BaseDataTable
-        fields = ('company', 'sub_company', 'location','vendor','accountnumber','Entry_type','banUploaded','banOnboarded')
+        fields = ('company', 'sub_company', 'location','vendor','accountnumber','Entry_type','banUploaded','banOnboarded','contract_file')
+    def get_contract_file(self, obj):
+        contractObj = Contracts.objects.filter(
+            uploadedban=obj.banUploaded,
+            onboardedban=obj.banOnboarded
+        ).first()
+
+        if contractObj and contractObj.contract_file:
+            return contractObj.contract_file.url  
+        return None
 
 class BaseDataTableAllShowSerializer(serializers.ModelSerializer):
+    contract_file = serializers.SerializerMethodField()
     class Meta:
         model = BaseDataTable
         fields = '__all__'
+    def get_contract_file(self, obj):
+        contractObj = Contracts.objects.filter(
+            uploadedban=obj.banUploaded,
+            onboardedban=obj.banOnboarded
+        ).first()
+
+        if contractObj and contractObj.contract_file:
+            return contractObj.contract_file.url  
+        return None
 from OnBoard.Ban.models import UniquePdfDataTable
 class UniqueTableShowSerializer(serializers.ModelSerializer):
     banOnboarded = serializers.CharField(max_length=255)

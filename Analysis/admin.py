@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Analysis
+from .models import Analysis, AnalysisData
 
 @admin.register(Analysis)
 class AnalysisAdmin(admin.ModelAdmin):
@@ -25,5 +25,37 @@ class AnalysisAdmin(admin.ModelAdmin):
         }),
         ('Audit Info', {
             'fields': ('created_by', 'created', 'updated')
+        }),
+    )
+
+@admin.register(AnalysisData)
+class AnalysisDataAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'analysis', 'account_number', 'bill_date', 'wireless_number', 'data_type', 'user_name',
+        'current_plan', 'current_plan_charges', 'current_plan_usage',
+        'recommended_plan', 'recommended_plan_charges', 'recommended_plan_savings',
+        'created', 'updated'
+    )
+    list_filter = ('data_type', 'created', 'analysis__vendor')
+    search_fields = ('wireless_number', 'user_name', 'current_plan', 'recommended_plan', 'analysis__client', 'account_number')
+    readonly_fields = ('created', 'updated')
+    date_hierarchy = 'created'
+    ordering = ('-created',)
+
+    fieldsets = (
+        ('Analysis Info', {
+            'fields': ('analysis',)
+        }),
+        ('User Info', {
+            'fields': ('wireless_number', 'user_name')
+        }),
+        ('Current Plan Details', {
+            'fields': ('data_type', 'current_plan', 'current_plan_charges', 'current_plan_usage')
+        }),
+        ('Recommended Plan Details', {
+            'fields': ('recommended_plan', 'recommended_plan_charges', 'recommended_plan_savings')
+        }),
+        ('Audit Info', {
+            'fields': ('created', 'updated')
         }),
     )

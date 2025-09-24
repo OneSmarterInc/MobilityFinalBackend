@@ -1,30 +1,30 @@
 from rest_framework import serializers
 from OnBoard.Organization.models import Organizations
 from ..models import Contracts
-from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable
+from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, OnboardBan
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 
 
-class uploadaccountser(serializers.ModelSerializer):
-    organization = serializers.CharField(max_length=255)
-    Vendor = serializers.CharField(max_length=255)
-    class Meta:
-        model = UploadBAN
-        fields = ['account_number', 'Vendor', 'organization']
-
-class baseaccser(serializers.ModelSerializer):
-    vendor = serializers.CharField(max_length=255)
-    class Meta:
-        model = BaseDataTable
-        fields = ['accountnumber', 'vendor', 'sub_company']
 
 class showContractSerializer(serializers.ModelSerializer):
-    baseban = baseaccser()
-    uploadedban = uploadaccountser()
+
+    sub_company = serializers.SerializerMethodField()
+    account_number = serializers.SerializerMethodField()
+    vendor = serializers.SerializerMethodField()
     class Meta:
         model = Contracts
         fields = '__all__'
+    def get_sub_company(self,obj):
+        if obj.onboardedban: return obj.onboardedban.organization.Organization_name
+        if obj.uploadedban: return obj.uploadedban.organization.Organization_name
+    def get_account_number(self,obj):
+        if obj.onboardedban: return obj.onboardedban.account_number
+        if obj.uploadedban: return obj.uploadedban.account_number
+    def get_vendor(self,obj):
+        if obj.onboardedban: return obj.onboardedban.vendor.name
+        if obj.uploadedban: return obj.uploadedban.Vendor.name
 
+    
 
 class showOrganizationSerializer(serializers.ModelSerializer):
     vendors = serializers.StringRelatedField(many=True)
