@@ -687,12 +687,6 @@ class AnalysisBotView(APIView):
 
     connection = None
     schema = None
-
-    @classmethod
-    def initialize_db(cls, query_type, analysis_id):
-        """Initialize DB connection + schema once."""
-        if cls.connection is None or cls.schema is None:
-            cls.connection, cls.schema = init_database("db.sqlite3", query_type=query_type, analysis_id=analysis_id)
             
     def get(self,request,ChatType,pk,*args,**kwargs):
         if not pk:
@@ -708,7 +702,7 @@ class AnalysisBotView(APIView):
         print(query_type)
         if not pk:
             return Response({"message":"Key required!"},status=status.HTTP_400_BAD_REQUEST)
-        self.initialize_db(query_type=query_type, analysis_id=pk)
+        self.connection, self.schema = init_database(query_type=query_type, analysis_id=pk)
 
         data = request.data
         question = data.get("prompt")

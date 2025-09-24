@@ -12,6 +12,7 @@ genai.configure(api_key=config("GOOGLE_API_KEY"))
 
 # Initialize DB connection + schema together
 def init_database(db_path="db.sqlite3", query_type=None, analysis_id=None):
+    print("query type", query_type)
     conn = sqlite3.connect(db_path, check_same_thread=False)
 
     # Decide main table
@@ -22,6 +23,7 @@ def init_database(db_path="db.sqlite3", query_type=None, analysis_id=None):
 
     # You can add more allowed tables here if needed
     allowed_tables = [main_table]
+    print("allowed_tables", allowed_tables)
 
     query = f"SELECT * FROM {main_table}"
     params = ()

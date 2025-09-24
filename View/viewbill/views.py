@@ -211,7 +211,6 @@ class ViewBillBotView(APIView):
                     status=status.HTTP_200_OK
                 )
             
-            print(result_df)
 
             response_text = make_human_response(question, result_df)
             print(response_text)
