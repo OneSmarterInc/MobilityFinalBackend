@@ -1085,6 +1085,19 @@ class ProcessZip:
         data_df.columns = data_df.columns.str.replace('-', ' ')
         data_df.columns = data_df.columns.str.replace(' ', '_')
         data_df.rename(columns={'Voice_Plan_Usage_':"Voice_Plan_Usage"},inplace=True)
+        cols_to_clean = [
+            "surcharges_and_other_charges_and_credits",
+            "third_party_charges_includes_tax",
+            "taxes_governmental_surcharges_and_fees",
+            "monthly_charges",
+            "usage_and_purchase_charges",
+            "equipment_charges",
+            "total_charges"
+        ]
+
+        for col in cols_to_clean:
+            if col in data_df.columns:
+                data_df[col] = data_df[col].astype(str).str.replace("$", "", regex=False)
         data = data_df.to_dict(orient='records')
         
         from OnBoard.Ban.models import UniquePdfDataTable

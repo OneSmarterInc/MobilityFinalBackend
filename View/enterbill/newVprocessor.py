@@ -146,6 +146,20 @@ class ProcessPdf2:
         datadf["viewuploaded"] = self.instance
         datadf["entry_type"] = self.entry_type
 
+        cols_to_clean = [
+            "surcharges_and_other_charges_and_credits",
+            "third_party_charges_includes_tax",
+            "taxes_governmental_surcharges_and_fees",
+            "monthly_charges",
+            "usage_and_purchase_charges",
+            "equipment_charges",
+            "total_charges"
+        ]
+
+        for col in cols_to_clean:
+            if col in datadf.columns:
+                datadf[col] = datadf[col].astype(str).str.replace("$", "", regex=False)
+
         model_fields = [f.name for f in UniquePdfDataTable._meta.fields]
         for _, row in datadf.iterrows():
             data = {field: row[field] for field in model_fields if field in row}

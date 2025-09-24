@@ -320,7 +320,7 @@ class upgrade_device_request(models.Model):
     sub_company = models.ForeignKey(Organizations, on_delete=models.CASCADE,null=False,related_name="sub_company_upgrade_request")
     wireless_number = models.CharField(max_length=15, null=False)
     device_type = models.CharField(max_length=255, null=True, blank=True)
-    make = models.CharField(max_length=255, null=True, blank=True)
+    manufacturer = models.CharField(max_length=255, null=True, blank=True)
     model = models.CharField(max_length=255, null=True, blank=True)
     os = models.CharField(max_length=255, null=True, blank=True)
     color = models.CharField(max_length=255, null=True, blank=True)
@@ -335,6 +335,7 @@ class upgrade_device_request(models.Model):
     wearables = models.CharField(max_length=255, null=True, blank=True)
     device_type = models.CharField(max_length=255, null=True, blank=True)
     new_upgrade_date = models.CharField(max_length=255, null=True, blank=True)
+    amount = models.CharField(max_length=255, null=True, blank=True)
 
     created = models.DateTimeField(auto_now_add=True, null=True)
     updated= models.DateTimeField(auto_now=True,null=True)

@@ -3,7 +3,9 @@ from rest_framework.response import Response
 from rest_framework import status
 from authenticate.models import PortalUser
 from authenticate.views import saveuserlog
-from bot import get_database, get_sql_from_gemini, execute_sql_query, get_response_from_gemini
+# from bot import get_database, get_sql_from_gemini, execute_sql_query, get_response_from_gemini
+from bot1 import init_database, get_sql_from_gemini, run_query, make_human_response
+
 from ..ModelsByPage.aimodels import BotChats
 from rest_framework.permissions import IsAuthenticated
 from ..Serializers.chatser import ChatSerializer
@@ -19,7 +21,7 @@ class ChatBotView(APIView):
     def initialize_db(cls):
         """Initialize DB connection + schema once."""
         if cls.connection is None or cls.schema is None:
-            cls.connection, cls.schema = get_database("db.sqlite3")
+            cls.connection, cls.schema = init_database("db.sqlite3")
 
     def get(self, request, *args, **kwargs):
         chats = BotChats.objects.filter(user=request.user)
@@ -42,7 +44,7 @@ class ChatBotView(APIView):
         try:
             sql_query = get_sql_from_gemini(question, self.schema)
 
-            result_df = execute_sql_query(self.connection, sql_query)
+            result_df = run_query(self.connection, sql_query)
 
             if result_df is None:
                 return Response(
@@ -50,7 +52,7 @@ class ChatBotView(APIView):
                     status=status.HTTP_200_OK
                 )
 
-            response_text = get_response_from_gemini(question, result_df)
+            response_text = make_human_response(question, result_df)
 
             BotChats.objects.create(
                 user=request.user,

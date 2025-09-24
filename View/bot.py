@@ -1,53 +1,83 @@
-
 import os
 import sqlite3
 import pandas as pd
 import google.generativeai as genai
 from decouple import config
 import json
+import re
 
+# Configure Gemini
 genai.configure(api_key=config("GOOGLE_API_KEY"))
-# print("Available models:")
-# for m in genai.list_models():
-#   if 'generateContent' in m.supported_generation_methods:
-#     print(m.name)
 
-def get_database(db_path="db.sqlite3", query_type=None):
-    print(query_type)
-    conn = sqlite3.connect(db_path,check_same_thread=False)
+
+# Initialize DB connection + schema together
+def init_database(db_path="db.sqlite3", billType=None, billId=None):
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+
+    main_table = "UniquePdfDataTable"
+    # Decide main table
+    if billType == "paper":
+        main_column = "viewpapered_id"
+    else:
+        main_column = "viewuploaded_id"
+
+    # You can add more allowed tables here if needed
+    allowed_tables = [main_table]
+
+    query = f"SELECT * FROM {main_table}"
+    params = ()
+    if billId is not None:
+        query += f" WHERE {main_column} = ?"
+        params = (billId,)
+    print("Initial load:", query, params)
+
+    # Load data
+    df = pd.read_sql_query(query, conn, params=params)
+    print("Sample Data:\n", df.head())
+
+    # Build schema description only for allowed tables
     cursor = conn.cursor()
-    
-    allowed_tables = {"UniquePdfDataTable",}
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    tables = [t[0] for t in cursor.fetchall() if t[0] in allowed_tables]
-    schema = {}
-    for table in tables:
-        schema[table] = []
+    schema_description = {}
+    for table in allowed_tables:
         cursor.execute(f"PRAGMA table_info({table});")
         columns = cursor.fetchall()
-        for col in columns:
-            col_id, name, col_type, notnull, default, pk = col
-            schema[table].append(f"{name} {col_type}")
+        schema_description[table] = [col[1] for col in columns]
 
-    print(json.dumps(schema))
+    schema = json.dumps(schema_description, indent=2)
+    print(schema)
 
-    return conn, json.dumps(schema, indent=2)
+    return conn, schema
 
-# def get_database(db_path="db.sqlite3"):
-#     conn = sqlite3.connect(db_path, check_same_thread=False)
-#     cursor = conn.cursor()
 
-#     # Only keep these tables
-#     allowed_tables = {"Vendors", "UniquePdfDataTable", "BaseDataTable", "BaselineDataTable", "Company", "Organizations"}
+# Generate SQL from natural language
+def get_sql_from_gemini(user_prompt, schema):
+    model = genai.GenerativeModel("gemini-2.5-flash")
+    prompt = f"""
+    You are an expert SQL query generator.
+    Convert the user request into a valid **SQLite** SQL query.
+    
+    ### Allowed Schema:
+    {schema}
 
-#     # Fetch CREATE TABLE statements
-#     schema = {}
-#     cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='table';")
-#     for name, sql in cursor.fetchall():
-#         if name in allowed_tables and sql is not None:
-#             schema[name] = sql.strip()  # Full CREATE TABLE statement
+    ### Rules:
+    - Use only the tables and columns present in Allowed Schema.
+    - Do not invent new columns or tables.
+    - Keep the SQL simple and valid for SQLite.
 
-#     return conn, schema
+    User question: {user_prompt}
+    """
+    response = model.generate_content(prompt)
+    raw_sql = response.text
+
+    # --- CLEAN SQL OUTPUT ---
+    cleaned = re.sub(r"```.*?```", lambda m: m.group(0).replace("```sql", "").replace("```", ""), raw_sql, flags=re.S)
+    cleaned = cleaned.strip()
+
+    # Keep only the first SQL-looking part
+    match = re.search(r"(SELECT|INSERT|UPDATE|DELETE).*", cleaned, re.I | re.S)
+    if match:
+        return match.group(0).strip()
+    return cleaned
 
 import re
 
@@ -77,83 +107,62 @@ def clean_sql_query(query: str) -> str:
 
     return query
 
-
-def get_sql_from_gemini(user_prompt, schema):
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
-
-    prompt = f"""
-        You are an expert SQL query generator. Your job is to convert a natural language question into a valid SQLite SQL query.
-
-        ### Rules:
-        - Use **only** the tables and columns explicitly provided in the database schema below. Do not assume or invent anything not in the schema.
-        - If the question cannot be answered with the given schema, return exactly: NO_SQL
-        - Output only the SQL query. Do not include explanations, comments, or extra text.
-        - Queries must be **syntactically correct** for SQLite.
-        - Respect table relationships:
-        - Never substitute or approximate table names.
-        - while generating query always focus on column type.
-
-        ### Database Schema:
-        {schema}
-
-        ### User Question:
-        {user_prompt}
-        """
-
-
-    response = model.generate_content(prompt)
-    sql_query = response.text.strip()
-
-    # --- Cleanup Gemini's output ---
-    sql_query = sql_query.replace("```sql", "").replace("```", "")
-    sql_query = sql_query.replace("SQL Query:", "").replace("sql", "").replace("SQL", "")
-    sql_query = sql_query.strip()
-
-    if not sql_query.upper().startswith(("SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP")):
-        return "NO_SQL"
-
-    return sql_query
-
-def inject_analysis_filter(query: str, bill_id: int, billType: str) -> str:
-    query = query.strip().rstrip(";")
-    lowered = query.lower()
-
-    column = "viewpapered_id" if billType == "paper" else "viewuploaded_id"
-
-    # Check if a WHERE clause already exists in the query.
-    if " where " in lowered:
-        # If it exists, add the new condition with 'AND'.
-        return f"{query} AND {column} = {bill_id}"
+# Run query safely
+def run_query(conn, sql, billType, billId):
+    if billType == "paper":
+        main_column = "viewpapered_id"
     else:
-        # If no WHERE clause exists, add one with the new condition.
-        return f"{query} WHERE {column} = {bill_id}"
+        main_column = "viewuploaded_id"
+    print("Original SQL:", sql)
 
+    # Normalize SQL
+    sql = sql.strip().rstrip(";")
 
-def execute_sql_query(conn, query,billType, billid):
+    # If there's already a WHERE, add with AND
+    if re.search(r"\bwhere\b", sql, re.I):
+        sql = re.sub(r"\bwhere\b", f"WHERE {main_column} = {billId} AND", sql, count=1, flags=re.I)
+    else:
+        # Insert before ORDER BY or LIMIT if present
+        if re.search(r"\border\s+by\b", sql, re.I):
+            sql = re.sub(r"\border\s+by\b", f"WHERE {main_column} = {billId} ORDER BY", sql, flags=re.I)
+        elif re.search(r"\blimit\b", sql, re.I):
+            sql = re.sub(r"\blimit\b", f"WHERE {main_column} = {billId} LIMIT", sql, flags=re.I)
+        else:
+            sql += f" WHERE {main_column} = {billId}"
+
+    print("Executing SQL:", sql)
+
     try:
-        query = clean_sql_query(query).strip()
-        query = inject_analysis_filter(query, bill_id=billid, billType=billType)
-        print(query)
-        df = pd.read_sql_query(query, conn)
-        print(df)
+        sql = clean_sql_query(sql)
+        df = pd.read_sql_query(sql, conn)
+        if df.empty:
+            return "No results found."
         return df
     except Exception as e:
-        print(f"Error executing query: {e}")
-        return None
+        return f"Error executing query: {e}"
 
-def get_response_from_gemini(user_prompt, dataframe):
-
+# Summarize SQL result into human readable text
+def make_human_response(user_question, result):
     model = genai.GenerativeModel('gemini-2.5-flash-lite')
     
-    if dataframe.empty:
+    if not isinstance(result, pd.DataFrame):
         return "I couldn't find any information matching your request."
         
+    # prompt = f"""
+    # You are a helpful assistant. A user asked the following question:
+    # "{user_question}"
+    
+    # I ran a database query and got the following results:
+    # {result.to_string()}
+    
+    # Please provide a clear, natural language answer based on these results.
+    # Summarize the information and do not just repeat the table.
+    # """
+
     prompt = f"""
-    You are a helpful assistant. A user asked the following question:
-    "{user_prompt}"
     
     I ran a database query and got the following results:
-    {dataframe.to_string()}
+    {result.to_string()}
     
     Please provide a clear, natural language answer based on these results.
     Summarize the information and do not just repeat the table.
@@ -162,46 +171,39 @@ def get_response_from_gemini(user_prompt, dataframe):
     response = model.generate_content(prompt)
     return response.text
 
-import time
-def main():
-    # db_connection = setup_database()
-    db_connection,schema  = get_database("Bills/db.sqlite3")
-    
-    print("schema==", schema)
-    
-    print("\nWelcome to the Database Chatbot! 🤖")
-    print("You can ask questions about our employees. Type 'exit' to quit.")
-    
-    while True:
-        
-        user_question = input("\nYour question: ")
-        query_start_time = time.perf_counter()
-        if user_question.lower() == 'exit':
-            break
-            
-        print("Translating your question into a database query...")
-        sql_query = get_sql_from_gemini(user_question, schema)
-        print(f"🔍 Generated SQL: {sql_query}")
-        
-        print("Fetching data from the database...")
-        result_df = execute_sql_query(db_connection, billType="uploaded", billid=93)
-        print(result_df)
-        if result_df is not None:
-            print("Interpreting the results...")
-            print(result_df)
-            final_answer = get_response_from_gemini(user_question, result_df)
-            print("\n--- Answer ---")
-            print(final_answer)
-            query_end_time = time.perf_counter()
-            print(f"{(query_end_time - query_start_time):.2f}", "seconds to process query")
-            print("--------------")
-        else:
-            print("Sorry, I could not process your request.")
-        
-        
 
-    db_connection.close()
-    print("\nChatbot session ended. Goodbye!")
+
+
+
+# Chatbot function
+def start_chatbot():
+    print("Initializing chatbot...")
+    conn, schema = init_database(
+        db_path="Bills/db.sqlite3",
+        billType="uploaded",
+        billId=93
+    )
+    print("Chatbot ready. Ask your questions! (type 'exit' to quit)\n")
+
+    while True:
+        user_input = input("You: ")
+        if user_input.lower() in ["exit", "quit"]:
+            print("Goodbye 👋")
+            break
+
+        sql = get_sql_from_gemini(user_input, schema)
+        print(f"\nGenerated SQL: {sql}")
+        result = run_query(conn, sql, billType="uploaded", billId=93)
+        print("results==", result)
+
+        if isinstance(result, pd.DataFrame):
+            print("\nAI Response:")
+            print(make_human_response(user_input, result))
+        else:
+            # Even for errors or "No results", pass it to AI for friendly phrasing
+            print("\nAI Response:")
+            print(make_human_response(user_input, result))
+
 
 if __name__ == "__main__":
-    main()
+    start_chatbot()

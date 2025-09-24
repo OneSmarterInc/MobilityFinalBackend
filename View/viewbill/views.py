@@ -119,7 +119,6 @@ class ViewBillBaseline(APIView):
             sub_company=sub_company,
             Wireless_number__in=wireless_numbers
         )
-        print(base_ser.data)
         serializer = BaselinedataSerializer(objs, many=True, context={'onboarded_objects': Onboardedobjects})
         return Response({"data": serializer.data, "base_data":base_ser.data}, status=status.HTTP_200_OK)
     def put(self, request, pk, *args, **kwargs):
@@ -155,7 +154,7 @@ class ViewBillBaseline(APIView):
             request.user,
             f"Baseline with account number {obj.account_number} and wireless number {obj.Wireless_number} updated"
         )
-        return Response({"message": "Baseline updated successfully", "baseline":allobjs.data}, status=status.HTTP_200_OK)
+        return Response({"message": "Baseline updated successfully"}, status=status.HTTP_200_OK)
     
 def reflect(id):
     all_objs = UniquePdfDataTable.objects.filter(viewuploaded=id)
@@ -167,7 +166,7 @@ def reflect(id):
         base.bill_date = bill_date
         base.save()
 # from ..bot import get_database, get_response_from_gemini, get_sql_from_gemini, execute_sql_query
-from ..bot1 import init_database, get_sql_from_gemini, run_query, make_human_response
+from ..bot import init_database, get_sql_from_gemini, run_query, make_human_response
 
 from Dashboard.ModelsByPage.aimodels import BotChats
 from Dashboard.Serializers.chatser import ChatSerializer
@@ -211,6 +210,8 @@ class ViewBillBotView(APIView):
                     {"message": "No data found for the given query."},
                     status=status.HTTP_200_OK
                 )
+            
+            print(result_df)
 
             response_text = make_human_response(question, result_df)
             print(response_text)

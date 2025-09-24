@@ -499,6 +499,8 @@ class ZipAnalysis:
             data_df[col] = pd.to_numeric(data_df[col], errors="coerce")  # convert to float
 
         data_df["current_plan_usage"] = data_df["current_plan_usage"].apply(self.add_gb)
+        data_df["current_plan_charges"] = data_df["current_plan_charges"].astype(str).str.replace("$", "", regex=False)
+        data_df["recommended_plan_charges"] = data_df["recommended_plan_charges"].astype(str).str.replace("$", "", regex=False)
 
         # just create new entries, even if wireless_number already exists
         for _, row in data_df.iterrows():
@@ -614,6 +616,13 @@ class ZipAnalysis:
         })
 
         df["data_usage"] = df["data_usage"].apply(self.add_gb)
+        df["monthly_charges"] = df["monthly_charges"].astype(str).str.replace("$", "", regex=False)
+        df["usage_purchase_charges"] = df["usage_purchase_charges"].astype(str).str.replace("$", "", regex=False)
+        df["equipment_charges"] = df["equipment_charges"].astype(str).str.replace("$", "", regex=False)
+        df["other_charges_credits"] = df["other_charges_credits"].astype(str).str.replace("$", "", regex=False)
+        df["taxes_governmental_surcharges"] = df["taxes_governmental_surcharges"].astype(str).str.replace("$", "", regex=False)
+        df["third_party_charges"] = df["third_party_charges"].astype(str).str.replace("$", "", regex=False)
+        df["total_charges"] = df["total_charges"].astype(str).str.replace("$", "", regex=False)
 
         model_fields = {f.name for f in SummaryData._meta.get_fields()}
         records = []
@@ -672,7 +681,7 @@ class ZipAnalysis:
             return False, str(e), 0
 
 # from .bot import get_database, get_response_from_gemini, get_sql_from_gemini, execute_sql_query
-from .bot1 import init_database, get_sql_from_gemini, run_query, make_human_response
+from .bot import init_database, get_sql_from_gemini, run_query, make_human_response
 class AnalysisBotView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -696,6 +705,7 @@ class AnalysisBotView(APIView):
     def post(self,request,ChatType,pk,*args,**kwargs):
         data = request.data
         query_type = data.get('file_type')
+        print(query_type)
         if not pk:
             return Response({"message":"Key required!"},status=status.HTTP_400_BAD_REQUEST)
         self.initialize_db(query_type=query_type, analysis_id=pk)

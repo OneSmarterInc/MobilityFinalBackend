@@ -295,6 +295,9 @@ class MultipleFileProcessor:
             data_df["recommended_plan_savings"].str.replace("$", "", regex=False), errors="coerce"
         )
         data_df["current_plan_usage"] = data_df["current_plan_usage"].apply(self.add_gb)
+        # data_df["current_plan_charges"] = data_df["current_plan_charges"].astype(str).str.replace("$", "", regex=False)
+        # data_df["recommended_plan_charges"] = data_df["recommended_plan_charges"].astype(str).str.replace("$", "", regex=False)
+
         # just create new entries, even if wireless_number already exists
         for _, row in data_df.iterrows():
             obj = AnalysisData.objects.create(
@@ -344,6 +347,14 @@ class MultipleFileProcessor:
             "Monthly Charges": "monthly_charges",
         })
         df["data_usage"] = df["data_usage"].apply(self.add_gb)
+        df["monthly_charges"] = df["monthly_charges"].astype(str).str.replace("$", "", regex=False)
+        df["usage_purchase_charges"] = df["usage_purchase_charges"].astype(str).str.replace("$", "", regex=False)
+        df["equipment_charges"] = df["equipment_charges"].astype(str).str.replace("$", "", regex=False)
+        df["other_charges_credits"] = df["other_charges_credits"].astype(str).str.replace("$", "", regex=False)
+        df["taxes_governmental_surcharges"] = df["taxes_governmental_surcharges"].astype(str).str.replace("$", "", regex=False)
+        df["third_party_charges"] = df["third_party_charges"].astype(str).str.replace("$", "", regex=False)
+        df["total_charges"] = df["total_charges"].astype(str).str.replace("$", "", regex=False)
+        
         model_fields = {f.name for f in SummaryData._meta.get_fields()}
         records = []
         for row in df.to_dict(orient="records"):

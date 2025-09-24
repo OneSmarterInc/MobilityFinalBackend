@@ -17,7 +17,6 @@ class EmployeeRequest(APIView):
 
     def get(self, request, email, *args, **kwargs):
         get_user = PortalUser.objects.filter(email=email).first()
-        print(get_user)
         if not get_user:
             return Response({"message":f"Employee with email {email} not found."},status=status.HTTP_400_BAD_REQUEST)
         
@@ -25,7 +24,6 @@ class EmployeeRequest(APIView):
         if not get_user_records:
             return Response({"message":f"Records of user {get_user.email} not found!"},status=status.HTTP_400_BAD_REQUEST)
         ser = EmployeeSerializer(get_user_records)
-        print(ser.data)
         return Response({"data":ser.data},status=status.HTTP_200_OK)
 
     
