@@ -11,7 +11,7 @@ genai.configure(api_key=config("GOOGLE_API_KEY"))
 
 
 # Initialize DB connection + schema together
-def init_database(db_path="db.sqlite3", query_type=None, analysis_id=None):
+def init_database(db_path="db.sqlite3", query_type=None):
     print("query type", query_type)
     conn = sqlite3.connect(db_path, check_same_thread=False)
 
@@ -23,18 +23,6 @@ def init_database(db_path="db.sqlite3", query_type=None, analysis_id=None):
 
     # You can add more allowed tables here if needed
     allowed_tables = [main_table]
-    print("allowed_tables", allowed_tables)
-
-    query = f"SELECT * FROM {main_table}"
-    params = ()
-    if analysis_id is not None:
-        query += " WHERE multiple_analysis_id = ?"
-        params = (analysis_id,)
-    print("Initial load:", query, params)
-
-    # Load data
-    df = pd.read_sql_query(query, conn, params=params)
-    print("Sample Data:\n", df.head())
 
     # Build schema description only for allowed tables
     cursor = conn.cursor()
@@ -42,43 +30,58 @@ def init_database(db_path="db.sqlite3", query_type=None, analysis_id=None):
     for table in allowed_tables:
         cursor.execute(f"PRAGMA table_info({table});")
         columns = cursor.fetchall()
-        schema_description[table] = [col[1] for col in columns]
+        schema_description[table] = [f'{col[1]} {col[2]}' for col in columns]
 
     schema = json.dumps(schema_description, indent=2)
-    print(schema)
 
     return conn, schema
 
 
 # Generate SQL from natural language
-def get_sql_from_gemini(user_prompt, schema):
+def get_sql_from_gemini(user_prompt, schema, special_id=None, chat_history=None):
+    print(chat_history)
     model = genai.GenerativeModel("gemini-2.5-flash")
     prompt = f"""
     You are an expert SQL query generator.
     Convert the user request into a valid **SQLite** SQL query.
-    
+
     ### Allowed Schema:
     {schema}
 
-    ### Rules:
-    - Use only the tables and columns present in Allowed Schema.
-    - Do not invent new columns or tables.
-    - Keep the SQL simple and valid for SQLite.
+    ### Conversation history: 
+    {chat_history}
 
-    User question: {user_prompt}
+    ### Important Rules:
+    - Use only the tables and columns present in the Allowed Schema.
+    - Do not invent new columns or tables.
+    - Always generate syntactically valid SQLite.
+    - Queries must work when 1, 2, or 3 files have been uploaded.
+    - Files are distinguished by the column **bill_date**.
+    - If the user refers to a specific file, treat that as filtering by bill_date.
+    - If aggregation is required (COUNT, SUM, etc.), group by bill_date when relevant.
+    - always add filter in the query as multiple_analysis_id={special_id}
+    - take 0 or 0 gb as 0.0 because we have 0.0 in db
+    - Refer the Conversation history if present
+
+    ### User asked the following Question:
+    {user_prompt}
     """
     response = model.generate_content(prompt)
     raw_sql = response.text
 
     # --- CLEAN SQL OUTPUT ---
-    cleaned = re.sub(r"```.*?```", lambda m: m.group(0).replace("```sql", "").replace("```", ""), raw_sql, flags=re.S)
-    cleaned = cleaned.strip()
+    cleaned = re.sub(
+        r"```.*?```",
+        lambda m: m.group(0).replace("```sql", "").replace("```", ""),
+        raw_sql,
+        flags=re.S,
+    ).strip()
 
-    # Keep only the first SQL-looking part
     match = re.search(r"(SELECT|INSERT|UPDATE|DELETE).*", cleaned, re.I | re.S)
     if match:
         return match.group(0).strip()
     return cleaned
+
 
 import re
 
@@ -111,20 +114,7 @@ def clean_sql_query(query: str) -> str:
 def run_query(conn, sql, analysis_id):
     print("Original SQL:", sql)
 
-    # Normalize SQL
     sql = sql.strip().rstrip(";")
-
-    # If there's already a WHERE, add with AND
-    if re.search(r"\bwhere\b", sql, re.I):
-        sql = re.sub(r"\bwhere\b", f"WHERE multiple_analysis_id = {analysis_id} AND", sql, count=1, flags=re.I)
-    else:
-        # Insert before ORDER BY or LIMIT if present
-        if re.search(r"\border\s+by\b", sql, re.I):
-            sql = re.sub(r"\border\s+by\b", f"WHERE multiple_analysis_id = {analysis_id} ORDER BY", sql, flags=re.I)
-        elif re.search(r"\blimit\b", sql, re.I):
-            sql = re.sub(r"\blimit\b", f"WHERE multiple_analysis_id = {analysis_id} LIMIT", sql, flags=re.I)
-        else:
-            sql += f" WHERE multiple_analysis_id = {analysis_id}"
 
     print("Executing SQL:", sql)
 
@@ -137,24 +127,41 @@ def run_query(conn, sql, analysis_id):
     except Exception as e:
         return f"Error executing query: {e}"
 
-# Summarize SQL result into human readable text
-def make_human_response(user_question, result):
-    model = genai.GenerativeModel('gemini-2.5-flash-lite')
-    
+
+def make_human_response(user_question, result, db_schema=None):
+    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+
     if not isinstance(result, pd.DataFrame):
         return "I couldn't find any information matching your request."
-        
+
     prompt = f"""
-    You are a helpful assistant. A user asked the following question:
-    "{user_question}"
-    
-    I ran a database query and got the following results:
+    You are a helpful assistant. The user asked:
+
+    **User Question:** "{user_question}"
+
+    I executed a database query and got the following results:
     {result.to_string()}
+    Summarize this result clearly in plain, natural language as human-readable text.
     
-    Please provide a clear, natural language answer based on these results.
-    Summarize the information and do not just repeat the table.
+    ## Instructions
+
+    -- For answer format
+    - Always show months in string format (e.g., 1 as January, 2 as February).
+    - Amounts will always be in dollars.
+    - Data usage will always be in GB.
+
+    -- generate questions
+    - Database Schema: {db_schema}
+    - After the summary, generate exactly 2 natural, human-like recommendation questions.
+    - Each question must reference valid columns or tables from the schema.
+    - Questions should feel like smart suggestions, not technical jargon.
+    - Keep them concise, helpful, and answerable by the chatbot using the schema.
+    
+    
+    ### Output format:
+    - List of questions (no numbering, just plain text).
     """
-    
+
     response = model.generate_content(prompt)
     return response.text
 
@@ -162,35 +169,36 @@ def make_human_response(user_question, result):
 
 
 
-# Chatbot function
-def start_chatbot():
-    print("Initializing chatbot...")
-    conn, schema = init_database(
-        db_path="Bills/db.sqlite3",
-        query_type="input_file",
-        analysis_id=57
-    )
-    print("Chatbot ready. Ask your questions! (type 'exit' to quit)\n")
-
-    while True:
-        user_input = input("You: ")
-        if user_input.lower() in ["exit", "quit"]:
-            print("Goodbye 👋")
-            break
-
-        sql = get_sql_from_gemini(user_input, schema)
-        print(f"\nGenerated SQL: {sql}")
-        result = run_query(conn, sql, analysis_id=57)
-        print("results==", result)
-
-        if isinstance(result, pd.DataFrame):
-            print("\nAI Response:")
-            print(make_human_response(user_input, result))
-        else:
-            # Even for errors or "No results", pass it to AI for friendly phrasing
-            print("\nAI Response:")
-            print(make_human_response(user_input, result))
 
 
-if __name__ == "__main__":
-    start_chatbot()
+# # Chatbot function
+# def start_chatbot():
+#     print("Initializing chatbot...")
+#     conn, schema = init_database(
+#         db_path="Bills/db.sqlite3",
+#         query_type="input_file",
+#         analysis_id=57
+#     )
+#     print("Chatbot ready. Ask your questions! (type 'exit' to quit)\n")
+
+#     while True:
+#         user_input = input("You: ")
+#         if user_input.lower() in ["exit", "quit"]:
+#             print("Goodbye 👋")
+#             break
+
+#         sql = get_sql_from_gemini(user_input, schema)
+#         print(f"\nGenerated SQL: {sql}")
+#         result = run_query(conn, sql, analysis_id=57)
+
+#         if isinstance(result, pd.DataFrame):
+#             print("\nAI Response:")
+#             print(make_human_response(user_input, result))
+#         else:
+#             # Even for errors or "No results", pass it to AI for friendly phrasing
+#             print("\nAI Response:")
+#             print(make_human_response(user_input, result))
+
+
+# if __name__ == "__main__":
+#     start_chatbot()

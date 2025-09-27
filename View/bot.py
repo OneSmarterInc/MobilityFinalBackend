@@ -11,29 +11,14 @@ genai.configure(api_key=config("GOOGLE_API_KEY"))
 
 
 # Initialize DB connection + schema together
-def init_database(db_path="db.sqlite3", billType=None, billId=None):
+def init_database(db_path="db.sqlite3"):
     conn = sqlite3.connect(db_path, check_same_thread=False)
 
-    main_table = "UniquePdfDataTable"
+    main_table = "BaselineDataTable"
     # Decide main table
-    if billType == "paper":
-        main_column = "viewpapered_id"
-    else:
-        main_column = "viewuploaded_id"
 
     # You can add more allowed tables here if needed
     allowed_tables = [main_table]
-
-    query = f"SELECT * FROM {main_table}"
-    params = ()
-    if billId is not None:
-        query += f" WHERE {main_column} = ?"
-        params = (billId,)
-    print("Initial load:", query, params)
-
-    # Load data
-    df = pd.read_sql_query(query, conn, params=params)
-    print("Sample Data:\n", df.head())
 
     # Build schema description only for allowed tables
     cursor = conn.cursor()
@@ -41,7 +26,7 @@ def init_database(db_path="db.sqlite3", billType=None, billId=None):
     for table in allowed_tables:
         cursor.execute(f"PRAGMA table_info({table});")
         columns = cursor.fetchall()
-        schema_description[table] = [col[1] for col in columns]
+        schema_description[table] = [f'{col[1]} {col[2]}' for col in columns]
 
     schema = json.dumps(schema_description, indent=2)
     print(schema)
@@ -50,7 +35,7 @@ def init_database(db_path="db.sqlite3", billType=None, billId=None):
 
 
 # Generate SQL from natural language
-def get_sql_from_gemini(user_prompt, schema):
+def get_sql_from_gemini(user_prompt, schema,bill_type=None, special_id=None, chathistory=None):
     model = genai.GenerativeModel("gemini-2.5-flash")
     prompt = f"""
     You are an expert SQL query generator.
@@ -59,10 +44,15 @@ def get_sql_from_gemini(user_prompt, schema):
     ### Allowed Schema:
     {schema}
 
+    ### Conversation history:
+    {chathistory}
+
     ### Rules:
     - Use only the tables and columns present in Allowed Schema.
     - Do not invent new columns or tables.
     - Keep the SQL simple and valid for SQLite.
+    - always add filter in the query as if paper in {bill_type} then viewpapered_id={special_id} otherwise viewuploaded_id={special_id}
+    - Refer the Conversation history if present
 
     User question: {user_prompt}
     """
@@ -119,16 +109,16 @@ def run_query(conn, sql, billType, billId):
     sql = sql.strip().rstrip(";")
 
     # If there's already a WHERE, add with AND
-    if re.search(r"\bwhere\b", sql, re.I):
-        sql = re.sub(r"\bwhere\b", f"WHERE {main_column} = {billId} AND", sql, count=1, flags=re.I)
-    else:
-        # Insert before ORDER BY or LIMIT if present
-        if re.search(r"\border\s+by\b", sql, re.I):
-            sql = re.sub(r"\border\s+by\b", f"WHERE {main_column} = {billId} ORDER BY", sql, flags=re.I)
-        elif re.search(r"\blimit\b", sql, re.I):
-            sql = re.sub(r"\blimit\b", f"WHERE {main_column} = {billId} LIMIT", sql, flags=re.I)
-        else:
-            sql += f" WHERE {main_column} = {billId}"
+    # if re.search(r"\bwhere\b", sql, re.I):
+    #     sql = re.sub(r"\bwhere\b", f"WHERE {main_column} = {billId} AND", sql, count=1, flags=re.I)
+    # else:
+    #     # Insert before ORDER BY or LIMIT if present
+    #     if re.search(r"\border\s+by\b", sql, re.I):
+    #         sql = re.sub(r"\border\s+by\b", f"WHERE {main_column} = {billId} ORDER BY", sql, flags=re.I)
+    #     elif re.search(r"\blimit\b", sql, re.I):
+    #         sql = re.sub(r"\blimit\b", f"WHERE {main_column} = {billId} LIMIT", sql, flags=re.I)
+    #     else:
+    #         sql += f" WHERE {main_column} = {billId}"
 
     print("Executing SQL:", sql)
 
@@ -141,33 +131,40 @@ def run_query(conn, sql, billType, billId):
     except Exception as e:
         return f"Error executing query: {e}"
 
-# Summarize SQL result into human readable text
-def make_human_response(user_question, result):
-    model = genai.GenerativeModel('gemini-2.5-flash-lite')
-    
+def make_human_response(user_question, result, db_schema=None):
+    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+
     if not isinstance(result, pd.DataFrame):
         return "I couldn't find any information matching your request."
-        
-    # prompt = f"""
-    # You are a helpful assistant. A user asked the following question:
-    # "{user_question}"
-    
-    # I ran a database query and got the following results:
-    # {result.to_string()}
-    
-    # Please provide a clear, natural language answer based on these results.
-    # Summarize the information and do not just repeat the table.
-    # """
 
     prompt = f"""
-    
-    I ran a database query and got the following results:
+    You are a helpful assistant. The user asked:
+
+    **User Question:** "{user_question}"
+
+    I executed a database query and got the following results:
     {result.to_string()}
+    Summarize this result clearly in plain, natural language as human-readable text.
     
-    Please provide a clear, natural language answer based on these results.
-    Summarize the information and do not just repeat the table.
+    ## Instructions
+
+    -- For answer format
+    - Always show months in string format (e.g., 1 as January, 2 as February).
+    - Amounts will always be in dollars.
+    - Data usage will always be in GB.
+
+    -- generate questions
+    - Database Schema: {db_schema}
+    - After the summary, generate exactly 2 natural, human-like recommendation questions.
+    - Each question must reference valid columns or tables from the schema.
+    - Questions should feel like smart suggestions, not technical jargon.
+    - Keep them concise, helpful, and answerable by the chatbot using the schema.
+    
+    
+    ### Output format:
+    - List of questions (no numbering, just plain text).
     """
-    
+
     response = model.generate_content(prompt)
     return response.text
 

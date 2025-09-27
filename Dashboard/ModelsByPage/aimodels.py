@@ -9,6 +9,7 @@ class BotChats(models.Model):
     billChat = models.ForeignKey(BaseDataTable, on_delete=models.CASCADE, related_name="view_chats",null=True,blank=True)
     question = models.TextField(null=False)
     response = models.TextField(null=False)
+    recommended_questions = models.JSONField(default=list)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

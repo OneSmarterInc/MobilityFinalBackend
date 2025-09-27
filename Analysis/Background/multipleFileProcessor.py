@@ -17,8 +17,9 @@ from django.core.files.base import File
 from django.conf import settings
 from ..models import AnalysisData
 from ..models import SummaryData
+from dateutil import parser
 
-
+from datetime import datetime
 class MultipleFileProcessor:
     def __init__(self, instance, buffer_data):
         self.instance = instance
@@ -37,19 +38,44 @@ class MultipleFileProcessor:
         self.account_number = None
         self.all_plans = []
         self.plan_charges = {}
+        self.df1 = None
+        self.df2 = None
+        self.df3 = None
 
     def process_file_separately(self,path, Script):
+
         try:
+            file_path = path.split("/")[-1]          
+            name, ext = file_path.rsplit(".", 1)     
+            ext = "." + ext                         
+
+            if "_" in name:
+                name = name.rsplit("_", 1)[0]
+
+            file_name = f"{name}{ext}"
             scripter = Script(path)
             basic_data, line_items, processing_time = scripter.extract_all()
             self.account_number = basic_data.get("Account Number")
             line_items["Monthly Charges"] = line_items["Monthly Charges"].apply(lambda x: f"${x}" if isinstance(x, (int, float)) else x)
             line_items.insert(0, "Account Number", basic_data.get("Account Number"))
-            line_items.insert(1, "Bill Date", basic_data.get("Bill Date"))
+            bill_date = basic_data.get("Bill Date")
+            line_items.insert(1, "Bill Date",bill_date)
+            formatted_bill_date = self.parse_bill_date(bill_date)
+            line_items["bill_day"] = formatted_bill_date.day
+            line_items["bill_month"] = formatted_bill_date.month
+            line_items["bill_year"] = formatted_bill_date.year
+            line_items["file_name"] = file_name
             return line_items
         except Exception as e:
             print(f"Error processing file: {e}")
             return pd.DataFrame()
+        
+    def parse_bill_date(self, date_str):
+        try:
+            return parser.parse(date_str, dayfirst=False)  # US-style month/day
+        except Exception:
+            raise ValueError(f"Date format not supported: {date_str}")
+
         
     def extract_highest_usage(self, *dfs):
         # Filter out None or empty DataFrames
@@ -121,17 +147,15 @@ class MultipleFileProcessor:
         base_df = base_df[column_order]
 
         # --- Recommendation Logic ---
-        plan_charges_float = {p: float(c.replace("$", "")) for p, c in self.plan_charges.items()}
+        plan_charges_float = {
+            p: float(c.replace("$", "")) if c not in (None, "", "NA") else None
+            for p, c in self.plan_charges.items()
+        }
+
 
         def extract_gb(plan_name: str):
-            """
-            Extract GB limit from plan name.
-            Returns float if found, otherwise None.
-            Handles cases like '10 GB', '5GB', '5GBHS'.
-            """
             if not plan_name:
                 return None
-
             match = re.search(r"(\d+(?:\.\d+)?)\s*GB", plan_name.upper())
             if match:
                 try:
@@ -162,61 +186,159 @@ class MultipleFileProcessor:
                 if gb_limit is not None and usage <= gb_limit:
                     candidate_plans.append((plan, plan_charges_float.get(plan, float("inf"))))
             if candidate_plans:
-                # Pick cheapest valid plan
                 recommended_plan, rec_charge = min(candidate_plans, key=lambda x: x[1])
                 if recommended_plan != current_plan and rec_charge < current_charge:
                     savings = float(current_charge - rec_charge)
-                    # savings with 2 decimal places after point
                     savings_str = f"${savings:.2f}"
                     rec_charge_str = f"${rec_charge:.2f}"
                     return pd.Series([recommended_plan, rec_charge_str, savings_str])
 
             return pd.Series([None, None, None])
 
-        
-
         base_df[["Recommended Plan", "Recommended Plan Charges", "Recommended Plan Savings"]] = base_df.apply(suggest_plan, axis=1)
 
+        # --- Handle NA usage ---
         na_df = base_df[base_df["Data Usage (GB)"] == "NA"].copy()
         non_na_df = base_df[base_df["Data Usage (GB)"] != "NA"].copy()
 
+        # Convert NA usage to 0 for non-unlimited plans → push to zero usage sheet
+        na_non_unlimited = na_df[~na_df["Current Plan"].str.contains("Unlimited", case=False, na=False)].copy()
+        na_non_unlimited["Data Usage (GB)"] = "0"  # treat NA as 0
+
+        # Unlimited NA plans remain separate
+        sheet6 = na_df[na_df["Current Plan"].str.contains("Unlimited", case=False, na=False)].copy()
+
+        # Merge NA-non-unlimited into non_na_df
+        non_na_df = pd.concat([non_na_df, na_non_unlimited], ignore_index=True)
+
+        # Now bucketize usage
         data_usage = (
             non_na_df["Data Usage (GB)"].str.replace("GB", "", regex=False).astype(float)
         )
 
-        sheet2 = non_na_df[data_usage <= 0].copy()
+        sheet2 = non_na_df[data_usage <= 0].copy()  # includes NA converted to 0
         sheet3 = non_na_df[(data_usage > 0) & (data_usage <= 5)].copy()
         sheet4 = non_na_df[(data_usage > 5) & (data_usage <= 15)].copy()
         sheet5 = non_na_df[data_usage > 15].copy()
 
-        sheet6 = na_df[~na_df["Current Plan"].str.contains("Unlimited", case=False, na=False)].copy()
-        sheet7 = na_df[na_df["Current Plan"].str.contains("Unlimited", case=False, na=False)].copy()
+        return sheet2, sheet3, sheet4, sheet5, sheet6
 
-        return sheet2, sheet3, sheet4, sheet5, sheet6, sheet7
+    def add_no_recommendation(self,dfs):
 
-    def export_to_excel(self, line_items, filename="usage_report.xlsx"):
-        # Split into sheets
-        sheet2, sheet3, sheet4, sheet5,sheet6, sheet7  = self.split_sheets(line_items)
-        
-        # Create Excel with 5 sheets
+        for df in dfs:
+            if all(col in df.columns for col in [
+                "Recommended Plan",
+                "Recommended Plan Charges",
+                "Recommended Plan Savings"
+            ]):
+                mask = (
+                    df["Recommended Plan"].isna() &
+                    df["Recommended Plan Charges"].isna() &
+                    df["Recommended Plan Savings"].isna()
+                )
+                df.loc[mask, ["Recommended Plan",
+                            "Recommended Plan Charges",
+                            "Recommended Plan Savings"]] = "No recommendation needed"
+        return dfs
+
+    def export_to_excel(self, original_dfs, line_items, filename="usage_report.xlsx"):
+        sheet2, sheet3, sheet4, sheet5, sheet6 = self.split_sheets(line_items)
+        STARTROW = 2
         with pd.ExcelWriter(filename, engine="xlsxwriter") as writer:
-            # Sheet1 → all data
-            line_items.to_excel(writer, sheet_name="All Items", index=False)
+            excel_sheet2, excel_sheet3, excel_sheet4, excel_sheet5, excel_sheet6 = self.add_no_recommendation([sheet2, sheet3, sheet4, sheet5, sheet6])
+            for i, df in enumerate(original_dfs):
+                if df.empty:
+                    continue
+                df.drop(columns=[c for c in ['file_name','bill_day','bill_month','bill_year'] if c in df.columns], inplace=True)
+                bill_date = str(df.get("Bill Date", [f"Sheet{i+1}"]).iloc[0]) \
+                    if "Bill Date" in df.columns else f"Original_{i+1}"
+                df.to_excel(writer, sheet_name=str(bill_date), index=False, startrow=STARTROW)
+            max_usage = line_items
+            max_usage.drop(columns=[c for c in ['bill_day','bill_month','bill_year'] if c in max_usage.columns], inplace=True)
+            max_usage = max_usage.drop(columns=['file_name'])
+            max_usage.to_excel(writer, sheet_name="Maximum Usage from all files", index=False, startrow=STARTROW)
+            excel_sheet2.to_excel(writer, sheet_name="Zero Usage Line", index=False, startrow=STARTROW)
+            excel_sheet3.to_excel(writer, sheet_name="< 5GB", index=False, startrow=STARTROW)
+            excel_sheet4.to_excel(writer, sheet_name="5 to 15GB", index=False, startrow=STARTROW)
+            excel_sheet5.to_excel(writer, sheet_name="> 15GB", index=False, startrow=STARTROW)
+            excel_sheet6.to_excel(writer, sheet_name="NA - Unlimited", index=False, startrow=STARTROW)
 
-            # Other sheets
-            sheet2.to_excel(writer, sheet_name="Zero Usage Line", index=False)
-            sheet3.to_excel(writer, sheet_name="< 5GB", index=False)
-            sheet4.to_excel(writer, sheet_name="5 to 15GB", index=False)
-            sheet5.to_excel(writer, sheet_name="> 15GB", index=False)
-            sheet6.to_excel(writer, sheet_name="NA - Not Unlimited", index=False)
-            sheet7.to_excel(writer, sheet_name="NA - Unlimited", index=False)
+            # 🔥 Add note INSIDE the context
+            workbook = writer.book
+            title_format = workbook.add_format({
+                "bold": True, "font_size": 14, "align": "left", "valign": "vcenter"
+            })
+            header_format = workbook.add_format({
+                "bold": True, "align": "center", "valign": "vcenter", "text_wrap": True
+            })
+            center_format = workbook.add_format({
+                "align": "center", "valign": "vcenter"
+            })
 
-        
-        # Ensure BillAnalysis directory exists inside MEDIA_ROOT
+          
+            def apply_sheet_format(sheet_name, df_for_columns):
+                ws = writer.sheets[sheet_name]
+                ncols = len(df_for_columns.columns)
+                if ncols == 0:
+                    return
+
+                heading_map = {
+                    "Maximum Usage from all files": "Maximum Usage from all files",
+                "Zero Usage Line": "Zero Usage Line",
+                "< 5GB": "Less Than 5GB",
+                "5 to 15GB": "Between 5 To 15 GB",
+                "> 15GB": "Greater than 15 GB",
+                "NA - Unlimited": "Unlimited Plan With Data Usage N/A",
+                }
+
+                heading_text = heading_map.get(sheet_name, sheet_name)
+
+                ws.merge_range(0, 0, 0, ncols - 1, heading_text, title_format)
+
+                ws.set_row(STARTROW, 20, header_format)
+
+                for col_idx, col_name in enumerate(df_for_columns.columns):
+                    header_w = len(str(col_name)) + 2
+                    col_series = df_for_columns[col_name].fillna("").astype(str)
+                    sample = col_series.iloc[:200] 
+                    content_w = sample.map(len).max() if not sample.empty else 0
+                    content_w = content_w + 2
+                    width = max(8, min(60, max(header_w, content_w)))
+                    ws.set_column(col_idx, col_idx, width, center_format)
+
+            for i, df in enumerate(original_dfs):
+                if df.empty:
+                    continue
+                bill_date = str(df.get("Bill Date", [f"Sheet{i+1}"]).iloc[0]) \
+                    if "Bill Date" in df.columns else f"Original_{i+1}"
+                apply_sheet_format(str(bill_date), df)
+
+            apply_sheet_format("Maximum Usage from all files", line_items)
+            apply_sheet_format("Zero Usage Line", excel_sheet2)
+            apply_sheet_format("< 5GB", excel_sheet3)
+            apply_sheet_format("5 to 15GB", excel_sheet4)
+            apply_sheet_format("> 15GB", excel_sheet5)
+            apply_sheet_format("NA - Unlimited", excel_sheet6)
+
+            ws_zero = writer.sheets["Zero Usage Line"]
+            last_data_row_index = STARTROW + 1 + len(excel_sheet2)  # header + data
+            note_row = last_data_row_index + 1
+            note_text = (
+                "Note: Wireless numbers with non-unlimited plans with no reported "
+                "data usage are assumed to have 0 GB usage."
+            )
+            note_format = workbook.add_format({
+                "italic": True, "align": "left", "valign": "top", "text_wrap": True
+            })
+            if len(excel_sheet2.columns) > 0:
+                ws_zero.merge_range(
+                note_row, 0, note_row, len(excel_sheet2.columns) - 1, note_text, note_format
+                )
+
+        # Now the file is fully written
         target_dir = os.path.join(settings.MEDIA_ROOT, "BillAnalysis")
         os.makedirs(target_dir, exist_ok=True)
 
-        # Save only the basename so Django puts it in upload_to="BillAnalysis/"
         with open(filename, "rb") as f:
             django_file = File(f)
             self.instance.excel.save(os.path.basename(filename), django_file)
@@ -227,21 +349,21 @@ class MultipleFileProcessor:
         # cleanup
         os.remove(filename)
 
-        # Prepare data for AnalysisData model
+        # Add metadata for all sheets
         sheet2["data_type"] = "zero_usage"
         sheet3["data_type"] = "less_than_5_gb"
         sheet4["data_type"] = "between_5_and_15_gb"
         sheet5["data_type"] = "more_than_15_gb"
-        sheet6["data_type"] = "NA_not_unlimited"
-        sheet7["data_type"] = "NA_unlimited"
+        sheet6["data_type"] = "NA_unlimited"
 
-        all_data = pd.concat([sheet2, sheet3, sheet4, sheet5,sheet6, sheet7], ignore_index=True)
+        all_data = pd.concat([sheet2, sheet3, sheet4, sheet5, sheet6], ignore_index=True)
+
         all_data = all_data.merge(
             line_items[["Wireless Number", "Account Number", "Bill Date"]],
             on="Wireless Number",
-            how="left"  
+            how="left"
         )
-        # rename columns to match AnalysisData model
+
         all_data = all_data.rename(columns={
             "Account Number": "account_number",
             "Bill Date": "bill_date",
@@ -258,6 +380,7 @@ class MultipleFileProcessor:
         all_data["multiple_analysis_id"] = self.instance.id
 
         return all_data
+
     def manage_plans(self, df):
         if df is None or df.empty:
             return
@@ -311,6 +434,7 @@ class MultipleFileProcessor:
                 current_plan_charges=row["current_plan_charges"] if pd.notna(row["current_plan_charges"]) else None,
                 current_plan_usage=row["current_plan_usage"],
                 recommended_plan=row["recommended_plan"],
+                file_name=row["file_name"],
                 recommended_plan_charges=row["recommended_plan_charges"] if pd.notna(row["recommended_plan_charges"]) else None,
                 recommended_plan_savings=row["recommended_plan_savings"] if pd.notna(row["recommended_plan_savings"]) else None,
             )
@@ -346,14 +470,20 @@ class MultipleFileProcessor:
             "Plan": "plan",
             "Monthly Charges": "monthly_charges",
         })
-        df["data_usage"] = df["data_usage"].apply(self.add_gb)
-        df["monthly_charges"] = df["monthly_charges"].astype(str).str.replace("$", "", regex=False)
-        df["usage_purchase_charges"] = df["usage_purchase_charges"].astype(str).str.replace("$", "", regex=False)
-        df["equipment_charges"] = df["equipment_charges"].astype(str).str.replace("$", "", regex=False)
-        df["other_charges_credits"] = df["other_charges_credits"].astype(str).str.replace("$", "", regex=False)
-        df["taxes_governmental_surcharges"] = df["taxes_governmental_surcharges"].astype(str).str.replace("$", "", regex=False)
-        df["third_party_charges"] = df["third_party_charges"].astype(str).str.replace("$", "", regex=False)
-        df["total_charges"] = df["total_charges"].astype(str).str.replace("$", "", regex=False)
+        cols_to_clean = [
+            "data_usage",
+            "monthly_charges",
+            "usage_purchase_charges",
+            "equipment_charges",
+            "other_charges_credits",
+            "taxes_governmental_surcharges",
+            "third_party_charges",
+            "total_charges"
+        ]
+
+        for col in cols_to_clean:
+            if col in df.columns:
+                df[col] = df[col].astype(str).str.replace("$", "", regex=False)
         
         model_fields = {f.name for f in SummaryData._meta.get_fields()}
         records = []
@@ -392,13 +522,15 @@ class MultipleFileProcessor:
                 df = self.process_file_separately(path=path, Script=Script)
                 if not df.empty:
                     dfs.append(df)
-            
 
+        
+            
             if not dfs:
                 return False, "No valid files processed", 0, 1
-            
+            original_dfs = dfs
             for df in dfs:
                 self.store_summary_data(df)
+            
 
             # Check account numbers are consistent
             accounts = [df["Account Number"].iloc[0] for df in dfs if "Account Number" in df.columns]
@@ -411,16 +543,25 @@ class MultipleFileProcessor:
             for df in dfs:
                 self.manage_plans(df)
 
+
             # Extract highest usage
             df = self.extract_highest_usage(*dfs, *(None,) * (3 - len(dfs)))
+
 
             # Build output filename based on available Bill Dates
             dates = "_".join([str(df["Bill Date"].iloc[0]) for df in dfs if "Bill Date" in df.columns])
             output_file = f'{self.account_number}_{dates}.xlsx'.replace(" ", "_")
 
             # Export + DB save
-            final_data = self.export_to_excel(df, filename=output_file)
-            self.add_data_to_db(final_data)
+            final_data = self.export_to_excel(original_dfs, df, filename=output_file)
+            merged_df = final_data.merge(
+                df[['Bill Date', 'Wireless Number', 'file_name']],
+                left_on=['bill_date', 'wireless_number'],
+                right_on=['Bill Date', 'Wireless Number'],
+                how='left'
+            )
+            merged_df = merged_df.drop(columns=['Bill Date', 'Wireless Number'])
+            self.add_data_to_db(merged_df)
 
             end = time.perf_counter()
             return True, "Files processed successfully", round(end - start, 2), 1

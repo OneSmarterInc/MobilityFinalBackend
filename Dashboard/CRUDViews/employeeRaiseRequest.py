@@ -9,7 +9,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 from authenticate.models import PortalUser
 from OnBoard.Ban.models import UniquePdfDataTable
-from Dashboard.Serializers.requestser import EmployeeSerializer, SaveUpgradeDeviceRequestSerializer
+from Dashboard.Serializers.requestser import EmployeeSerializer, SaveUpgradeDeviceRequestSerializer, ShowUpgradeDeviceRequestSerializer
 from authenticate.views import saveuserlog
 
 class EmployeeRequest(APIView):
@@ -31,8 +31,16 @@ from ..ModelsByPage.Req import upgrade_device_request
 class DeviceUpgradeView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, email, *args, **kwargs):
+    def get(self, request, *args, **kwargs):
+        if request.user.company:
+            objs = upgrade_device_request.objects.filter(sub_company__company=request.user.company)
+        else:
+            objs = upgrade_device_request.objects.all()
+        ser = ShowUpgradeDeviceRequestSerializer(objs, many=True)
+        return Response({"data":ser.data}, status=status.HTTP_200_OK)
+    def post(self, request, *args, **kwargs):
         data = request.data
+        email = request.user.email
         get_user = PortalUser.objects.filter(email=email).first()
         print(data)
         if not get_user:
@@ -50,3 +58,19 @@ class DeviceUpgradeView(APIView):
         else:
             print(ser.errors)
             return Response({"message": "Unable to submit device upgrade request."},status=status.HTTP_400_BAD_REQUEST)
+
+    def put(self, request, pk, *args, **kwargs):
+        data = request.data
+        obj = upgrade_device_request.objects.filter(id=pk)
+        if not obj:
+            return Response({"message": "Request not found!"},status=status.HTTP_400_BAD_REQUEST)
+        obj.update(**data)
+        return Response({"message":"Request approved successfully!"},status=status.HTTP_200_OK)
+    
+    def delete(self, request, pk, *args, **kwargs):
+        obj = upgrade_device_request.objects.filter(id=pk).first()
+        if not obj:
+            return Response({"message": "Request not found!"},status=status.HTTP_400_BAD_REQUEST)
+        obj.delete()
+        return Response({"message":"Request deleted successfully!"},status=status.HTTP_200_OK)
+

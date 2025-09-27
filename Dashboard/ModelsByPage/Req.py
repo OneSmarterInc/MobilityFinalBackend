@@ -336,6 +336,7 @@ class upgrade_device_request(models.Model):
     device_type = models.CharField(max_length=255, null=True, blank=True)
     new_upgrade_date = models.CharField(max_length=255, null=True, blank=True)
     amount = models.CharField(max_length=255, null=True, blank=True)
+    status = models.BooleanField(default=False)
 
     created = models.DateTimeField(auto_now_add=True, null=True)
     updated= models.DateTimeField(auto_now=True,null=True)

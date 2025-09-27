@@ -162,6 +162,7 @@ class MultipleUploadView(APIView):
 
         # Collect uploaded files (1–3 allowed)
         files = [data.get(f'file{i}') for i in range(1, 4)]
+
         files = [f for f in files if f not in (None, "NULL", "null")]  # remove None
 
         if not files:
@@ -276,6 +277,8 @@ class MultipleUploadView(APIView):
         
 import os,re
 import zipfile
+import numpy as np
+from datetime import datetime
 import pandas as pd
 from addon import extract_data_from_zip
 class ZipAnalysis:
@@ -289,7 +292,6 @@ class ZipAnalysis:
 
         # Collect filenames safely
         self.file_names = [os.path.basename(f) for f in self.file_paths]
-
         self.vendor = self.buffer_data.get('vendor')
         self.type = self.buffer_data.get('type')
 
@@ -342,21 +344,17 @@ class ZipAnalysis:
             "Recommended Plan Savings",
         ]
         base_df = base_df[column_order]
+
         # --- Recommendation Logic ---
         plan_charges_float = {
             p: float(c.replace("$", "")) if isinstance(c, str) else float(c)
             for p, c in self.plan_charges.items()
         }
 
+
         def extract_gb(plan_name: str):
-            """
-            Extract GB limit from plan name.
-            Returns float if found, otherwise None.
-            Handles cases like '10 GB', '5GB', '5GBHS'.
-            """
             if not plan_name:
                 return None
-
             match = re.search(r"(\d+(?:\.\d+)?)\s*GB", plan_name.upper())
             if match:
                 try:
@@ -364,18 +362,11 @@ class ZipAnalysis:
                 except:
                     return None
             return None
-        
-        def parse_usage(val):
-            if isinstance(val, str):
-                return float(val.replace("GB", "").strip())
-            elif isinstance(val, (int, float)):
-                return float(val)
-            return 0.0
 
         def suggest_plan(row):
             current_plan = row["Current Plan"]
             try:
-                current_charge = float(row["Charges"].replace("$", ""))
+                current_charge = float(str(row["Charges"]).replace("$", "").strip())
             except:
                 return pd.Series([None, None, None])  # Invalid charges
 
@@ -384,7 +375,7 @@ class ZipAnalysis:
                 return pd.Series([None, None, None])
 
             try:
-                usage = float(str(usage_val).replace("GB", ""))
+                usage = float(str(usage_val).upper().replace("GB", "").strip())
             except:
                 usage = 0.0
 
@@ -394,56 +385,167 @@ class ZipAnalysis:
                 if gb_limit is not None and usage <= gb_limit:
                     candidate_plans.append((plan, plan_charges_float.get(plan, float("inf"))))
             if candidate_plans:
-                # Pick cheapest valid plan
                 recommended_plan, rec_charge = min(candidate_plans, key=lambda x: x[1])
                 if recommended_plan != current_plan and rec_charge < current_charge:
                     savings = float(current_charge - rec_charge)
-                    # savings with 2 decimal places after point
                     savings_str = f"${savings:.2f}"
                     rec_charge_str = f"${rec_charge:.2f}"
                     return pd.Series([recommended_plan, rec_charge_str, savings_str])
 
             return pd.Series([None, None, None])
-
         base_df[["Recommended Plan", "Recommended Plan Charges", "Recommended Plan Savings"]] = base_df.apply(suggest_plan, axis=1)
 
+        # --- Handle NA usage ---
         na_df = base_df[base_df["Data Usage (GB)"] == "NA"].copy()
         non_na_df = base_df[base_df["Data Usage (GB)"] != "NA"].copy()
 
-        data_usage = non_na_df["Data Usage (GB)"].apply(parse_usage)
+        # Convert NA usage to 0 for non-unlimited plans → push to zero usage sheet
+        na_non_unlimited = na_df[~na_df["Current Plan"].str.contains("Unlimited", case=False, na=False)].copy()
+        na_non_unlimited["Data Usage (GB)"] = "0"  # treat NA as 0
 
-        sheet2 = non_na_df[data_usage <= 0].copy()
+        # Unlimited NA plans remain separate
+        sheet6 = na_df[na_df["Current Plan"].str.contains("Unlimited", case=False, na=False)].copy()
+
+        # Merge NA-non-unlimited into non_na_df
+        non_na_df = pd.concat([non_na_df, na_non_unlimited], ignore_index=True)
+
+        # Now bucketize usage
+        print("Now bucketize usage")
+        data_usage = (
+            non_na_df["Data Usage (GB)"]
+            .astype(str)                      # ensure string
+            .str.replace("GB", "", regex=False)
+            .replace("nan", pd.NA)            # handle NaN safely
+            .astype(float)                    # back to float
+        )
+
+
+        sheet2 = non_na_df[data_usage <= 0].copy()  # includes NA converted to 0
         sheet3 = non_na_df[(data_usage > 0) & (data_usage <= 5)].copy()
         sheet4 = non_na_df[(data_usage > 5) & (data_usage <= 15)].copy()
         sheet5 = non_na_df[data_usage > 15].copy()
 
-        sheet6 = na_df[~na_df["Current Plan"].str.contains("Unlimited", case=False, na=False)].copy()
-        sheet7 = na_df[na_df["Current Plan"].str.contains("Unlimited", case=False, na=False)].copy()
+        print("All sheets processed")
 
-        return sheet2, sheet3, sheet4, sheet5, sheet6, sheet7
-    
-    def export_to_excel(self, line_items, filename="usage_report.xlsx"):
-        # Split into sheets
-        sheet2, sheet3, sheet4, sheet5,sheet6, sheet7  = self.split_sheets(line_items)
-        # Create Excel with 5 sheets
+        return sheet2, sheet3, sheet4, sheet5, sheet6
+
+
+    def add_no_recommendation(self,dfs):
+
+        for df in dfs:
+            if all(col in df.columns for col in [
+                "Recommended Plan",
+                "Recommended Plan Charges",
+                "Recommended Plan Savings"
+            ]):
+                mask = (
+                    df["Recommended Plan"].isna() &
+                    df["Recommended Plan Charges"].isna() &
+                    df["Recommended Plan Savings"].isna()
+                )
+                df.loc[mask, ["Recommended Plan",
+                            "Recommended Plan Charges",
+                            "Recommended Plan Savings"]] = "No recommendation needed"
+        return dfs
+
+    def export_to_excel(self, original_dfs, line_items, filename="usage_report.xlsx"):
+        sheet2, sheet3, sheet4, sheet5, sheet6 = self.split_sheets(line_items)
+        STARTROW = 2
         with pd.ExcelWriter(filename, engine="xlsxwriter") as writer:
-            # Sheet1 → all data
-            line_items.to_excel(writer, sheet_name="All Items", index=False)
+            excel_sheet2, excel_sheet3, excel_sheet4, excel_sheet5, excel_sheet6 = self.add_no_recommendation([sheet2, sheet3, sheet4, sheet5, sheet6])
+            for i, df in enumerate(original_dfs):
+                if df.empty:
+                    continue
+                df.drop(columns=[c for c in ['file_name','bill_day','bill_month','bill_year'] if c in df.columns], inplace=True)
+                bill_date = str(df.get("Bill Date", [f"Sheet{i+1}"]).iloc[0]) \
+                    if "Bill Date" in df.columns else f"Original_{i+1}"
+                df.to_excel(writer, sheet_name=str(bill_date), index=False, startrow=STARTROW)
+            max_usage = line_items
+            max_usage.drop(columns=[c for c in ['bill_day','bill_month','bill_year'] if c in max_usage.columns], inplace=True)
+            max_usage = max_usage.drop(columns=['file_name'])
+            max_usage.to_excel(writer, sheet_name="Maximum Usage from all files", index=False, startrow=STARTROW)
+            excel_sheet2.to_excel(writer, sheet_name="Zero Usage Line", index=False, startrow=STARTROW)
+            excel_sheet3.to_excel(writer, sheet_name="< 5GB", index=False, startrow=STARTROW)
+            excel_sheet4.to_excel(writer, sheet_name="5 to 15GB", index=False, startrow=STARTROW)
+            excel_sheet5.to_excel(writer, sheet_name="> 15GB", index=False, startrow=STARTROW)
+            excel_sheet6.to_excel(writer, sheet_name="NA - Unlimited", index=False, startrow=STARTROW)
 
-            # Other sheets
-            sheet2.to_excel(writer, sheet_name="Zero Usage Line", index=False)
-            sheet3.to_excel(writer, sheet_name="< 5GB", index=False)
-            sheet4.to_excel(writer, sheet_name="5 to 15GB", index=False)
-            sheet5.to_excel(writer, sheet_name="> 15GB", index=False)
-            sheet6.to_excel(writer, sheet_name="NA - Not Unlimited", index=False)
-            sheet7.to_excel(writer, sheet_name="NA - Unlimited", index=False)
+            # 🔥 Add note INSIDE the context
+            workbook = writer.book
+            title_format = workbook.add_format({
+                "bold": True, "font_size": 14, "align": "left", "valign": "vcenter"
+            })
+            header_format = workbook.add_format({
+                "bold": True, "align": "center", "valign": "vcenter", "text_wrap": True
+            })
+            center_format = workbook.add_format({
+                "align": "center", "valign": "vcenter"
+            })
 
-        print("saving to db")
-        # Ensure BillAnalysis directory exists inside MEDIA_ROOT
+          
+            def apply_sheet_format(sheet_name, df_for_columns):
+                ws = writer.sheets[sheet_name]
+                ncols = len(df_for_columns.columns)
+                if ncols == 0:
+                    return
+
+                heading_map = {
+                    "Maximum Usage from all files": "Maximum Usage from all files",
+                "Zero Usage Line": "Zero Usage Line",
+                "< 5GB": "Less Than 5GB",
+                "5 to 15GB": "Between 5 To 15 GB",
+                "> 15GB": "Greater than 15 GB",
+                "NA - Unlimited": "Unlimited Plan With Data Usage N/A",
+                }
+
+                heading_text = heading_map.get(sheet_name, sheet_name)
+
+                ws.merge_range(0, 0, 0, ncols - 1, heading_text, title_format)
+
+                ws.set_row(STARTROW, 20, header_format)
+
+                for col_idx, col_name in enumerate(df_for_columns.columns):
+                    header_w = len(str(col_name)) + 2
+                    col_series = df_for_columns[col_name].fillna("").astype(str)
+                    sample = col_series.iloc[:200] 
+                    content_w = sample.map(len).max() if not sample.empty else 0
+                    content_w = content_w + 2
+                    width = max(8, min(60, max(header_w, content_w)))
+                    ws.set_column(col_idx, col_idx, width, center_format)
+
+            for i, df in enumerate(original_dfs):
+                if df.empty:
+                    continue
+                bill_date = str(df.get("Bill Date", [f"Sheet{i+1}"]).iloc[0]) \
+                    if "Bill Date" in df.columns else f"Original_{i+1}"
+                apply_sheet_format(str(bill_date), df)
+
+            apply_sheet_format("Maximum Usage from all files", line_items)
+            apply_sheet_format("Zero Usage Line", excel_sheet2)
+            apply_sheet_format("< 5GB", excel_sheet3)
+            apply_sheet_format("5 to 15GB", excel_sheet4)
+            apply_sheet_format("> 15GB", excel_sheet5)
+            apply_sheet_format("NA - Unlimited", excel_sheet6)
+
+            ws_zero = writer.sheets["Zero Usage Line"]
+            last_data_row_index = STARTROW + 1 + len(excel_sheet2)  # header + data
+            note_row = last_data_row_index + 1
+            note_text = (
+                "Note: Wireless numbers with non-unlimited plans with no reported "
+                "data usage are assumed to have 0 GB usage."
+            )
+            note_format = workbook.add_format({
+                "italic": True, "align": "left", "valign": "top", "text_wrap": True
+            })
+            if len(excel_sheet2.columns) > 0:
+                ws_zero.merge_range(
+                note_row, 0, note_row, len(excel_sheet2.columns) - 1, note_text, note_format
+                )
+
+        # Now the file is fully written
         target_dir = os.path.join(settings.MEDIA_ROOT, "BillAnalysis")
         os.makedirs(target_dir, exist_ok=True)
 
-        # Save only the basename so Django puts it in upload_to="BillAnalysis/"
         with open(filename, "rb") as f:
             django_file = File(f)
             self.instance.excel.save(os.path.basename(filename), django_file)
@@ -454,21 +556,21 @@ class ZipAnalysis:
         # cleanup
         os.remove(filename)
 
-        # Prepare data for AnalysisData model
+        # Add metadata for all sheets
         sheet2["data_type"] = "zero_usage"
         sheet3["data_type"] = "less_than_5_gb"
         sheet4["data_type"] = "between_5_and_15_gb"
         sheet5["data_type"] = "more_than_15_gb"
-        sheet6["data_type"] = "NA_not_unlimited"
-        sheet7["data_type"] = "NA_unlimited"
+        sheet6["data_type"] = "NA_unlimited"
 
-        all_data = pd.concat([sheet2, sheet3, sheet4, sheet5,sheet6, sheet7], ignore_index=True)
+        all_data = pd.concat([sheet2, sheet3, sheet4, sheet5, sheet6], ignore_index=True)
+
         all_data = all_data.merge(
             line_items[["Wireless Number", "Account Number", "Bill Date"]],
             on="Wireless Number",
-            how="left"  
+            how="left"
         )
-        # rename columns to match AnalysisData model
+
         all_data = all_data.rename(columns={
             "Account Number": "account_number",
             "Bill Date": "bill_date",
@@ -485,6 +587,7 @@ class ZipAnalysis:
         all_data["multiple_analysis_id"] = self.instance.id
 
         return all_data
+
     
     def add_data_to_db(self, data_df):
         print("saving to db")
@@ -500,8 +603,16 @@ class ZipAnalysis:
 
         data_df["current_plan_usage"] = data_df["current_plan_usage"].apply(self.add_gb)
         data_df["current_plan_charges"] = data_df["current_plan_charges"].astype(str).str.replace("$", "", regex=False)
-        data_df["recommended_plan_charges"] = data_df["recommended_plan_charges"].astype(str).str.replace("$", "", regex=False)
+        
+        data_df["recommended_plan_charges"] = (
+            data_df["recommended_plan_charges"]
+            .replace("nan", np.nan)   # convert string "nan" → proper NaN
+            .astype(str)
+            .str.replace("$", "", regex=False)
+        )
 
+        # Finally convert to decimal/float
+        data_df["recommended_plan_charges"] = data_df["recommended_plan_charges"].astype(float)
         # just create new entries, even if wireless_number already exists
         for _, row in data_df.iterrows():
             obj = AnalysisData.objects.create(
@@ -511,6 +622,7 @@ class ZipAnalysis:
                 multiple_analysis_id=row["multiple_analysis_id"],
                 data_type=row["data_type"],
                 user_name=row["user_name"],
+                file_name=row["file_name"],
                 current_plan=row["current_plan"],
                 current_plan_charges=row["current_plan_charges"] if pd.notna(row["current_plan_charges"]) else None,
                 current_plan_usage=row["current_plan_usage"],
@@ -520,6 +632,14 @@ class ZipAnalysis:
             )
         
     def get_dataframe(self, path):
+        file_path = path.split("/")[-1]        
+        name, ext = file_path.rsplit(".", 1)     
+        ext = "." + ext                          
+
+        if "_" in name:
+            name = name.rsplit("_", 1)[0]
+
+        file_name = f"{name}{ext}"
         dataframes = extract_data_from_zip(path)
         if not dataframes:
             return {"message": "No readable files found in zip", "error": -1}
@@ -537,10 +657,30 @@ class ZipAnalysis:
 
         second_largest_df["Your Calling Plan"] = second_largest_df["Your Calling Plan"].apply(lambda x: x.split('$')[0].strip() if '$' in x else x)
 
+        second_largest_df["file_name"] = file_name
+        
 
         second_largest_df = second_largest_df.rename(columns={"Your Calling Plan": "Plan", "Data Usage (GB)": "Data Usage", "User Name": "Username", "Bill Cycle Date":"Bill Date"}, errors='ignore')
+        bill_date = second_largest_df["Bill Date"].iloc[0]
+        formatted_bill_date = self.parse_bill_date(bill_date)
+        second_largest_df["bill_day"] = formatted_bill_date.day
+        second_largest_df["bill_month"] = formatted_bill_date.month
+        second_largest_df["bill_year"] = formatted_bill_date.year
         return second_largest_df
-
+    def parse_bill_date(self, date_str):
+        formats = [
+            "%b %d, %Y",   # Mar 15, 2024
+            "%B %d, %Y",   # March 15, 2024
+            "%b %d %Y",    # Mar 15 2024
+            "%B %d %Y",    # March 15 2024
+            "%Y-%m-%d",    # 2024-03-15
+        ]
+        for fmt in formats:
+            try:
+                return datetime.strptime(date_str.strip(), fmt)
+            except ValueError:
+                continue
+        raise ValueError(f"Date format not supported: {date_str}")
     def manage_plans(self, df):
         if df is None or df.empty:
             return
@@ -609,20 +749,31 @@ class ZipAnalysis:
             "Third Party Charges (includes Tax)": "third_party_charges",  # <-- not in your model yet
             "Taxes, Governmental Surcharges and Fees": "taxes_governmental_surcharges",
             "Surcharges and Other Charges and Credits": "other_charges_credits",
+            "Total Surcharges and Other Charges and Credits":"other_charges_credits",
             "Equipment Charges": "equipment_charges",
             "Usage and Purchase Charges": "usage_purchase_charges",
             "Plan": "plan",
             "Monthly Charges": "monthly_charges",
         })
 
-        df["data_usage"] = df["data_usage"].apply(self.add_gb)
-        df["monthly_charges"] = df["monthly_charges"].astype(str).str.replace("$", "", regex=False)
-        df["usage_purchase_charges"] = df["usage_purchase_charges"].astype(str).str.replace("$", "", regex=False)
-        df["equipment_charges"] = df["equipment_charges"].astype(str).str.replace("$", "", regex=False)
-        df["other_charges_credits"] = df["other_charges_credits"].astype(str).str.replace("$", "", regex=False)
-        df["taxes_governmental_surcharges"] = df["taxes_governmental_surcharges"].astype(str).str.replace("$", "", regex=False)
-        df["third_party_charges"] = df["third_party_charges"].astype(str).str.replace("$", "", regex=False)
-        df["total_charges"] = df["total_charges"].astype(str).str.replace("$", "", regex=False)
+        print(df.columns)
+
+        cols_to_clean = [
+            "data_usage",
+            "monthly_charges",
+            "usage_purchase_charges",
+            "equipment_charges",
+            "other_charges_credits",
+            "taxes_governmental_surcharges",
+            "third_party_charges",
+            "total_charges"
+        ]
+
+        for col in cols_to_clean:
+            if col in df.columns:
+                df[col] = df[col].astype(str).str.replace("$", "", regex=False)
+
+        
 
         model_fields = {f.name for f in SummaryData._meta.get_fields()}
         records = []
@@ -642,6 +793,8 @@ class ZipAnalysis:
                     dfs.append(df)
             if not dfs:
                 return False, "No valid files processed", 1
+            
+            orginal_dfs = dfs
             
             for df in dfs:
                 self.store_summary_data(df=df)
@@ -670,10 +823,18 @@ class ZipAnalysis:
             output_file = f"{self.account_number}_{dates}.xlsx"
 
             print(output_file)
+            
 
             # Export + DB save
-            final_data = self.export_to_excel(df, filename=output_file)
-            self.add_data_to_db(final_data)
+            final_data = self.export_to_excel(orginal_dfs, df, filename=output_file)
+            merged_df = final_data.merge(
+                df[['Bill Date', 'Wireless Number', 'file_name']],
+                left_on=['bill_date', 'wireless_number'],
+                right_on=['Bill Date', 'Wireless Number'],
+                how='left'
+            )
+            merged_df = merged_df.drop(columns=['Bill Date', 'Wireless Number'])
+            self.add_data_to_db(merged_df)
 
             return True, 'RDD processed successfully', 1
 
@@ -702,15 +863,20 @@ class AnalysisBotView(APIView):
         print(query_type)
         if not pk:
             return Response({"message":"Key required!"},status=status.HTTP_400_BAD_REQUEST)
-        self.connection, self.schema = init_database(query_type=query_type, analysis_id=pk)
+        self.connection, self.schema = init_database(query_type=query_type)
 
         data = request.data
         question = data.get("prompt")
+        chatHis=BotChats.objects.filter(M_analysisChat=pk).values("question", "response", "created_at")
+        df = pd.DataFrame(list(chatHis))
+
+        df.to_csv("chat_history.csv")
         try:
-            sql_query = get_sql_from_gemini(question, self.schema)
+            sql_query = get_sql_from_gemini(question, self.schema, special_id=pk, chat_history=df)
 
 
             result_df = run_query(conn=self.connection, sql=sql_query, analysis_id=pk)
+
 
             if result_df is None:
                 return Response(
@@ -719,21 +885,27 @@ class AnalysisBotView(APIView):
                 )
 
 
-            response_text = make_human_response(question, result_df)
+            response_text = make_human_response(question, result_df, db_schema=self.schema)
+
+            allLines = response_text.split("\n")
+            questions = [line.strip() for line in allLines if line.strip().endswith("?")]
+            other_lines = "\n".join([line.strip() for line in allLines if line.strip() and not line.strip().endswith("?")])
+
 
             if ChatType == "single":
                 BotChats.objects.create(
                     user=request.user,
                     question=question,
-                    response=response_text,
+                    response=other_lines,
                     S_analysisChat=Analysis.objects.filter(id=pk).first()
                 )
             elif ChatType == "multiple":
                 BotChats.objects.create(
                     user=request.user,
                     question=question,
-                    response=response_text,
-                    M_analysisChat=MultipleFileUpload.objects.filter(id=pk).first()
+                    response=other_lines,
+                    M_analysisChat=MultipleFileUpload.objects.filter(id=pk).first(),
+                    recommended_questions=questions
                 )
             else: pass
                 

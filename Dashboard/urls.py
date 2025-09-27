@@ -188,7 +188,9 @@ requests = [
     path("unique-line/<phone>/",UniqueLineView.as_view(),name='unique'),
     path("request-users-excel-upload/<org>/",RequestUsersExcelUploadView.as_view(), name='request-users-excel'),
     path("employee-request/<email>/",EmployeeRequest.as_view(), name='employee-request'),
-    path("upgrade-device-request/<email>/",DeviceUpgradeView.as_view(), name='upgrade-device-request'),
+    # path("upgrade-device-request/<email>/",DeviceUpgradeView.as_view(), name='upgrade-device-request'),
+    path("upgrade-device-request/",DeviceUpgradeView.as_view(), name='get-upgrade-device-request'),
+    path("upgrade-device-request/<pk>/",DeviceUpgradeView.as_view(), name='get-upgrade-device-request'),
 ]
 
 urlpatterns.extend(requests)

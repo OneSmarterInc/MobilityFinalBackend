@@ -170,17 +170,17 @@ from ..bot import init_database, get_sql_from_gemini, run_query, make_human_resp
 
 from Dashboard.ModelsByPage.aimodels import BotChats
 from Dashboard.Serializers.chatser import ChatSerializer
-
+import pandas as pd
 class ViewBillBotView(APIView):
     permission_classes = [IsAuthenticated]
     connection = None
     schema = None
 
     @classmethod
-    def initialize_db(cls, billType, billID):
+    def initialize_db(cls):
         """Initialize DB connection + schema once."""
         if cls.connection is None or cls.schema is None:
-            cls.connection, cls.schema = init_database("db.sqlite3",billType=billType, billId=billID)
+            cls.connection, cls.schema = init_database("db.sqlite3")
             
     def get(self,request,billType,pk,*args,**kwargs):
         if not pk:
@@ -194,13 +194,16 @@ class ViewBillBotView(APIView):
         data = request.data
         if not pk:
             return Response({"message":"Key required!"},status=status.HTTP_400_BAD_REQUEST)
-        self.initialize_db(billType=billType, billID=pk)
+        self.initialize_db()
 
         data = request.data
         question = data.get("prompt")
         baseId = data.get("base_id")
+        chatHis=BotChats.objects.filter(M_analysisChat=pk).values("question", "response", "created_at")
+        df = pd.DataFrame(list(chatHis))
+        print(df.columns)
         try:
-            sql_query = get_sql_from_gemini(question, self.schema)
+            sql_query = get_sql_from_gemini(question, self.schema, bill_type=billType, special_id=pk, chathistory=df)
 
 
             result_df = run_query(conn=self.connection, sql=sql_query, billType=billType, billId=pk)
@@ -212,12 +215,16 @@ class ViewBillBotView(APIView):
                 )
             
 
-            response_text = make_human_response(question, result_df)
-            print(response_text)
+            response_text = make_human_response(question, result_df, db_schema=self.schema)
+
+            allLines = response_text.split("\n")
+            questions = [line.strip() for line in allLines if line.strip().endswith("?")]
+            other_lines = "\n".join([line.strip() for line in allLines if line.strip() and not line.strip().endswith("?")])
             BotChats.objects.create(
                     user=request.user,
                     question=question,
-                    response=response_text,
+                    response=other_lines,
+                    recommended_questions=questions,
                     billChat=BaseDataTable.objects.filter(id=baseId).first()
             )
                 
@@ -235,6 +242,7 @@ class ViewBillBotView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
     def delete(self,request,pk,*args,**kwargs):
+
         try:
             chats = BotChats.objects.filter(billChat=pk)
             chats.delete()

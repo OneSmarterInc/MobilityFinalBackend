@@ -20,7 +20,7 @@ class RequestsView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request,pk=None, *args, **kwargs):
         if pk is None:
-            all_objs = Requests.objects.all().order_by('-created')
+            all_objs = Requests.objects.filter(requester=request.user).order_by('-created')
             ser = showRequestSerializer(all_objs, many=True)
         else:
             obj = Requests.objects.get(id=pk)

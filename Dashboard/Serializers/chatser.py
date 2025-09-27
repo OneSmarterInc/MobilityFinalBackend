@@ -5,4 +5,4 @@ from ..ModelsByPage.aimodels import BotChats
 class ChatSerializer(serializers.ModelSerializer):
     class Meta:
         model = BotChats
-        fields = ("question","response","created_at")
+        fields = ("question","response","recommended_questions" ,"created_at")

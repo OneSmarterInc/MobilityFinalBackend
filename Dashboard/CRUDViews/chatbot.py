@@ -4,12 +4,12 @@ from rest_framework import status
 from authenticate.models import PortalUser
 from authenticate.views import saveuserlog
 # from bot import get_database, get_sql_from_gemini, execute_sql_query, get_response_from_gemini
-from bot1 import init_database, get_sql_from_gemini, run_query, make_human_response
+from bot import init_database, get_sql_from_gemini, run_query, make_human_response
 
 from ..ModelsByPage.aimodels import BotChats
 from rest_framework.permissions import IsAuthenticated
 from ..Serializers.chatser import ChatSerializer
-
+import pandas as pd
 
 class ChatBotView(APIView):
     permission_classes = [IsAuthenticated]
@@ -40,9 +40,12 @@ class ChatBotView(APIView):
                 {"message": "Prompt is required!"},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        
+        chatHis=BotChats.objects.filter(user=request.user).values("question", "response", "created_at")
+        df = pd.DataFrame(list(chatHis))
 
         try:
-            sql_query = get_sql_from_gemini(question, self.schema)
+            sql_query = get_sql_from_gemini(question, self.schema, chat_history=df)
 
             result_df = run_query(self.connection, sql_query)
 
@@ -52,12 +55,16 @@ class ChatBotView(APIView):
                     status=status.HTTP_200_OK
                 )
 
-            response_text = make_human_response(question, result_df)
+            response_text = make_human_response(question, result_df, db_schema=self.schema)
+            allLines = response_text.split("\n")
+            questions = [line.strip() for line in allLines if line.strip().endswith("?")]
+            other_lines = "\n".join([line.strip() for line in allLines if line.strip() and not line.strip().endswith("?")])
 
             BotChats.objects.create(
                 user=request.user,
                 question=question,
-                response=response_text
+                response=other_lines,
+                recommended_questions=questions
             )
 
 

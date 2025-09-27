@@ -341,3 +341,15 @@ class SaveUpgradeDeviceRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = upgrade_device_request
         fields = "__all__"
+
+class ShowUpgradeDeviceRequestSerializer(serializers.ModelSerializer):
+    sub_company = serializers.SerializerMethodField()
+    raised_by = serializers.SerializerMethodField()
+    class Meta:
+        model = upgrade_device_request
+        fields = "__all__"
+    def get_sub_company(self, obj):
+        return {"id":obj.sub_company.id, "name":obj.sub_company.Organization_name}
+    def get_raised_by(self, obj):
+        return {"id":obj.raised_by.id, "first_name":obj.raised_by.first_name, "last_name":obj.raised_by.last_name, "email":obj.raised_by.email}
+    

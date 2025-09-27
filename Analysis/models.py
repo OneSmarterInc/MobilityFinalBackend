@@ -50,6 +50,7 @@ class MultipleFileUpload(models.Model):
         db_table = 'MultipleFileUpload'
 
 from django.core.validators import RegexValidator
+from datetime import datetime
 
 class SummaryData(models.Model):
     multiple_analysis = models.ForeignKey(
@@ -60,6 +61,7 @@ class SummaryData(models.Model):
         blank=True,
         help_text="Reference to the uploaded file set for this analysis"
     )
+    file_name = models.CharField(max_length=255, null=True, blank=True)
     account_number = models.CharField(
         max_length=255,
         help_text="Unique identifier for the customer account"
@@ -68,6 +70,9 @@ class SummaryData(models.Model):
         max_length=255,
         help_text="Date of the billing cycle (e.g., 2024-09-01)"
     )
+    bill_day = models.IntegerField(default=0)
+    bill_month = models.IntegerField(default=0)
+    bill_year = models.IntegerField(default=0)
     wireless_number = models.CharField(
         max_length=255,
         validators=[
@@ -155,16 +160,36 @@ class SummaryData(models.Model):
     class Meta:
         db_table = 'SummaryData'
 
+    # def save(self, *args, **kwargs):
+    #     if self.bill_date:
+    #         try:
+    #             parsed_date = datetime.strptime(self.bill_date, "%b %d, %Y")
+    #         except ValueError:
+    #             parsed_date = datetime.strptime(self.bill_date, "%Y-%m-%d")
+
+    #         self.bill_day = parsed_date.day
+    #         self.bill_month = parsed_date.month
+    #         self.bill_year = parsed_date.year
+    #         # keep self.bill_date as string
+    #     super().save(*args, **kwargs)
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['wireless_number', 'bill_date'],
-                name='unique_wireless_number_bill_date'
+                fields=['wireless_number', 'bill_date', 'multiple_analysis'],
+                name='unique_wireless_number_bill_date_id'
             )
         ]
 
+    
+from dateutil import parser
 
 
+def parse_bill_date(date_str):
+        try:
+            return parser.parse(date_str, dayfirst=False)  # US-style month/day
+        except Exception:
+            raise ValueError(f"Date format not supported: {date_str}")
 
 class AnalysisData(models.Model):
     analysis = models.ForeignKey(
@@ -175,6 +200,9 @@ class AnalysisData(models.Model):
     )
     account_number = models.CharField(max_length=255, null=True, blank=True)
     bill_date = models.CharField(max_length=255, null=True, blank=True)
+    bill_day = models.IntegerField(default=0)
+    bill_month = models.IntegerField(default=0)
+    bill_year = models.IntegerField(default=0)
     type_choices = [
         ('zero_usage', 'Zero Usage'),
         ('less_than_5_gb', 'Less than 5 GB'),
@@ -192,6 +220,7 @@ class AnalysisData(models.Model):
     recommended_plan = models.CharField(max_length=255, null=True, blank=True)
     recommended_plan_charges = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     recommended_plan_savings = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    file_name = models.CharField(max_length=255, null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
     class Meta:
@@ -199,5 +228,21 @@ class AnalysisData(models.Model):
 
     def __str__(self):
         return f'{self.analysis} - {self.wireless_number} - {self.data_type}'
+    
+    def save(self, *args, **kwargs):
+        if self.bill_date:
+            self.bill_date = parse_bill_date(self.bill_date)
+            self.bill_day = self.bill_date.day
+            self.bill_month = self.bill_date.month
+            self.bill_year = self.bill_date.year
+        super().save(*args, **kwargs)
+    
+    
 
+    
+class APIKey(models.Model):
+
+    key = models.CharField(max_length=255, null=False)
+    class Meta:
+        db_table = 'APIKey'
     

@@ -1,0 +1,2 @@
+,id,user_id,M_analysisChat_id,S_analysisChat_id,billChat_id,question,response,recommended_questions,created_at
+0,215,49,127,,,how many bills i have uploaded,You have uploaded 2 bills.,"['What is the total amount charged for all your bills?', 'What is the total data usage across all your bills?', 'Can you show me the bill with the highest charges?']",2025-09-26 10:16:34.354157+00:00
