@@ -18,6 +18,7 @@ from django.conf import settings
 from ..models import AnalysisData
 from ..models import SummaryData
 from dateutil import parser
+import numpy as np
 
 from datetime import datetime
 class MultipleFileProcessor:
@@ -106,6 +107,41 @@ class MultipleFileProcessor:
         highest = combined.loc[idx].drop(columns="_usage_numeric").reset_index(drop=True)
 
         return highest
+    
+    def check_availability(self, all_dfs):
+        combined = []
+
+        for df in all_dfs:
+            if df.empty:
+                continue
+            subdf = df[["Wireless Number", "Bill Date"]].dropna().copy()
+            subdf["Status"] = "present"
+            combined.append(subdf)
+
+        if not combined:
+            return pd.DataFrame() 
+
+        combined_df = pd.concat(combined, ignore_index=True)
+
+        result = combined_df.pivot_table(
+            index="Wireless Number",
+            columns="Bill Date",
+            values="Status",
+            aggfunc="first",  
+            fill_value="absent"
+        ).reset_index()
+
+        status_cols = [c for c in result.columns if c != "Wireless Number"]
+        mask_all_present = result[status_cols].eq("present").all(axis=1)
+        result = result[~mask_all_present]
+
+        bill_dates_sorted = sorted(
+        status_cols, key=lambda x: self.parse_bill_date(str(x))
+        )
+        result = result[["Wireless Number"] + bill_dates_sorted]
+
+        return result
+
 
     
     def split_sheets(self, datadf):
@@ -240,12 +276,134 @@ class MultipleFileProcessor:
                             "Recommended Plan Charges",
                             "Recommended Plan Savings"]] = "No recommendation needed"
         return dfs
+    
+    def normalize_usage(self, val):
+        if pd.isna(val) or str(val).strip().upper() == "NA":
+            return np.nan
+        s = str(val).strip().lower()
+        # Extract numeric part
+        match = re.search(r"([\d\.]+)", s)
+        if not match:
+            return np.nan
+        num = float(match.group(1))
+        # Check unit (default GB if missing)
+        if "tb" in s:
+            return num * 1024
+        elif "mb" in s:
+            return num / 1024
+        else:  # assume GB
+            return num
+    
+    def check_usage_trend(self, all_dfs):
+        combined = []
+
+        for df in all_dfs:
+            if df.empty:
+                continue
+            subdf = df[["Wireless Number", "Bill Date", "Data Usage"]].copy()
+
+            # Keep original bill date and data usage
+            subdf["Bill Date Original"] = subdf["Bill Date"].astype(str)
+            subdf["Data Usage Original"] = subdf["Data Usage"].astype(str)
+
+            # Numeric conversion for calculation
+            subdf["Data Usage"] = subdf["Data Usage"].apply(self.normalize_usage)
+
+            # Parsed date for chronological sorting
+            subdf["Parsed Date"] = subdf["Bill Date"].apply(self.parse_bill_date)
+
+            combined.append(subdf)
+
+        if not combined:
+            return pd.DataFrame()
+
+        combined_df = pd.concat(combined, ignore_index=True)
+
+        # Sort for consistency
+        combined_df.sort_values(["Wireless Number", "Parsed Date"], inplace=True)
+
+        # Keep only latest 3 bill dates per Wireless Number
+        combined_df = combined_df.groupby("Wireless Number").tail(3)
+
+        # === Display table (original usage values) ===
+        usage_wide = combined_df.pivot_table(
+            index="Wireless Number",
+            columns="Bill Date Original",
+            values="Data Usage Original",
+            aggfunc="first"
+        )
+
+        # Ensure chronological order of columns
+        bill_date_order = (
+            combined_df.drop_duplicates("Bill Date Original")
+            .sort_values("Parsed Date")["Bill Date Original"]
+            .tolist()
+        )
+        usage_wide = usage_wide.reindex(columns=bill_date_order)
+
+        # === Calculation table (numeric values only) ===
+        calc_base = combined_df.pivot_table(
+            index="Wireless Number",
+            columns="Bill Date Original",
+            values="Data Usage",
+            aggfunc="first"
+        )
+        calc_base = calc_base.reindex(columns=bill_date_order)
+
+        # Calculate variance between top 2 usage months
+        def calc_stats(row):
+            if row.isna().all():  # all values are NA
+                return "NA", "NA"
+            vals = row.dropna().to_dict()
+            if len(vals) < 2:
+                return "-", "-"
+            # Sort by usage descending
+            sorted_vals = sorted(vals.items(), key=lambda x: x[1], reverse=True)
+            (m1, v1), (m2, v2) = sorted_vals[0], sorted_vals[1]
+
+            if v2 == 0:
+                return "∞", f"{pd.to_datetime(m1).strftime('%b %Y')} > {pd.to_datetime(m2).strftime('%b %Y')}"
+
+            variance = ((v1 - v2) / v2) * 100
+            relation = f"{pd.to_datetime(m1).strftime('%b %Y')} > {pd.to_datetime(m2).strftime('%b %Y')}" if v1 > v2 else f"{pd.to_datetime(m2).strftime('%b %Y')} > {pd.to_datetime(m1).strftime('%b %Y')}"
+            return f"{variance:.2f}%", relation
+
+
+        stats = calc_base.apply(calc_stats, axis=1, result_type="expand")
+        stats.columns = ["Variance", "Relation"]
+
+        # Merge stats with display table
+        usage_wide = usage_wide.reset_index().merge(
+            stats.reset_index(), on="Wireless Number", how="left"
+        )
+
+        # Replace NaN with "NA" in display columns only
+        bill_date_cols = [c for c in usage_wide.columns if c not in ["Wireless Number", "Variance", "Relation"]]
+        usage_wide[bill_date_cols] = usage_wide[bill_date_cols].fillna("NA")
+
+        # Final check: if all bill dates are "NA", force stats to "NA"
+        mask_all_na = usage_wide[bill_date_cols].eq("NA").all(axis=1)
+        usage_wide.loc[mask_all_na, ["Variance", "Relation"]] = "NA"
+
+        # === Keep only rows with variance > 10% ===
+        def is_valid_variance(v):
+            try:
+                return float(v.strip("%")) > 10
+            except:
+                return False
+
+        usage_wide = usage_wide[usage_wide["Variance"].apply(is_valid_variance)]
+
+        return usage_wide
+
 
     def export_to_excel(self, original_dfs, line_items, filename="usage_report.xlsx"):
         sheet2, sheet3, sheet4, sheet5, sheet6 = self.split_sheets(line_items)
         STARTROW = 2
         with pd.ExcelWriter(filename, engine="xlsxwriter") as writer:
             excel_sheet2, excel_sheet3, excel_sheet4, excel_sheet5, excel_sheet6 = self.add_no_recommendation([sheet2, sheet3, sheet4, sheet5, sheet6])
+            sheet7 = self.check_availability(original_dfs)
+            sheet8 = self.check_usage_trend(original_dfs)
             for i, df in enumerate(original_dfs):
                 if df.empty:
                     continue
@@ -262,6 +420,8 @@ class MultipleFileProcessor:
             excel_sheet4.to_excel(writer, sheet_name="5 to 15GB", index=False, startrow=STARTROW)
             excel_sheet5.to_excel(writer, sheet_name="> 15GB", index=False, startrow=STARTROW)
             excel_sheet6.to_excel(writer, sheet_name="NA - Unlimited", index=False, startrow=STARTROW)
+            sheet7.to_excel(writer, sheet_name="Attendance", index=False, startrow=STARTROW)
+            sheet8.to_excel(writer, sheet_name="Data Usage Trend", index=False, startrow=STARTROW)
 
             # 🔥 Add note INSIDE the context
             workbook = writer.book
@@ -289,6 +449,8 @@ class MultipleFileProcessor:
                 "5 to 15GB": "Between 5 To 15 GB",
                 "> 15GB": "Greater than 15 GB",
                 "NA - Unlimited": "Unlimited Plan With Data Usage N/A",
+                "Attendance": "Attendance of wireless numbers",
+                "Data Usage Trend": "Data usage trend over the months"
                 }
 
                 heading_text = heading_map.get(sheet_name, sheet_name)
@@ -319,6 +481,9 @@ class MultipleFileProcessor:
             apply_sheet_format("5 to 15GB", excel_sheet4)
             apply_sheet_format("> 15GB", excel_sheet5)
             apply_sheet_format("NA - Unlimited", excel_sheet6)
+            apply_sheet_format("Attendance", sheet7)
+            apply_sheet_format("Data Usage Trend", sheet8)
+
 
             ws_zero = writer.sheets["Zero Usage Line"]
             last_data_row_index = STARTROW + 1 + len(excel_sheet2)  # header + data
@@ -333,6 +498,23 @@ class MultipleFileProcessor:
             if len(excel_sheet2.columns) > 0:
                 ws_zero.merge_range(
                 note_row, 0, note_row, len(excel_sheet2.columns) - 1, note_text, note_format
+                )
+            # 🔥 Add note to "Data Usage Trend" sheet
+            ws_trend = writer.sheets["Data Usage Trend"]
+            last_data_row_index_trend = STARTROW + 1 + len(sheet8)  # header + data
+            note_row_trend = last_data_row_index_trend + 1
+            trend_note_text = (
+                "Note: Only wireless numbers with variance greater than 10% are shown. "
+                "Variance is calculated using the two highest usage months. "
+                "If fewer than two bills are available, values are marked as '-'."
+            )
+            trend_note_format = workbook.add_format({
+                "italic": True, "align": "left", "valign": "top", "text_wrap": True
+            })
+            if len(sheet8.columns) > 0:
+                ws_trend.merge_range(
+                    note_row_trend, 0, note_row_trend, len(sheet8.columns) - 1,
+                    trend_note_text, trend_note_format
                 )
 
         # Now the file is fully written
@@ -378,6 +560,9 @@ class MultipleFileProcessor:
         })
 
         all_data["multiple_analysis_id"] = self.instance.id
+
+        all_data["is_plan_recommended"] = all_data["recommended_plan"] != "No recommendation needed"
+        all_data["recommended_plan"] = all_data["recommended_plan"].replace("No recommendation needed","")
 
         return all_data
 
@@ -430,6 +615,7 @@ class MultipleFileProcessor:
                 multiple_analysis_id=row["multiple_analysis_id"],
                 data_type=row["data_type"],
                 user_name=row["user_name"],
+                is_plan_recommended=row["is_plan_recommended"],
                 current_plan=row["current_plan"],
                 current_plan_charges=row["current_plan_charges"] if pd.notna(row["current_plan_charges"]) else None,
                 current_plan_usage=row["current_plan_usage"],

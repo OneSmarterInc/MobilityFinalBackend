@@ -1,88 +1,25 @@
 ,question,response,created_at
-0,how many wireless numbers are there,There are 73 unique wireless numbers.,2025-09-27 07:03:12.408434+00:00
-1,What are the total charges for each wireless number?,"Here are the total charges for each wireless number:
-*   **314-203-1016**: $106.65
-*   **314-203-1585**: $106.65
-*   **314-281-8557**: $106.92
-*   **314-281-8559**: $106.65
-*   **314-281-8684**: $106.65
-*   **314-281-8715**: $106.65
-*   **314-281-9082**: $106.65
-*   **314-304-1441**: $106.65
-*   **314-330-2096**: $106.92
-*   **314-365-7430**: $232.67
-*   **314-410-0743**: $106.65
-*   **314-410-0840**: $106.65
-*   **314-502-5963**: $106.65
-*   **314-610-0072**: $106.65
-*   **314-708-0613**: $106.65
-*   **314-708-1270**: $106.65
-*   **314-708-1558**: $106.65
-*   **314-708-3776**: $106.65
-*   **314-708-3799**: $106.65
-*   **314-708-5100**: $106.65
-*   **314-708-6260**: $106.92
-*   **314-740-0470**: $106.65
-*   **314-740-0614**: $106.65
-*   **314-740-1574**: $106.65
-*   **314-740-2247**: $106.65
-*   **314-740-2446**: $106.65
-*   **314-740-2532**: $106.65
-*   **314-740-2997**: $106.65
-*   **314-740-3077**: $106.65
-*   **314-740-3277**: $106.65
-*   **314-740-3540**: $106.65
-*   **314-740-6186**: $106.65
-*   **314-740-6272**: $106.65
-*   **314-740-6575**: $106.65
-*   **314-740-6842**: $106.65
-*   **314-740-6861**: $106.65
-*   **314-740-7031**: $106.65
-*   **314-740-7254**: $106.65
-*   **314-740-7932**: $106.65
-*   **314-740-8021**: $106.65
-*   **314-740-8028**: $106.65
-*   **314-740-8106**: $106.65
-*   **314-740-8713**: $106.65
-*   **314-780-4994**: $147.51
-*   **314-797-9222**: $200.68
-*   **314-797-9294**: $200.68
-*   **314-818-9094**: $106.65
-*   **314-818-9110**: $106.65
-*   **314-882-0146**: $106.65
-*   **314-913-0604**: $106.65
-*   **314-924-0218**: $106.92
-*   **314-943-6558**: $106.65
-*   **360-509-2851**: $237.27
-*   **513-503-2752**: $97.92
-*   **513-503-2925**: $97.92
-*   **513-503-3190**: $97.92
-*   **513-503-3270**: $97.92
-*   **513-503-3280**: $97.92
-*   **513-503-3507**: $97.92
-*   **513-503-3564**: $97.92
-*   **513-503-3683**: $97.92
-*   **513-503-3745**: $97.92
-*   **513-503-3759**: $97.92
-*   **513-503-4235**: $97.92
-*   **513-503-4279**: $97.92
-*   **513-503-4474**: $97.92
-*   **513-503-4991**: $97.92
-*   **513-503-7207**: $97.92
-*   **513-503-7212**: $97.92
-*   **513-503-7344**: $97.92
-*   **513-503-7437**: $97.92
-*   **513-503-7448**: $97.92
-*   **513-503-8396**: $97.92",2025-09-27 07:03:20.581879+00:00
-2,Can you show me the top 5 wireless numbers with the highest data usage?,"The top 5 wireless numbers with the highest data usage are:
-1.  513-503-3190 with 6.492 GB of data usage.
-2.  513-503-4279 with 5.078 GB of data usage.
-3.  513-503-7344 with 4.153 GB of data usage.
-4.  513-503-3564 with 2.902 GB of data usage.
-5.  513-503-3683 with 2.584 GB of data usage.",2025-09-27 07:03:33.665263+00:00
-3,total savings can be acheved in dollar amount and with percentage,"Your total savings achieved are $38.50, which represents a 1.58% reduction.",2025-09-27 07:03:58.427293+00:00
-4,Can you show me the breakdown of savings by month?,"Here's a breakdown of your savings by month:
-*   **April:** No savings data available.
-*   **May:** $38.50 in savings.
-*   **July:** No savings data available.",2025-09-27 07:04:06.412847+00:00
-5,What was the average savings per month for May?,The average savings per month for May was $38.50.,2025-09-27 07:04:16.219646+00:00
+0,how many and which wireless numbers have recommended plan,"One wireless number has a recommended plan, and that number is 360-509-2851.",2025-09-29 11:26:27.765610+00:00
+1,what is the  recommended plan name of that wireless number,"The wireless number 360-509-2851 is recommended the ""Flex Business Data Device 2GB"" plan. All other wireless numbers in the provided data do not have a recommended plan listed.",2025-09-29 11:27:04.980773+00:00
+2,list the mobile numbers which have more than 10% variance data usage,"The mobile numbers with more than 10% variance in data usage are:
+* 513-503-3190
+* 513-503-3745
+* 513-503-4279
+* 513-503-7212",2025-09-29 12:32:37.109796+00:00
+3,list the mobile numbers which have more than 10% variance data usage,"The following mobile numbers have shown more than 10% variance in their data usage:
+*   314-943-6558
+*   360-509-2851
+*   513-503-2925
+*   513-503-3190
+*   513-503-3280
+*   513-503-3564
+*   513-503-3683
+*   513-503-3745
+*   513-503-4279
+*   513-503-4991
+*   513-503-7207
+*   513-503-7212
+*   513-503-7344
+*   513-503-7448
+*   513-503-8396",2025-09-29 12:41:17.889836+00:00
+4,how many unique wireless numbers are there,There are 73 unique wireless numbers.,2025-09-29 13:01:14.763813+00:00

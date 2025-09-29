@@ -217,6 +217,7 @@ class AnalysisData(models.Model):
     current_plan = models.CharField(max_length=255, null=True, blank=True)
     current_plan_charges = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     current_plan_usage = models.CharField(max_length=10, default="NA")
+    is_plan_recommended = models.BooleanField(default=False)
     recommended_plan = models.CharField(max_length=255, null=True, blank=True)
     recommended_plan_charges = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     recommended_plan_savings = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)

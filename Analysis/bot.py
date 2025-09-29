@@ -60,6 +60,7 @@ def get_sql_from_gemini(user_prompt, schema, special_id=None, chat_history=None)
     - If the user refers to a specific file, treat that as filtering by bill_date.
     - If aggregation is required (COUNT, SUM, etc.), group by bill_date when relevant.
     - always add filter in the query as multiple_analysis_id={special_id}
+    - whenever you asked about variance consider heighest two values of the wireless number.
     - take 0 or 0 gb as 0.0 because we have 0.0 in db
     - Refer the Conversation history if present
 
