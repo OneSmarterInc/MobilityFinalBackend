@@ -55,6 +55,7 @@ class UploadUnbilledReportView(APIView):
         vendor = Vendors.objects.filter(name=data['vendor'])[0]
         file = data['file']
         account_number = data['account_number']
+        wn_format = r'^(\d{3}-\d{3}-\d{4}|\d{3}\.\d{3}\.\d{4}|\(\d{3}\)[ -]?\d{3}-\d{4})$'
         month = data['month']
         report_type = data['report_type']
         if report_type != self.report_type:
@@ -81,6 +82,7 @@ class UploadUnbilledReportView(APIView):
                     return Response({"message": "Unsupported file format"}, status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:
                 return Response({"message": "Unsupported file format"}, status=status.HTTP_400_BAD_REQUEST)
+            df = df[df['Wireless number'].str.match(wn_format, na=False)]
             for _, row in df.iterrows():
                 user_name = row.get('User name', '')
                 wireless_number = row.get('Wireless number', '')

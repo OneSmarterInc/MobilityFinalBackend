@@ -42,6 +42,7 @@ class MultipleFileUpload(models.Model):
     excel = models.FileField(upload_to='BillAnalysis/', null=True, blank=True)
     is_processed = models.BooleanField(default=False)
     created_by = models.ForeignKey(PortalUser, related_name='multipleanalysisby', on_delete=models.SET_NULL, null=True, blank=True)
+    savings_pdf = models.FileField(upload_to='SavingsPDF/', null=True, blank=True)
 
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
@@ -211,7 +212,7 @@ class AnalysisData(models.Model):
         ('NA_not_unlimited', 'N/A (Not Unlimited)'),
         ('NA_unlimited', 'N/A (Unlimited)'),        
     ]
-    data_type = models.CharField(max_length=50, choices=type_choices)
+    data_usage_range = models.CharField(max_length=50, choices=type_choices)
     wireless_number = models.CharField(max_length=20, null=False, blank=False)
     user_name = models.CharField(max_length=255, null=True, blank=True)
     current_plan = models.CharField(max_length=255, null=True, blank=True)
@@ -222,6 +223,8 @@ class AnalysisData(models.Model):
     recommended_plan_charges = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     recommended_plan_savings = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     file_name = models.CharField(max_length=255, null=True, blank=True)
+    variance_with_last_month = models.CharField(default="NA", max_length=10)
+    how_variance_is_related_with_last_month = models.CharField(max_length=100, null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
     class Meta:

@@ -31,12 +31,12 @@ class AnalysisAdmin(admin.ModelAdmin):
 @admin.register(AnalysisData)
 class AnalysisDataAdmin(admin.ModelAdmin):
     list_display = (
-        'id', 'analysis', 'account_number', 'bill_date', 'wireless_number', 'data_type', 'user_name',
+        'id', 'analysis', 'account_number', 'bill_date', 'wireless_number', 'data_usage_range', 'user_name',
         'current_plan', 'current_plan_charges', 'current_plan_usage',
         'recommended_plan', 'recommended_plan_charges', 'recommended_plan_savings',
         'created', 'updated'
     )
-    list_filter = ('data_type', 'created', 'analysis__vendor')
+    list_filter = ('data_usage_range', 'created', 'analysis__vendor')
     search_fields = ('wireless_number', 'user_name', 'current_plan', 'recommended_plan', 'analysis__client', 'account_number')
     readonly_fields = ('created', 'updated')
     date_hierarchy = 'created'
@@ -50,7 +50,7 @@ class AnalysisDataAdmin(admin.ModelAdmin):
             'fields': ('wireless_number', 'user_name')
         }),
         ('Current Plan Details', {
-            'fields': ('data_type', 'current_plan', 'current_plan_charges', 'current_plan_usage')
+            'fields': ('data_usage_range', 'current_plan', 'current_plan_charges', 'current_plan_usage')
         }),
         ('Recommended Plan Details', {
             'fields': ('recommended_plan', 'recommended_plan_charges', 'recommended_plan_savings')

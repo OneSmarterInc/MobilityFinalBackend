@@ -14,6 +14,8 @@ from ..models import ProcessedWorkbook
 from django.core.files import File
 logging.basicConfig(level=logging.INFO)
 from baselineTag import object_tagging
+from addon import get_cat_obj_total
+from django.utils import timezone
 logger = logging.getLogger(__name__)
 class ProcessPdf2:
     def __init__(self, buffer_data,btype,instance=None):
@@ -234,6 +236,42 @@ class ProcessPdf2:
 
         print("Added to baseline data table")
 
+    def make_true_all(self, cat):
+        formatted = json.loads(cat) if isinstance(cat, str) else cat
+        for key, value in formatted.items():
+            if isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    if isinstance(sub_value, dict):
+                        sub_value['approved'] = True
+        return json.dumps(formatted)
+
+    def check_total_under_variance(self,bill_main_id,variance):
+        baseline = BaselineDataTable.objects.filter(
+            company=self.company_name,
+            sub_company=self.sub_company,
+            vendor=self.vendor_name,
+            account_number=self.account_number,
+            viewuploaded=None,
+            viewpapered=None
+        )
+        current_bill = BaselineDataTable.objects.filter(
+            company=self.company_name,
+            sub_company=self.sub_company,
+            vendor=self.vendor_name,
+            account_number=self.account_number,
+            viewuploaded=bill_main_id
+        )
+        baseline_dict = {b.Wireless_number: b for b in baseline if b.Wireless_number}
+        for bill_obj in current_bill:
+            wireless = bill_obj.Wireless_number
+            baseline_obj = baseline_dict.get(wireless)
+            if baseline_obj:  
+                baseline_total = get_cat_obj_total(baseline_obj.category_object)
+                bill_total = get_cat_obj_total(bill_obj.category_object)
+                lower, upper = bill_total * (1-variance/100), bill_total*(1+variance/100)
+                check = lower <= baseline_total <= upper
+                bill_obj.category_object = self.make_true_all(bill_obj.category_object) if check else bill_obj.category_object
+                bill_obj.save()
     
 
     def reflect_category_object(self, bill_main_id):
@@ -529,13 +567,16 @@ class ProcessPdf2:
             self.reflect_uniquetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id)
             
             self.add_tag_to_dict(bill_main_id, onboarded.variance)
+            self.check_total_under_variance(bill_main_id=bill_main_id, variance=onboarded.variance)
             self.check_baseline_approved(UniquePdfDataTable, bill_main_id)
             self.check_baseline_approved(BaselineDataTable, bill_main_id)
 
             account_obj = BaselineDataTable.objects.filter(sub_company=self.sub_company, vendor=self.vendor_name, account_number=self.account_number).filter(viewuploaded=self.instance)
             approved_wireless_list = account_obj.values_list('is_baseline_approved', flat=True)
 
-            baseinstance.is_baseline_approved = False if False in list(approved_wireless_list) else True
+            is_approved = False if False in list(approved_wireless_list) else True
+            baseinstance.is_baseline_approved = is_approved
+            baseinstance.bill_approved_date = timezone.now()
             baseinstance.save()
             
             db_df = self.get_db_df()

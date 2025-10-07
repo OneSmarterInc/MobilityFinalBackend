@@ -335,6 +335,8 @@ class PdfDataTable(models.Model):
         return self.account_number
     
 from View.models import ViewUploadBill,PaperBill
+from django.utils import timezone
+
 class BaseDataTable(models.Model):
     banUploaded = models.ForeignKey(UploadBAN, related_name='banUploadedBase', on_delete=models.CASCADE, null=True, blank=True)
     banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedBase', on_delete=models.CASCADE, null=True, blank=True)
@@ -433,6 +435,7 @@ class BaseDataTable(models.Model):
     is_baseline_approved = models.BooleanField(default=False)
     is_baseline_replaced = models.BooleanField(default=False)
     batch_approved = models.CharField(max_length=255, null=True, blank=True, default='Pending')
+    bill_approved_date = models.DateTimeField(null=True, blank=True)
     batch_approved_changer = models.CharField(max_length=255, null=True, blank=True, default='')
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True, null=True)
@@ -450,6 +453,8 @@ class BaseDataTable(models.Model):
         
         if self.viewuploaded or self.viewpapered:
             self.variance = 0
+        else:
+            self.batch_approved_date = None  
         super().save(*args, **kwargs)
 
     class Meta:

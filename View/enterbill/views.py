@@ -681,6 +681,8 @@ from django.conf import settings
 from django.core.files import File
 import shutil
 import io
+from django.utils import timezone
+from addon import get_cat_obj_total
 class ProcessZip:
     def __init__(self, instance, **kwargs):
         self.instance = instance
@@ -903,6 +905,7 @@ class ProcessZip:
                 self.reflect_uniquetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id.banOnboarded)
                 self.reflect_baselinetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id.banOnboarded)
                 self.add_tag_to_dict(bill_main_id,onboarded_id.variance)
+                self.check_total_under_variance(bill_main_id=bill_main_id, variance=onboarded_id.variance)
                 self.reflect_category_object(bill_main_id)
                 self.check_baseline_approved(UniquePdfDataTable, bill_main_id)
                 self.check_baseline_approved(BaselineDataTable, bill_main_id)
@@ -910,7 +913,9 @@ class ProcessZip:
                 
                 account_obj = BaselineDataTable.objects.filter(viewuploaded=self.instance).filter(sub_company=self.org, vendor=self.vendor, account_number=self.account_number)
                 approved_wireless_list = account_obj.values_list('is_baseline_approved', flat=True)
-                obj.is_baseline_approved = False if False in list(approved_wireless_list) else True
+                is_approved = False if False in list(approved_wireless_list) else True
+                obj.is_baseline_approved = is_approved
+                obj.bill_approved_date = timezone.now()
                 obj.save()                
                 return {'message' : 'RDD uploaded successfully!', 'error' : 1}
         except Exception as e:
@@ -1195,6 +1200,8 @@ class ProcessZip:
             new_entries.append(entry)
         
         BaselineDataTable.objects.bulk_create(new_entries)
+
+    
     
     def add_tag_to_dict(self, bill_main_id,variance):
         print("def add_tag_to_dict")
@@ -1221,6 +1228,34 @@ class ProcessZip:
             if baseline_obj:  
                 tagged_object = object_tagging(baseline_obj.category_object, bill_obj.category_object,variance)
                 bill_obj.category_object = tagged_object
+                bill_obj.save()
+
+    def check_total_under_variance(self,bill_main_id,variance):
+        baseline = BaselineDataTable.objects.filter(
+            company=self.company,
+            sub_company=self.org,
+            vendor=self.vendor,
+            account_number=self.account_number,
+            viewuploaded=None,
+            viewpapered=None
+        )
+        current_bill = BaselineDataTable.objects.filter(
+            company=self.company,
+            sub_company=self.org,
+            vendor=self.vendor,
+            account_number=self.account_number,
+            viewuploaded=bill_main_id
+        )
+        baseline_dict = {b.Wireless_number: b for b in baseline if b.Wireless_number}
+        for bill_obj in current_bill:
+            wireless = bill_obj.Wireless_number
+            baseline_obj = baseline_dict.get(wireless)
+            if baseline_obj:  
+                baseline_total = get_cat_obj_total(baseline_obj.category_object)
+                bill_total = get_cat_obj_total(bill_obj.category_object)
+                lower, upper = bill_total * (1-variance/100), bill_total*(1+variance/100)
+                check = lower <= baseline_total <= upper
+                bill_obj.category_object = make_true_all(bill_obj.category_object) if check else bill_obj.category_object
                 bill_obj.save()
 
     def check_baseline_approved(self, model,bill_main_id):
@@ -1828,7 +1863,9 @@ class ApproveView(APIView):
             base_obj = BaseDataTable.objects.filter(viewuploaded=_obj.viewuploaded,viewpapered= _obj.viewpapered)
             if base_obj.exists():
                 base_instance = base_obj.first()
-                base_instance.is_baseline_approved = False if False in approved_wireless_list else True
+                is_approved = False if False in list(approved_wireless_list) else True
+                base_instance.is_baseline_approved = is_approved
+                base_instance.bill_approved_date = timezone.now()
                 base_instance.save()
 
             saveuserlog(request.user, f"Baseline of wireless number {wn} of bill date {base_obj.first().bill_date} approved")
@@ -1936,7 +1973,9 @@ class ApproveFullView(APIView):
         self.process_approval(baselines)
         self.process_approval(uniquelines)
         approved_wireless_list = baselines.values_list('is_baseline_approved', flat=True)
-        main.is_baseline_approved = False if False in approved_wireless_list else True
+        is_approved = False if False in list(approved_wireless_list) else True
+        main.is_baseline_approved = is_approved
+        main.bill_approved_date = timezone.now()
         main.save()
         onboard_baseline_objs = BaselineDataTable.objects.filter(viewuploaded=None,viewpapered=None, sub_company=sub_cmpny, vendor=main.vendor, account_number=main.accountnumber)
         filtered_baseline = BaselinedataSerializer(baselines, many=True, context={'onboarded_objects': onboard_baseline_objs})
@@ -1982,7 +2021,9 @@ class AprroveAllView(APIView):
             base_obj = BaseDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered= main_uploaded_id.viewpapered)
             if base_obj.exists():
                 base_instance = base_obj.first()
-                base_instance.is_baseline_approved = False if False in approved_wireless_list else True
+                is_approved = False if False in list(approved_wireless_list) else True
+                base_instance.is_baseline_approved = is_approved
+                base_instance.bill_approved_date = timezone.now()
                 base_instance.save()
             onboard_baseline_objs = BaselineDataTable.objects.filter(viewuploaded=None,viewpapered=None, vendor=main_uploaded_id.vendor, account_number=main_uploaded_id.account_number)
             filtered_baseline = BaselinedataSerializer(enter_bill_baseline_objs, many=True, context={'onboarded_objects': onboard_baseline_objs})

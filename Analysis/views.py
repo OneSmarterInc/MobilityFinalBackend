@@ -141,6 +141,7 @@ class download_analysis_xlsx_file(APIView):
 class MultipleUploadView(APIView):
     def __init__(self, **kwargs):
         self.is_pdf = False
+        self.pdf_files = []
     def get(self,request,pk=None,*args,**kwargs):
         if pk is None:
             analysis = MultipleFileUpload.objects.all()
@@ -175,23 +176,23 @@ class MultipleUploadView(APIView):
             print(f)
             if f.name.lower().endswith(".pdf"):
                 self.is_pdf = True
+                self.pdf_files.append(f)
             if not (f.name.lower().endswith(".pdf") or f.name.lower().endswith(".zip")):
                 return Response({"message": "Invalid file type. Only PDF or ZIP files are allowed."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validate vendor correctness
-        if self.is_pdf:
-            for f in files:
-                if not prove_bill_ID(vendor_name=vendor, bill_path=f):
-                    return Response(
-                        {"message": "One or more uploaded bills do not match the expected vendor."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+        for f in self.pdf_files:
+            if not prove_bill_ID(vendor_name=vendor, bill_path=f):
+                return Response(
+                    {"message": "One or more uploaded pdf bills do not match the expected vendor."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # Validate T-Mobile type consistency (if vendor is T-Mobile)
         tmobile_type = None
-        if self.is_pdf and "mobile" in vendor.lower():
+        if "mobile" in vendor.lower():
             types = []
-            for f in files:
+            for f in self.pdf_files:
                 t_type = check_tmobile_type(f)
                 if t_type == 0:
                     return Response({"message": "Unable to analyze pdf. Please upload valid T-Mobile bill."}, status=status.HTTP_400_BAD_REQUEST)
@@ -231,27 +232,11 @@ class MultipleUploadView(APIView):
                 request.user,
                 f"{request.user.email} uploaded {len(files)} {obj.vendor.name} file(s) for client {obj.client} for analysis"
             )
-            print(self.is_pdf)
-            if self.is_pdf:
-                Process_multiple_pdfs.delay(buffer_data, obj.id)
-                return Response(
-                    {"message": "Analysis is in progress.\nIt will take some time. Please check analysis page later."},
-                    status=status.HTTP_200_OK
-                )
-            else:
-                scripter = ZipAnalysis(buffer_data, instance=obj)
-                check, msg, code = scripter.process()
-                print("msg==", msg)
-                if check:
-                    return Response(
-                        {"message": "Zip Analysis files uploaded successfully!"},
-                        status=status.HTTP_200_OK
-                    )
-                else:
-                    if obj and obj.pk : obj.delete()
-                    return Response({"message": str(msg) if code == 1 else "Unable to upload Zip files, may be due to unsupported file format."},status=status.HTTP_400_BAD_REQUEST)
-
-            
+            Process_multiple_pdfs.delay(buffer_data, obj.id)
+            return Response(
+                {"message": "Analysis is in progress.\nIt will take some time. Please check analysis page later."},
+                status=status.HTTP_200_OK
+            )
         except Exception as e:
             print(e)
             if obj and obj.pk : obj.delete()
@@ -1071,6 +1056,7 @@ class AnalysisBotView(APIView):
 
             result_df = run_query(conn=self.connection, sql=sql_query, analysis_id=pk)
 
+            print(result_df)
 
             if result_df is None:
                 return Response(
@@ -1132,4 +1118,78 @@ class ExcelAnalysis:
         self.instance = instance
     def process(self):
         pass
+        
+from .chatspdf import convert_chats_to_pdf
+from .Background.savingspdf import create_savings_pdf
+class GetChatPdfView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self,request,pk,*args,**kwargs):
+        if not pk:
+            return Response({"message":"Key required!"},status=status.HTTP_400_BAD_REQUEST)
+        print(pk)
+        try:
+            chatHis=BotChats.objects.filter(M_analysisChat=pk).exclude(response="I couldn't find any information matching your request.").values("question", "response")
+            df = pd.DataFrame(list(chatHis))
+            if df.empty:
+                return Response({"message":"No chat history found!"},status=status.HTTP_400_BAD_REQUEST)
+            account_number = AnalysisData.objects.filter(multiple_analysis_id=pk).values_list("account_number", flat=True).distinct()[0]
+            bill_dates = sorted(
+                list(AnalysisData.objects.filter(multiple_analysis_id=pk).values('bill_month', 'bill_year').distinct()),
+                key=lambda x: (x['bill_year'], x['bill_month'])
+            )
+            formatted_dates = [
+                f"{calendar.month_name[item['bill_month']]} {item['bill_year']}"
+                for item in bill_dates
+            ]
+            pdf = convert_chats_to_pdf(df,account_number, formatted_dates)
+            if not pdf:
+                return Response({"message":"Error generating PDF!"},status=status.HTTP_400_BAD_REQUEST)
+            # return PDF directly as response with status 200
+            response = HttpResponse(pdf, content_type='application/pdf')
+            response['Content-Disposition'] = 'attachment; filename="chat_history.pdf"'
+            return response
+        except Exception as e:
+            print(e)
+            return Response({"message":"Internal Server Error!"},status=status.HTTP_400_BAD_REQUEST)
+import calendar
+class GetSavingsPdfView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self,request,pk,*args,**kwargs):
+        if not pk:
+            return Response({"message":"Key required!"},status=status.HTTP_400_BAD_REQUEST)
+        print(pk)
+        try:
+            savings=AnalysisData.objects.filter(multiple_analysis=pk).exclude(recommended_plan="").values("user_name", "wireless_number", "current_plan", "current_plan_charges", "current_plan_usage", "recommended_plan", "recommended_plan_charges", "recommended_plan_savings")
+            df = pd.DataFrame(list(savings))
+            if df.empty:
+                print("no df found!")
+                return Response({"message":"No chat history found!"},status=status.HTTP_400_BAD_REQUEST)
+            # get the account number and differnt bill dates in list format from AnalysisData table for the given analysis id
+            account_number = AnalysisData.objects.filter(multiple_analysis_id=pk).values_list("account_number", flat=True).distinct()[0]
+            bill_dates = sorted(
+                list(AnalysisData.objects.filter(multiple_analysis_id=pk).values('bill_month', 'bill_year').distinct()),
+                key=lambda x: (x['bill_year'], x['bill_month'])
+            )
+            formatted_dates = [
+                f"{calendar.month_name[item['bill_month']]} {item['bill_year']}"
+                for item in bill_dates
+            ]
+            # prepend account
+            pdf = create_savings_pdf(df, account_number, formatted_dates)
+            dates = "_".join(formatted_dates).replace(" ", "_")
+            filename = f"savings_report_{account_number}_{dates}.pdf"
+            print(filename)
+
+            if not pdf:
+                return Response({"message": "Error generating PDF!"}, status=status.HTTP_400_BAD_REQUEST)
+
+            response = HttpResponse(pdf, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+            return response
+
+
+        except Exception as e:
+            print(e)
+            return Response({"message":"Internal Server Error!"},status=status.HTTP_400_BAD_REQUEST)
         

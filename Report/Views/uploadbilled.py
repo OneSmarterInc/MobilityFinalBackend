@@ -53,6 +53,7 @@ class UploadBilledReportView(APIView):
         file = data['file']
         account_number = data['account_number']
         month = data['month']
+        wn_format = r'^(\d{3}-\d{3}-\d{4}|\d{3}\.\d{3}\.\d{4}|\(\d{3}\)[ -]?\d{3}-\d{4})$'
         report_type = data['report_type']
         if report_type == 'Billed_Data_Usage':
             try:
@@ -66,8 +67,10 @@ class UploadBilledReportView(APIView):
                     else:
                         return Response({"message": "Unsupported file format"}, status=status.HTTP_400_BAD_REQUEST)
                 except Exception as e:
-
                     return Response({"message":"Unsupported file format"}, status=status.HTTP_400_BAD_REQUEST)
+                
+                df = df[df['Wireless Number'].str.match(wn_format, na=False)]
+
                 column_mappings = {
                     'Wireless Number': 'wireless_number',
                     'User Name': 'user_name',

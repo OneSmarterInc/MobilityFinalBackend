@@ -27,10 +27,28 @@ def init_database(db_path="db.sqlite3", query_type=None):
     # Build schema description only for allowed tables
     cursor = conn.cursor()
     schema_description = {}
+    type_choices = [
+        ('zero_usage', 'Zero Usage'),
+        ('less_than_5_gb', 'Less than 5 GB'),
+        ('between_5_and_15_gb', 'Between 5 and 15 GB'),
+        ('more_than_15_gb', 'More than 15 GB'),
+        ('NA_not_unlimited', 'N/A (Not Unlimited)'),
+        ('NA_unlimited', 'N/A (Unlimited)'),        
+    ]
     for table in allowed_tables:
         cursor.execute(f"PRAGMA table_info({table});")
         columns = cursor.fetchall()
-        schema_description[table] = [f'{col[1]} {col[2]}' for col in columns]
+
+        col_descriptions = []
+        for col in columns:
+            col_name, col_type = col[1], col[2]
+            if col_name == "data_usage_range":
+                choices_text = ", ".join([f"'{c[0]}' ({c[1]})" for c in type_choices])
+                col_descriptions.append(f"{col_name} {col_type} [choices: {choices_text}]")
+            else:
+                col_descriptions.append(f"{col_name} {col_type}")
+
+        schema_description[table] = col_descriptions
 
     schema = json.dumps(schema_description, indent=2)
 
@@ -39,56 +57,51 @@ def init_database(db_path="db.sqlite3", query_type=None):
 
 # Generate SQL from natural language
 def get_sql_from_gemini(user_prompt, schema, special_id=None, chat_history=None):
-    print(chat_history)
     model = genai.GenerativeModel("gemini-2.5-flash")
+
     prompt = f"""
-    You are an expert SQL query generator.
-    Convert the user request into a valid **SQLite** SQL query.
+        You are an expert SQL query generator.
+        Convert the user request into a valid **SQLite** SQL query.
 
-    ### Allowed Schema:
-    {schema}
+        ### Allowed Schema:
+        {schema}
 
-    ### Conversation history: 
-    {chat_history}
+        ### Conversation history:
+        {chat_history}
 
-    ### Important Rules:
-    - Use only the tables and columns present in the Allowed Schema.
-    - Do not invent new columns or tables.
-    - Always generate syntactically valid SQLite.
-    - Queries must work when 1, 2, or 3 files have been uploaded.
-    - Files are distinguished by the column **bill_date**.
-    - If the user refers to a specific file, treat that as filtering by bill_date.
-    - If aggregation is required (COUNT, SUM, etc.), group by bill_date when relevant.
-    - always add filter in the query as multiple_analysis_id={special_id}
-    - whenever you asked about variance consider heighest two values of the wireless number.
-    - take 0 or 0 gb as 0.0 because we have 0.0 in db
-    - Refer the Conversation history if present
+        ### Important Rules:
+        - Use only the tables and columns present in the Allowed Schema.
+        - Do not invent new columns or tables.
+        - Always generate syntactically valid and only one SQLite.
+        - Queries must work when 1, 2, or 3 files have been uploaded.
+        - Files are distinguished by the column **bill_date**.
+        - If the user refers to a specific file, treat that as filtering by bill_date.
+        - If aggregation is required (COUNT, SUM, etc.), group by bill_date when relevant.
+        - Always add filter in the query: multiple_analysis_id = {special_id}.
+        - Whenever asked about variance, consider only the **highest two values** of each wireless number.
+        - Treat '0', '0 gb', '0gb' as 0.0 (we have 0.0 in DB).
+        - Respond with SQL only — no explanations, no markdown, no code fences.
+        - When using UNION / UNION ALL with ORDER BY + LIMIT on each branch, wrap each SELECT in parentheses.
+        - When cleaning numeric columns that may contain '$', 'GB', commas, or 'NA', coerce with REPLACE/CAST to REAL.
+        - Whenever you asked about variance always refer these columns, variance_with_last_month, how_variance_is_related_with_last_month
+        - Whenever you asked about variance add these columns in query - variance_with_last_month, how_variance_is_related_with_last_month
+        - Values stored of variance_with_last_month are string can be stored as 0, positive integer, or NA
+        - Values stored of how_variance_is_related_with_last_month are string either be "NA" or of format Jul 2025 > May 2024
 
-    ### User asked the following Question:
-    {user_prompt}
-    """
+        ### User Question:
+        {user_prompt}
+        """
+
     response = model.generate_content(prompt)
-    raw_sql = response.text
-
-    # --- CLEAN SQL OUTPUT ---
-    cleaned = re.sub(
-        r"```.*?```",
-        lambda m: m.group(0).replace("```sql", "").replace("```", ""),
-        raw_sql,
-        flags=re.S,
-    ).strip()
-
-    match = re.search(r"(SELECT|INSERT|UPDATE|DELETE).*", cleaned, re.I | re.S)
-    if match:
-        return match.group(0).strip()
-    return cleaned
+    raw_sql = response.text or ""
+    return raw_sql
 
 
 import re
 
 def clean_sql_query(query: str) -> str:
-    # Step 1: Sanitize query by slicing from first SQL keyword
-    keywords = ("SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP")
+    # Step 1: Slice query from the first SQL keyword
+    keywords = ("SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "WITH")
     upper_q = query.upper()
     for kw in keywords:
         idx = upper_q.find(kw)
@@ -96,21 +109,31 @@ def clean_sql_query(query: str) -> str:
             query = query[idx:]
             break
 
-    # Step 2: Make WHERE clause comparisons case-insensitive
+    # Step 2: Normalize WHERE clause comparisons
+    # Pattern: column = 'value'
     pattern = r"(\w+)\s*=\s*'([^']*)'"
+
     def repl(m):
         col, val = m.group(1), m.group(2)
         if "wireless" in col.lower():
-            # normalize to digits only
+            # keep only digits from the value
             digits_only = re.sub(r"\D", "", val)
-            # SQLite trick: remove non-digits from DB column using REPLACE chain
-            return f"REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE({col}, '-', ''), ' ', ''), '(', ''), ')', ''), '.', ''), '+', ''), '*', ''), '#', ''), '/', ''), '\\\\', '') = '{digits_only}'"
+            # normalize wireless_number column (strip symbols, spaces, etc.)
+            cleaned_col = (
+                "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE("
+                f"{col}, '-', ''), ' ', ''), '(', ''), ')', ''), '.', ''), '+', ''), '*', ''), '#', ''), '/', ''), '\\\\', '')"
+            )
+            return f"{cleaned_col} = '{digits_only}'"
         else:
             return f"{col} COLLATE NOCASE = '{val}'"
 
     query = re.sub(pattern, repl, query)
 
+    # Step 3: Ensure trailing semicolon
+    query = query.strip().rstrip(";") + ";"
+
     return query
+
 # Run query safely
 def run_query(conn, sql, analysis_id):
     print("Original SQL:", sql)
@@ -150,6 +173,8 @@ def make_human_response(user_question, result, db_schema=None):
     - Always show months in string format (e.g., 1 as January, 2 as February).
     - Amounts will always be in dollars.
     - Data usage will always be in GB.
+    - Try to use all column data to make the answer more clear
+    - answer should be in plain text format not with extra decorations like bold, undeline, etc.
 
     -- generate questions
     - Database Schema: {db_schema}

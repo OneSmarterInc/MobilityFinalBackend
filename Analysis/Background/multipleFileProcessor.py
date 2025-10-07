@@ -5,13 +5,14 @@ from AnalysisScripts.VerizonNew import VerizonClass
 from AnalysisScripts.AttNew import AttClass
 from AnalysisScripts.TMobile1New import Tmobile1Class
 from AnalysisScripts.TMobile2New import Tmobile2Class
+from django.core.files.base import ContentFile
 
 # from VerizonNew import VerizonClass
 # from AttNew import AttClass
 # from TMobile1New import Tmobile1Class
 # from TMobile2New import Tmobile2Class
 import pandas as pd
-import re
+import re, calendar
 import os,time
 from django.core.files.base import File
 from django.conf import settings
@@ -19,8 +20,10 @@ from ..models import AnalysisData
 from ..models import SummaryData
 from dateutil import parser
 import numpy as np
-
+from addon import extract_data_from_zip
+from .savingspdf import create_savings_pdf
 from datetime import datetime
+
 class MultipleFileProcessor:
     def __init__(self, instance, buffer_data):
         self.instance = instance
@@ -43,17 +46,55 @@ class MultipleFileProcessor:
         self.df2 = None
         self.df3 = None
 
-    def process_file_separately(self,path, Script):
+    def get_filename(self,path):
+        print("get filename")
+        file_path = path.split("/")[-1]        
+        name, ext = file_path.rsplit(".", 1)     
+        ext = "." + ext                          
+
+        if "_" in name:
+            name = name.rsplit("_", 1)[0]
+
+        return f"{name}{ext}"
+
+    def process_zip_file_separately(self, path):
+        print("def process_zip_file_separately")
+        try:
+            dataframes = extract_data_from_zip(path)
+            if not dataframes:
+                return {"message": "No readable files found in zip", "error": -1}
+
+            unique_dfs = [df for df in dataframes if "Wireless Number" in df.columns and df["Wireless Number"].is_unique]
+
+            if unique_dfs:
+                second_largest_df = unique_dfs[0]  
+            else:
+                second_largest_df = dataframes[0]  
+
+            second_largest_df = second_largest_df.copy()
+
+            second_largest_df = second_largest_df[second_largest_df["Wireless Number"].str.match(r'^\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$', na=False)]
+            second_largest_df["Your Calling Plan"] = second_largest_df["Your Calling Plan"].apply(
+                lambda x: str(x).split('$')[0].strip() if pd.notna(x) and '$' in str(x) else x
+            )
+
+            second_largest_df["file_name"] = self.get_filename(path=path)
+
+            second_largest_df = second_largest_df.rename(columns={"Your Calling Plan": "Plan", "Data Usage (GB)": "Data Usage", "User Name": "Username", "Bill Cycle Date":"Bill Date"}, errors='ignore')
+            bill_date = second_largest_df["Bill Date"].iloc[0]
+            formatted_bill_date = self.parse_bill_date(bill_date)
+            print("bill date", formatted_bill_date)
+            second_largest_df["bill_day"] = formatted_bill_date.day
+            second_largest_df["bill_month"] = formatted_bill_date.month
+            second_largest_df["bill_year"] = formatted_bill_date.year
+            return second_largest_df
+        except Exception as e:
+            print(f"Error processing file: {e}")
+            return pd.DataFrame()
+    def process_pdf_file_separately(self,path, Script):
+        print("def process_pdf_file_separately")
 
         try:
-            file_path = path.split("/")[-1]          
-            name, ext = file_path.rsplit(".", 1)     
-            ext = "." + ext                         
-
-            if "_" in name:
-                name = name.rsplit("_", 1)[0]
-
-            file_name = f"{name}{ext}"
             scripter = Script(path)
             basic_data, line_items, processing_time = scripter.extract_all()
             self.account_number = basic_data.get("Account Number")
@@ -65,7 +106,7 @@ class MultipleFileProcessor:
             line_items["bill_day"] = formatted_bill_date.day
             line_items["bill_month"] = formatted_bill_date.month
             line_items["bill_year"] = formatted_bill_date.year
-            line_items["file_name"] = file_name
+            line_items["file_name"] = self.get_filename(path=path)
             return line_items
         except Exception as e:
             print(f"Error processing file: {e}")
@@ -79,6 +120,7 @@ class MultipleFileProcessor:
 
         
     def extract_highest_usage(self, *dfs):
+        print("def extract_highest_usage")
         # Filter out None or empty DataFrames
         dfs = [df for df in dfs if df is not None and not df.empty]
 
@@ -109,7 +151,10 @@ class MultipleFileProcessor:
         return highest
     
     def check_availability(self, all_dfs):
+        print("def check_availability")
         combined = []
+
+        print(all_dfs)
 
         for df in all_dfs:
             if df.empty:
@@ -145,6 +190,7 @@ class MultipleFileProcessor:
 
     
     def split_sheets(self, datadf):
+        print("def split_sheets")
         # Make a copy to avoid warnings
         datadf = datadf.copy()
 
@@ -184,7 +230,7 @@ class MultipleFileProcessor:
 
         # --- Recommendation Logic ---
         plan_charges_float = {
-            p: float(c.replace("$", "")) if c not in (None, "", "NA") else None
+            p: float(c.replace("$", "")) if isinstance(c, str) else float(c)
             for p, c in self.plan_charges.items()
         }
 
@@ -203,7 +249,7 @@ class MultipleFileProcessor:
         def suggest_plan(row):
             current_plan = row["Current Plan"]
             try:
-                current_charge = float(row["Charges"].replace("$", ""))
+                current_charge = float(str(row["Charges"]).replace("$", "").strip())
             except:
                 return pd.Series([None, None, None])  # Invalid charges
 
@@ -212,7 +258,7 @@ class MultipleFileProcessor:
                 return pd.Series([None, None, None])
 
             try:
-                usage = float(str(usage_val).replace("GB", ""))
+                usage = float(str(usage_val).upper().replace("GB", "").strip())
             except:
                 usage = 0.0
 
@@ -245,11 +291,18 @@ class MultipleFileProcessor:
         sheet6 = na_df[na_df["Current Plan"].str.contains("Unlimited", case=False, na=False)].copy()
 
         # Merge NA-non-unlimited into non_na_df
-        non_na_df = pd.concat([non_na_df, na_non_unlimited], ignore_index=True)
+        frames = [df for df in [non_na_df, na_non_unlimited] if not df.empty and not df.isna().all().all()]
+        non_na_df = pd.concat(frames, ignore_index=True)
+
 
         # Now bucketize usage
+        print("Now bucketize usage")
         data_usage = (
-            non_na_df["Data Usage (GB)"].str.replace("GB", "", regex=False).astype(float)
+            non_na_df["Data Usage (GB)"]
+            .astype(str)                      # ensure string
+            .str.replace("GB", "", regex=False)
+            .replace("nan", pd.NA)            # handle NaN safely
+            .astype(float)                    # back to float
         )
 
         sheet2 = non_na_df[data_usage <= 0].copy()  # includes NA converted to 0
@@ -260,6 +313,7 @@ class MultipleFileProcessor:
         return sheet2, sheet3, sheet4, sheet5, sheet6
 
     def add_no_recommendation(self,dfs):
+        print("Def add_no_recommendation")
 
         for df in dfs:
             if all(col in df.columns for col in [
@@ -295,6 +349,7 @@ class MultipleFileProcessor:
             return num
     
     def check_usage_trend(self, all_dfs):
+        print("def check_usage_trend")
         combined = []
 
         for df in all_dfs:
@@ -385,25 +440,23 @@ class MultipleFileProcessor:
         mask_all_na = usage_wide[bill_date_cols].eq("NA").all(axis=1)
         usage_wide.loc[mask_all_na, ["Variance", "Relation"]] = "NA"
 
-        # === Keep only rows with variance > 10% ===
-        def is_valid_variance(v):
-            try:
-                return float(v.strip("%")) > 10
-            except:
-                return False
-
-        usage_wide = usage_wide[usage_wide["Variance"].apply(is_valid_variance)]
 
         return usage_wide
 
-
+    def more_than_10_percent_var(self, v):
+        try:
+            return float(v.strip("%")) > 10
+        except:
+            return False
     def export_to_excel(self, original_dfs, line_items, filename="usage_report.xlsx"):
+        print("def export_to_excel")
         sheet2, sheet3, sheet4, sheet5, sheet6 = self.split_sheets(line_items)
+        sheet8 = self.check_usage_trend(original_dfs)
         STARTROW = 2
         with pd.ExcelWriter(filename, engine="xlsxwriter") as writer:
             excel_sheet2, excel_sheet3, excel_sheet4, excel_sheet5, excel_sheet6 = self.add_no_recommendation([sheet2, sheet3, sheet4, sheet5, sheet6])
             sheet7 = self.check_availability(original_dfs)
-            sheet8 = self.check_usage_trend(original_dfs)
+            get_top_10 = sheet8[sheet8["Variance"].apply(self.more_than_10_percent_var)]
             for i, df in enumerate(original_dfs):
                 if df.empty:
                     continue
@@ -421,7 +474,7 @@ class MultipleFileProcessor:
             excel_sheet5.to_excel(writer, sheet_name="> 15GB", index=False, startrow=STARTROW)
             excel_sheet6.to_excel(writer, sheet_name="NA - Unlimited", index=False, startrow=STARTROW)
             sheet7.to_excel(writer, sheet_name="Attendance", index=False, startrow=STARTROW)
-            sheet8.to_excel(writer, sheet_name="Data Usage Trend", index=False, startrow=STARTROW)
+            get_top_10.to_excel(writer, sheet_name="Data Usage Trend", index=False, startrow=STARTROW)
 
             # 🔥 Add note INSIDE the context
             workbook = writer.book
@@ -461,7 +514,7 @@ class MultipleFileProcessor:
 
                 for col_idx, col_name in enumerate(df_for_columns.columns):
                     header_w = len(str(col_name)) + 2
-                    col_series = df_for_columns[col_name].fillna("").astype(str)
+                    col_series = df_for_columns[col_name].fillna("").infer_objects(copy=False).astype(str)
                     sample = col_series.iloc[:200] 
                     content_w = sample.map(len).max() if not sample.empty else 0
                     content_w = content_w + 2
@@ -482,7 +535,7 @@ class MultipleFileProcessor:
             apply_sheet_format("> 15GB", excel_sheet5)
             apply_sheet_format("NA - Unlimited", excel_sheet6)
             apply_sheet_format("Attendance", sheet7)
-            apply_sheet_format("Data Usage Trend", sheet8)
+            apply_sheet_format("Data Usage Trend", get_top_10)
 
 
             ws_zero = writer.sheets["Zero Usage Line"]
@@ -532,19 +585,28 @@ class MultipleFileProcessor:
         os.remove(filename)
 
         # Add metadata for all sheets
-        sheet2["data_type"] = "zero_usage"
-        sheet3["data_type"] = "less_than_5_gb"
-        sheet4["data_type"] = "between_5_and_15_gb"
-        sheet5["data_type"] = "more_than_15_gb"
-        sheet6["data_type"] = "NA_unlimited"
+        sheet2["data_usage_range"] = "zero_usage"
+        sheet3["data_usage_range"] = "less_than_5_gb"
+        sheet4["data_usage_range"] = "between_5_and_15_gb"
+        sheet5["data_usage_range"] = "more_than_15_gb"
+        sheet6["data_usage_range"] = "NA_unlimited"
 
+        sheet8[["Variance", "Relation"]] = sheet8[["Variance", "Relation"]].replace("-", "NA")
         all_data = pd.concat([sheet2, sheet3, sheet4, sheet5, sheet6], ignore_index=True)
 
-        all_data = all_data.merge(
-            line_items[["Wireless Number", "Account Number", "Bill Date"]],
-            on="Wireless Number",
-            how="left"
+        all_data = (
+            all_data.merge(
+                line_items[["Wireless Number", "Account Number", "Bill Date"]],
+                on="Wireless Number",
+                how="left"
+            )
+            .merge(
+                sheet8[["Wireless Number", "Variance", "Relation"]],
+                on="Wireless Number",
+                how="left"
+            )
         )
+
 
         all_data = all_data.rename(columns={
             "Account Number": "account_number",
@@ -567,6 +629,7 @@ class MultipleFileProcessor:
         return all_data
 
     def manage_plans(self, df):
+        print("def manage_plans")
         if df is None or df.empty:
             return
 
@@ -593,15 +656,11 @@ class MultipleFileProcessor:
     def add_data_to_db(self, data_df):
         print("saving to db")
         # convert charges and savings to numeric, errors='coerce' will set invalid parsing as NaN
-        data_df["current_plan_charges"] = pd.to_numeric(
-            data_df["current_plan_charges"].str.replace("$", "", regex=False), errors="coerce"
-        )
-        data_df["recommended_plan_charges"] = pd.to_numeric(
-            data_df["recommended_plan_charges"].str.replace("$", "", regex=False), errors="coerce"
-        )
-        data_df["recommended_plan_savings"] = pd.to_numeric(
-            data_df["recommended_plan_savings"].str.replace("$", "", regex=False), errors="coerce"
-        )
+        for col in ["current_plan_charges", "recommended_plan_charges", "recommended_plan_savings"]:
+            data_df[col] = pd.to_numeric(
+                data_df[col].astype(str).str.replace("$", "", regex=False), errors="coerce"
+            )
+
         data_df["current_plan_usage"] = data_df["current_plan_usage"].apply(self.add_gb)
         # data_df["current_plan_charges"] = data_df["current_plan_charges"].astype(str).str.replace("$", "", regex=False)
         # data_df["recommended_plan_charges"] = data_df["recommended_plan_charges"].astype(str).str.replace("$", "", regex=False)
@@ -613,17 +672,25 @@ class MultipleFileProcessor:
                 bill_date=row["bill_date"],
                 wireless_number=row["wireless_number"],
                 multiple_analysis_id=row["multiple_analysis_id"],
-                data_type=row["data_type"],
+                data_usage_range=row["data_usage_range"],
                 user_name=row["user_name"],
                 is_plan_recommended=row["is_plan_recommended"],
                 current_plan=row["current_plan"],
                 current_plan_charges=row["current_plan_charges"] if pd.notna(row["current_plan_charges"]) else None,
                 current_plan_usage=row["current_plan_usage"],
                 recommended_plan=row["recommended_plan"],
+                variance_with_last_month=row["Variance"],
+                how_variance_is_related_with_last_month=row["Relation"],
                 file_name=row["file_name"],
                 recommended_plan_charges=row["recommended_plan_charges"] if pd.notna(row["recommended_plan_charges"]) else None,
                 recommended_plan_savings=row["recommended_plan_savings"] if pd.notna(row["recommended_plan_savings"]) else None,
             )
+        savings=AnalysisData.objects.filter(multiple_analysis=self.instance).exclude(recommended_plan="").values("user_name", "wireless_number", "current_plan", "current_plan_charges", "current_plan_usage", "recommended_plan", "recommended_plan_charges", "recommended_plan_savings")
+        df = pd.DataFrame(list(savings))
+        return df
+            
+
+        
 
     def add_gb(self, val):
         if pd.isna(val):   # leave NaN as is
@@ -634,6 +701,7 @@ class MultipleFileProcessor:
         return f"{val_str} GB"
 
     def store_summary_data(self,df):
+        print("def store summary data")
             
         
         df = df.rename(columns={
@@ -683,8 +751,8 @@ class MultipleFileProcessor:
         
 
 
-
     def process(self):
+        print("def process")
         try:
             start = time.perf_counter()
             print("Processing files...")
@@ -705,12 +773,15 @@ class MultipleFileProcessor:
             # Process each available file
             dfs = []
             for path in self.file_paths:
-                df = self.process_file_separately(path=path, Script=Script)
+                if path.endswith(".pdf"):
+                    df = self.process_pdf_file_separately(path=path, Script=Script)
+                elif path.endswith(".zip"):
+                    df = self.process_zip_file_separately(path=path)
+                else:
+                    df = pd.DataFrame()
                 if not df.empty:
                     dfs.append(df)
-
         
-            
             if not dfs:
                 return False, "No valid files processed", 0, 1
             original_dfs = dfs
@@ -734,21 +805,41 @@ class MultipleFileProcessor:
             df = self.extract_highest_usage(*dfs, *(None,) * (3 - len(dfs)))
 
 
-            # Build output filename based on available Bill Dates
             dates = "_".join([str(df["Bill Date"].iloc[0]) for df in dfs if "Bill Date" in df.columns])
             output_file = f'{self.account_number}_{dates}.xlsx'.replace(" ", "_")
 
-            # Export + DB save
             final_data = self.export_to_excel(original_dfs, df, filename=output_file)
+
+            final_data['bill_date_parsed'] = final_data['bill_date'].apply(self.parse_bill_date)
+
+            final_data['bill_month'] = final_data['bill_date_parsed'].dt.month
+            final_data['bill_year']  = final_data['bill_date_parsed'].dt.year
+
+            unique_dates = final_data[['bill_month', 'bill_year']].drop_duplicates().sort_values(['bill_year', 'bill_month'])
+
+            # Format into readable strings
+            formatted_dates = [
+                f"{calendar.month_name[row.bill_month]} {row.bill_year}"
+                for row in unique_dates.itertuples(index=False)
+            ]
+            
             merged_df = final_data.merge(
                 df[['Bill Date', 'Wireless Number', 'file_name']],
                 left_on=['bill_date', 'wireless_number'],
                 right_on=['Bill Date', 'Wireless Number'],
                 how='left'
             )
-            merged_df = merged_df.drop(columns=['Bill Date', 'Wireless Number'])
-            self.add_data_to_db(merged_df)
 
+            merged_df = merged_df.drop(columns=['Bill Date', 'Wireless Number'])
+            savings_df=self.add_data_to_db(merged_df)
+
+            # generate savings pdf
+
+            pdf = create_savings_pdf(savings_df, self.account_number, formatted_dates)
+            filename = f"savings_report_{self.account_number}_{formatted_dates}.pdf"
+            pdf_file = ContentFile(pdf)
+            self.instance.savings_pdf.save(filename, pdf_file)
+            self.instance.save()
             end = time.perf_counter()
             return True, "Files processed successfully", round(end - start, 2), 1
 

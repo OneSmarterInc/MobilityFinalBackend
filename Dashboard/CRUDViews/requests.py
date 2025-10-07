@@ -20,7 +20,13 @@ class RequestsView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request,pk=None, *args, **kwargs):
         if pk is None:
-            all_objs = Requests.objects.filter(requester=request.user).order_by('-created')
+            if request.user.company is None:
+                all_objs = Requests.objects.all().order_by('-created')
+            else:
+                if request.user.designation.name == "Admin":
+                    all_objs = Requests.objects.filter(organization__company=request.user.company).order_by('-created')
+                else:
+                    all_objs = Requests.objects.filter(requester=request.user).order_by('-created')
             ser = showRequestSerializer(all_objs, many=True)
         else:
             obj = Requests.objects.get(id=pk)
@@ -225,10 +231,14 @@ from authenticate.models import PortalUser
 from ..Serializers.promange import ProfileSaveSerializer
 class RequestUsersExcelUploadView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def __init__(self, **kwargs):
+        self.vendors = None
     
     def post(self, request, org, *args, **kwargs):
         errorBuffer = {}
         orgobj = Organizations.objects.filter(id=org).first()
+        company = orgobj.company
             
         if not orgobj:
             return Response({"message": f"Organization with name '{org}' does not exist."},status=status.HTTP_400_BAD_REQUEST)
@@ -237,46 +247,25 @@ class RequestUsersExcelUploadView(APIView):
         print(data)
 
         for obj in data:
-            vendor = obj.get('vendor')
-            vendor_ids = []
-            role = obj.get('user_role')
-            email = obj.get('contact_email')
-            phone = obj.get('contact_phone')
-            username = obj.get('user_name')
-            fn = obj.get('first_name')
-            ln = obj.get('last_name')
-
+            if not obj.get('email'):
+                continue
             
+            ven = obj.get('vendors')
+            if ven and not self.vendors:
+                self.vendors = list(Vendors.objects.filter(name__in=ven).values_list('id', flat=True))
 
-            roleObj = UserRoles.objects.filter(name=role).first()
+            roleObj = UserRoles.objects.filter(name="Request Management User").first()
             if not roleObj:
-                roleObj = UserRoles.objects.create(name=role)
-            else:
-                roleObj = roleObj
+                roleObj = UserRoles.objects.create(name="Request Management User")
             
-            
-            if isinstance(vendor, list):
-                # vendor is a list → filter only those that exist
-                existing_vendors = Vendors.objects.filter(name__in=vendor)
-                vendor_ids = list(existing_vendors.values_list('id', flat=True))
-            else:
-                # vendor is a single string → check one
-                vendorObj = Vendors.objects.filter(name=vendor).first()
-                if vendorObj:
-                    vendor_ids = [vendorObj.id]
-                
             PortalDict = {
-                "company": orgobj.company.id, 
-                "email": email,
-                "first_name":fn,
-                "last_name":ln,
-                "username":str(email).split("@")[0],
-                "phone_number":phone,
+                "company":company.id,
+                **obj,
                 "designation":roleObj.id,
                 "password":1234,
             }
             print(PortalDict)
-            portalobj = PortalUser.objects.filter(email=email)
+            portalobj = PortalUser.objects.filter(email=obj.get('email'))
             if not portalobj.exists():
                 portalser = AddusertoPortalSerializer(data=PortalDict)
                 if portalser.is_valid():
@@ -285,16 +274,16 @@ class RequestUsersExcelUploadView(APIView):
                     print(portalser.errors)
             else: 
                 portalser = AddusertoPortalSerializer(portalobj.first())
+            print(self.vendors)
             ProfileDict = {
                 "user":portalser.data.get('id'),
                 "organization":orgobj.id,
                 "role":roleObj.id,
-                "vendors": vendor_ids,
-                "email":email,
-                "phone":phone,
+                "vendors": self.vendors,
+                "email":portalser.data.get('email'),
+                "phone":portalser.data.get('mobile_number'),
             }
-            print(ProfileDict)
-            check = Profile.objects.filter(email=email)
+            check = Profile.objects.filter(email=obj.get('email'))
             if check.exists():
                 proobj = check.first()
                 ser = ProfileSaveSerializer(proobj, data=ProfileDict, partial=True)

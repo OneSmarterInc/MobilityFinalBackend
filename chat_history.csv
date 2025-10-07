@@ -1,25 +1,30 @@
 ,question,response,created_at
-0,how many and which wireless numbers have recommended plan,"One wireless number has a recommended plan, and that number is 360-509-2851.",2025-09-29 11:26:27.765610+00:00
-1,what is the  recommended plan name of that wireless number,"The wireless number 360-509-2851 is recommended the ""Flex Business Data Device 2GB"" plan. All other wireless numbers in the provided data do not have a recommended plan listed.",2025-09-29 11:27:04.980773+00:00
-2,list the mobile numbers which have more than 10% variance data usage,"The mobile numbers with more than 10% variance in data usage are:
-* 513-503-3190
-* 513-503-3745
-* 513-503-4279
-* 513-503-7212",2025-09-29 12:32:37.109796+00:00
-3,list the mobile numbers which have more than 10% variance data usage,"The following mobile numbers have shown more than 10% variance in their data usage:
-*   314-943-6558
-*   360-509-2851
-*   513-503-2925
-*   513-503-3190
-*   513-503-3280
-*   513-503-3564
-*   513-503-3683
-*   513-503-3745
-*   513-503-4279
-*   513-503-4991
-*   513-503-7207
-*   513-503-7212
-*   513-503-7344
-*   513-503-7448
-*   513-503-8396",2025-09-29 12:41:17.889836+00:00
-4,how many unique wireless numbers are there,There are 73 unique wireless numbers.,2025-09-29 13:01:14.763813+00:00
+0,how many wireless numbers are there,There are 27 unique wireless numbers.,2025-10-07 07:24:57.136928+00:00
+1,Can you show me the total data usage for each wireless number?,"Here's a summary of the total data usage for each wireless number:
+The wireless number 239-238-0710 used 44.47 GB of data.
+The wireless number 239-238-0790 used 90.98 GB of data.
+The wireless number 321-402-2888 used 0.00 GB of data.
+The wireless number 480-306-0382 used 0.07 GB of data.
+The wireless number 480-371-5400 used 1.46 GB of data.
+The wireless number 480-399-4009 used 0.00 GB of data.
+The wireless number 480-408-5024 used 0.06 GB of data.
+The wireless number 618-203-0793 used 5.06 GB of data.
+The wireless number 618-365-3901 used 0.00 GB of data.
+The wireless number 618-542-7702 used 0.01 GB of data.
+The wireless number 618-790-3624 used 0.00 GB of data.
+The wireless number 618-790-4013 used 0.81 GB of data.
+The wireless number 618-790-5244 used 2.99 GB of data.
+The wireless number 618-790-6117 used 0.00 GB of data.
+The wireless number 618-790-6231 used 0.00 GB of data.
+The wireless number 618-790-6692 used 0.12 GB of data.
+The wireless number 618-924-3268 used 1.71 GB of data.
+The wireless number 805-844-8892 used 50.32 GB of data.
+The wireless number 816-225-5230 used 47.21 GB of data.
+The wireless number 816-489-2067 used 27.02 GB of data.
+The wireless number 816-489-9229 used 0.14 GB of data.
+The wireless number 816-804-6156 used 0.01 GB of data.
+The wireless number 816-896-3612 used 20.33 GB of data.
+The wireless number 816-977-8191 used 71.09 GB of data.
+The wireless number 903-229-8926 used 0.02 GB of data.
+The wireless number 903-851-1018 used 0.38 GB of data.
+The wireless number 903-851-3809 used 0.00 GB of data.",2025-10-07 07:25:09.104071+00:00
