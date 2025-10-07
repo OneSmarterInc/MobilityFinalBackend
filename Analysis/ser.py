@@ -82,7 +82,7 @@ class MultipleAnalysisShowSerializer(serializers.ModelSerializer):
     created_by = serializers.CharField(max_length=255)
     class Meta:
         model = MultipleFileUpload
-        fields = ('id', 'company', 'vendor', 'client', 'remark', 'file1','file2','file3', 'created', 'created_by', 'excel', 'is_processed')
+        fields = ('id', 'company', 'vendor', 'client', 'remark', 'file1','file2','file3', 'created', 'created_by', 'excel', 'is_processed', 'savings_pdf')
 
 class VendorsShowSerializer(serializers.ModelSerializer):
     class Meta:
