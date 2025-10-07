@@ -1,30 +1,4 @@
 ,question,response,created_at
-0,how many wireless numbers are there,There are 27 unique wireless numbers.,2025-10-07 07:24:57.136928+00:00
-1,Can you show me the total data usage for each wireless number?,"Here's a summary of the total data usage for each wireless number:
-The wireless number 239-238-0710 used 44.47 GB of data.
-The wireless number 239-238-0790 used 90.98 GB of data.
-The wireless number 321-402-2888 used 0.00 GB of data.
-The wireless number 480-306-0382 used 0.07 GB of data.
-The wireless number 480-371-5400 used 1.46 GB of data.
-The wireless number 480-399-4009 used 0.00 GB of data.
-The wireless number 480-408-5024 used 0.06 GB of data.
-The wireless number 618-203-0793 used 5.06 GB of data.
-The wireless number 618-365-3901 used 0.00 GB of data.
-The wireless number 618-542-7702 used 0.01 GB of data.
-The wireless number 618-790-3624 used 0.00 GB of data.
-The wireless number 618-790-4013 used 0.81 GB of data.
-The wireless number 618-790-5244 used 2.99 GB of data.
-The wireless number 618-790-6117 used 0.00 GB of data.
-The wireless number 618-790-6231 used 0.00 GB of data.
-The wireless number 618-790-6692 used 0.12 GB of data.
-The wireless number 618-924-3268 used 1.71 GB of data.
-The wireless number 805-844-8892 used 50.32 GB of data.
-The wireless number 816-225-5230 used 47.21 GB of data.
-The wireless number 816-489-2067 used 27.02 GB of data.
-The wireless number 816-489-9229 used 0.14 GB of data.
-The wireless number 816-804-6156 used 0.01 GB of data.
-The wireless number 816-896-3612 used 20.33 GB of data.
-The wireless number 816-977-8191 used 71.09 GB of data.
-The wireless number 903-229-8926 used 0.02 GB of data.
-The wireless number 903-851-1018 used 0.38 GB of data.
-The wireless number 903-851-3809 used 0.00 GB of data.",2025-10-07 07:25:09.104071+00:00
+0,how many wireless numbers are there,There are 73 unique wireless numbers in the dataset.,2025-10-07 12:48:13.789885+00:00
+1,How many wireless numbers are currently recommended for a different plan?,One wireless number is currently recommended for a different plan.,2025-10-07 12:48:20.043739+00:00
+2,Can you list the wireless numbers where the recommended plan offers savings compared to the current plan?,The recommended plan offers savings for the wireless number 360-509-2851.,2025-10-07 12:48:33.816175+00:00

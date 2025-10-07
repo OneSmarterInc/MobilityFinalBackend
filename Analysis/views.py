@@ -1142,11 +1142,12 @@ class GetChatPdfView(APIView):
                 for item in bill_dates
             ]
             pdf = convert_chats_to_pdf(df,account_number, formatted_dates)
+            filename = f"chat_history_{account_number}_{'_'.join(formatted_dates).replace(' ', '_')}.pdf"
             if not pdf:
                 return Response({"message":"Error generating PDF!"},status=status.HTTP_400_BAD_REQUEST)
             # return PDF directly as response with status 200
             response = HttpResponse(pdf, content_type='application/pdf')
-            response['Content-Disposition'] = 'attachment; filename="chat_history.pdf"'
+            response['Content-Disposition'] = f'attachment; filename={filename}'
             return response
         except Exception as e:
             print(e)
@@ -1157,7 +1158,6 @@ class GetSavingsPdfView(APIView):
     def get(self,request,pk,*args,**kwargs):
         if not pk:
             return Response({"message":"Key required!"},status=status.HTTP_400_BAD_REQUEST)
-        print(pk)
         try:
             savings=AnalysisData.objects.filter(multiple_analysis=pk).exclude(recommended_plan="").values("user_name", "wireless_number", "current_plan", "current_plan_charges", "current_plan_usage", "recommended_plan", "recommended_plan_charges", "recommended_plan_savings")
             df = pd.DataFrame(list(savings))
@@ -1174,11 +1174,10 @@ class GetSavingsPdfView(APIView):
                 f"{calendar.month_name[item['bill_month']]} {item['bill_year']}"
                 for item in bill_dates
             ]
-            # prepend account
+            # prepend accountsavings_report
             pdf = create_savings_pdf(df, account_number, formatted_dates)
             dates = "_".join(formatted_dates).replace(" ", "_")
             filename = f"savings_report_{account_number}_{dates}.pdf"
-            print(filename)
 
             if not pdf:
                 return Response({"message": "Error generating PDF!"}, status=status.HTTP_400_BAD_REQUEST)
