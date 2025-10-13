@@ -16,7 +16,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PortalUser
-        fields = ['username', 'email', 'password', 'password2', 'designation', 'company', 'first_name','last_name','phone_number','mobile_number','string_password']
+        fields = ['username', 'email', 'password', 'password2', 'designation', 'company', 'first_name','last_name','phone_number','mobile_number','string_password','temp_password']
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:

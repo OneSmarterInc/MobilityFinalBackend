@@ -360,6 +360,8 @@ class BaseDataTable(models.Model):
     Total_Current_Charges = models.CharField(max_length=255, blank=True, null=True, default="")
     
     plans = models.CharField(max_length=255, blank=True, null=True, default="")
+
+    BillingCurrency = models.CharField(max_length=255, null=True, blank=True)
     
     charges = models.CharField(max_length=255, blank=True, null=True, default="")
     location = models.CharField(max_length=255, blank=True, null=True, default="")

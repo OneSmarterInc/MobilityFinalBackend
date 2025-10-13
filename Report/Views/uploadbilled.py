@@ -12,6 +12,7 @@ from ..models import Report_Billed_Data
 import pandas as pd
 from ..ser import showBilledReport
 from datetime import datetime
+from Batch.views import create_notification
 class UploadBilledReportView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     def __init__(self, **kwargs):
@@ -144,6 +145,10 @@ class UploadBilledReportView(APIView):
                             Bill_Cycle_Date = Bill_Cycle_Date,
                             Year=str(self.current_year)  
                         )
+                create_notification(
+                        request.user, 
+                        f"Billed Data Usage Report uploaded of file {file.name} and Vendor: {vendor.name}", request.user.company
+                    )
                 saveuserlog(
                         request.user, 
                         f"Billed Data Usage Report uploaded of file {file.name} and Vendor: {vendor.name}"
@@ -190,6 +195,10 @@ class UploadBilledReportView(APIView):
             saveuserlog(
                 request.user, 
                 f"{self.report_type} report attributions company:{self.com}, organization:{self.org}, vendor:{self.vendor}, month:{self.month}, year:{self.year}. account number:{self.account_number}, month:{self.month}, and year:{self.year} deleted successfully."
+            )
+            create_notification(
+                request.user, 
+                f"{self.report_type} report attributions company:{self.com}, organization:{self.org}, vendor:{self.vendor}, month:{self.month}, year:{self.year}. account number:{self.account_number}, month:{self.month}, and year:{self.year} deleted successfully.", request.user.company
             )
             return Response({"message": f"{self.report_type} Report deleted successfully"}, status=status.HTTP_200_OK)
         except Exception as e:

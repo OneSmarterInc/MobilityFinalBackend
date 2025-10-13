@@ -5,6 +5,9 @@ from OnBoard.Ban.models import PdfDataTable, UniquePdfDataTable, BaseDataTable, 
 import re
 import numpy as np
 import json
+from OnBoard.Company.models import Company
+from authenticate.models import PortalUser
+from Batch.views import create_notification
 
 class EnterBillProcessExcel:
     def __init__(self, buffer_data,instance,typeofupload=None):
@@ -25,6 +28,10 @@ class EnterBillProcessExcel:
         self.location = self.buffer_data.get('location')
         self.month = self.buffer_data.get('month')
         self.year = self.buffer_data.get('year')
+        self.email = self.buffer_data.get('email')
+
+        self.user_obj = PortalUser.objects.filter(email=self.email).first()
+        self.company_obj = Company.objects.filter(Company_name=self.company).first()
 
         print("init complete")
 
@@ -162,6 +169,7 @@ class EnterBillProcessExcel:
         ]
 
         BaselineDataTable.objects.bulk_create(clean_items)
+        create_notification(user=self.user_obj, msg=f"Bill with date {bill_date} of ban {self.account_number} uploaded.",company=self.company_obj)
         return {"message":"Bill uploaded successully", 'code':0}
 
     

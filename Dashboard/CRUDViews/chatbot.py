@@ -10,6 +10,7 @@ from ..ModelsByPage.aimodels import BotChats
 from rest_framework.permissions import IsAuthenticated
 from ..Serializers.chatser import ChatSerializer
 import pandas as pd
+from bot1 import BotClass
 
 class ChatBotView(APIView):
     permission_classes = [IsAuthenticated]
@@ -17,21 +18,16 @@ class ChatBotView(APIView):
     connection = None
     schema = None
 
-    @classmethod
-    def initialize_db(cls):
-        """Initialize DB connection + schema once."""
-        if cls.connection is None or cls.schema is None:
-            cls.connection, cls.schema = init_database("db.sqlite3")
 
     def get(self, request, *args, **kwargs):
-        chats = BotChats.objects.filter(user=request.user)
+        chats = BotChats.objects.filter(user=request.user,billChat=None,M_analysisChat=None)
         ser = ChatSerializer(chats, many=True)
         return Response({"data":ser.data}, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
         # Ensure DB is initialized only once
-        self.initialize_db()
-
+        botObj = BotClass()
+        self.connection, self.schema = botObj.init_database()
         data = request.data
         question = data.get("prompt")
 
@@ -45,27 +41,35 @@ class ChatBotView(APIView):
         df = pd.DataFrame(list(chatHis))
 
         try:
+            instance = BotChats.objects.create(
+                user=request.user,
+                question=question,
+            )
             sql_query = get_sql_from_gemini(question, self.schema, chat_history=df)
+            is_generated, sql_query = botObj.get_general_sql_from_gemini(question, self.schema, chat_history=df)
+            if not is_generated:
+                instance.is_query_generated = False
+                instance.response = "I need a bit more info to answer.\nCould you please elaborate more on your question."
+                instance.save()
+                return Response({"response":"Unable to answer the question!"},status=status.HTTP_200_OK)
+            
+            is_ran, result_df = botObj.run_query(conn=self.connection, sql=sql_query)
 
-            result_df = run_query(self.connection, sql_query)
-
-            if result_df is None:
-                return Response(
-                    {"message": "No data found for the given query."},
-                    status=status.HTTP_200_OK
-                )
-
-            response_text = make_human_response(question, result_df, db_schema=self.schema)
+            print(result_df)
+            response_text = botObj.make_human_response(question, result_df, db_schema=self.schema)
+            print()
             allLines = response_text.split("\n")
             questions = [line.strip() for line in allLines if line.strip().endswith("?")]
             other_lines = "\n".join([line.strip() for line in allLines if line.strip() and not line.strip().endswith("?")])
-
-            BotChats.objects.create(
-                user=request.user,
-                question=question,
-                response=other_lines,
-                recommended_questions=questions
-            )
+            print(is_ran, result_df)
+            instance.response = other_lines
+            instance.recommended_questions = questions
+            if is_ran:
+                instance.is_query_generated = True
+                instance.is_query_ran = True
+            else:
+                instance.is_df_empty = True
+            instance.save()   
 
 
             # saveuserlog(request.user, f"Chatbot query executed: {question} | Response: {response_text}")

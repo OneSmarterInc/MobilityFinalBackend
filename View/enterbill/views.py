@@ -11,7 +11,7 @@ from .ser import OrganizationShowSerializer, VendorShowSerializer, BaselineDataT
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 from checkbill import prove_bill_ID
 from baselineTag import object_tagging
-
+from Batch.views import create_notification
 from ..viewbill.ser import BaselinedataSerializer
 class UploadedBillView(APIView):
     
@@ -435,6 +435,7 @@ class UploadfileView(APIView):
                 'account_number': obj.ban,
                 'month':obj.month,
                 'year':obj.year,
+                'email':request.user.email,
                 'mapping_json': model_to_dict(MappingObjectBan.objects.get(viewupload=obj)) or {}
             })
             print(buffer_data)
@@ -681,6 +682,7 @@ from django.conf import settings
 from django.core.files import File
 import shutil
 import io
+from authenticate.models import PortalUser
 from django.utils import timezone
 from addon import get_cat_obj_total
 class ProcessZip:
@@ -701,6 +703,9 @@ class ProcessZip:
         self.ban = instance.ban
         self.account_number = None
         self.net_amount = None
+
+        self.user_obj = PortalUser.objects.filter(email=self.email).first()
+        self.company_obj = Company.objects.filter(Company_name=self.company).first()
     def get_cust_data_from_db(self, acc_no,Eid):
         print("def get_cust_data_from_db")
         account_number = acc_no
@@ -917,6 +922,7 @@ class ProcessZip:
                 obj.is_baseline_approved = is_approved
                 obj.bill_approved_date = timezone.now()
                 obj.save()                
+                create_notification(user=self.user_obj, msg=f"Bill with date {bill_date} of ban {self.account_number} uploaded.",company=self.company_obj)
                 return {'message' : 'RDD uploaded successfully!', 'error' : 1}
         except Exception as e:
             print(f'Error occurred while processing zip file: {str(e)}')

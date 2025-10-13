@@ -19,6 +19,24 @@ from .models import SummaryData
 from Dashboard.ModelsByPage.aimodels import BotChats
 from Dashboard.Serializers.chatser import ChatSerializer
 from dateutil import parser
+from Batch.views import create_notification
+from django.db.models import Sum, Count, F, Case, When, DecimalField, Value
+from django.db.models.functions import Coalesce
+from rest_framework.views import APIView
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated 
+import os,re
+import zipfile
+import numpy as np
+from datetime import datetime
+import pandas as pd
+from addon import extract_data_from_zip
+import json, os, zipfile
+import traceback
+
+
+
 
 class AnalysisView(APIView):
     permission_classes = [IsAuthenticated]
@@ -127,7 +145,6 @@ class AnalysisView(APIView):
         except Exception as e:
             return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-import json, os, zipfile
     
 
 class download_analysis_xlsx_file(APIView):
@@ -232,6 +249,10 @@ class MultipleUploadView(APIView):
                 request.user,
                 f"{request.user.email} uploaded {len(files)} {obj.vendor.name} file(s) for client {obj.client} for analysis"
             )
+            create_notification(
+                request.user,
+                f"{request.user.email} uploaded {len(files)} {obj.vendor.name} file(s) for client {obj.client} for analysis", request.user.company
+            )
             Process_multiple_pdfs.delay(buffer_data, obj.id)
             return Response(
                 {"message": "Analysis is in progress.\nIt will take some time. Please check analysis page later."},
@@ -253,6 +274,10 @@ class MultipleUploadView(APIView):
                 request.user,
                 f"{request.user.email} deleted {vendor} analysis files of client {client if client else '-'}"
             )
+            # create_notification(
+            #     request.user,
+            #     f"{request.user.email} deleted {vendor} analysis files of client {client if client else '-'}", request.user.company
+            # )
             return Response({"message": "Analysis files deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
         except Analysis.DoesNotExist:
             return Response({"message": "Analysis files not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -262,12 +287,7 @@ class MultipleUploadView(APIView):
     
 
         
-import os,re
-import zipfile
-import numpy as np
-from datetime import datetime
-import pandas as pd
-from addon import extract_data_from_zip
+
 class ZipAnalysis:
     def __init__(self,buffer_data, instance):
         self.instance = instance
@@ -1020,13 +1040,15 @@ class ZipAnalysis:
         except Exception as e:
             return False, str(e), 0
 
-# from .bot import get_database, get_response_from_gemini, get_sql_from_gemini, execute_sql_query
 from .bot import init_database, get_sql_from_gemini, run_query, make_human_response
+from bot1 import BotClass
 class AnalysisBotView(APIView):
     permission_classes = [IsAuthenticated]
 
     connection = None
     schema = None
+
+    
             
     def get(self,request,ChatType,pk,*args,**kwargs):
         if not pk:
@@ -1037,59 +1059,49 @@ class AnalysisBotView(APIView):
         return Response({"data":ser.data},status=status.HTTP_200_OK)
         
     def post(self,request,ChatType,pk,*args,**kwargs):
+        botObj = BotClass(bot_type="analysis")
         data = request.data
         query_type = data.get('file_type')
-        print(query_type)
         if not pk:
             return Response({"message":"Key required!"},status=status.HTTP_400_BAD_REQUEST)
-        self.connection, self.schema = init_database(query_type=query_type)
-
+        # self.connection, self.schema = init_database(query_type=query_type)
+        self.connection, self.schema = botObj.init_database(query_type=query_type)
         data = request.data
         question = data.get("prompt")
         chatHis=BotChats.objects.filter(M_analysisChat=pk).values("question", "response", "created_at")
         df = pd.DataFrame(list(chatHis))
 
-        df.to_csv("chat_history.csv")
         try:
-            sql_query = get_sql_from_gemini(question, self.schema, special_id=pk, chat_history=df)
+            instance = BotChats.objects.create(
+                user=request.user,
+                question=question,
+                M_analysisChat=MultipleFileUpload.objects.filter(id=pk).first(),
+            )
 
+            is_generated, sql_query = botObj.get_analysis_sql_from_gemini(question, self.schema, special_id=pk, chat_history=df)
 
-            result_df = run_query(conn=self.connection, sql=sql_query, analysis_id=pk)
+            print(is_generated, sql_query)
+            if not is_generated:
+                instance.is_query_generated = False
+                instance.response = "I need a bit more info to answer.\nCould you please elaborate more on your question."
+                instance.save()
+                return Response({"response":"Unable to answer the question!"},status=status.HTTP_200_OK)
 
-            print(result_df)
-
-            if result_df is None:
-                return Response(
-                    {"message": "No data found for the given query."},
-                    status=status.HTTP_200_OK
-                )
-
-
-            response_text = make_human_response(question, result_df, db_schema=self.schema)
-
+            is_ran, result_df = botObj.run_query(conn=self.connection, sql=sql_query)
+            
+            response_text = botObj.make_human_response(question, result_df, db_schema=self.schema)
             allLines = response_text.split("\n")
             questions = [line.strip() for line in allLines if line.strip().endswith("?")]
             other_lines = "\n".join([line.strip() for line in allLines if line.strip() and not line.strip().endswith("?")])
-
-
-            if ChatType == "single":
-                BotChats.objects.create(
-                    user=request.user,
-                    question=question,
-                    response=other_lines,
-                    S_analysisChat=Analysis.objects.filter(id=pk).first()
-                )
-            elif ChatType == "multiple":
-                BotChats.objects.create(
-                    user=request.user,
-                    question=question,
-                    response=other_lines,
-                    M_analysisChat=MultipleFileUpload.objects.filter(id=pk).first(),
-                    recommended_questions=questions
-                )
-            else: pass
-                
-
+            print(is_ran, result_df)
+            if is_ran:
+                instance.is_query_generated = True
+                instance.is_query_ran = True
+                instance.response = other_lines
+                instance.recommended_questions = questions
+            else:
+                instance.is_df_empty = True
+            instance.save()   
 
             # saveuserlog(request.user, f"Chatbot query executed: {question} | Response: {response_text}")
 
@@ -1192,3 +1204,180 @@ class GetSavingsPdfView(APIView):
             print(e)
             return Response({"message":"Internal Server Error!"},status=status.HTTP_400_BAD_REQUEST)
         
+        
+        
+
+
+
+
+
+# -------- Helpers
+def _qs_for_file(file_id):
+    return AnalysisData.objects.filter(multiple_analysis_id=file_id)
+
+def _expense_after_expr():
+    return Case(
+        When(recommended_plan_charges__isnull=False, then=F('recommended_plan_charges')),
+        default=F('current_plan_charges'),
+        output_field=DecimalField(max_digits=12, decimal_places=2),
+    )
+
+
+from decimal import Decimal
+from django.db.models import Sum, Count, F, Case, When, DecimalField, Value
+from django.db.models.functions import Coalesce
+from rest_framework.permissions import IsAuthenticated  
+
+DECIMAL_OUT = DecimalField(max_digits=12, decimal_places=2)
+DEC0 = Value(Decimal("0.00"), output_field=DECIMAL_OUT)
+
+def safe_int(v):
+    try:
+        return int(str(v).strip().rstrip("/"))
+    except Exception:
+        return None
+
+class AnalysisDashboardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            file_id = safe_int(request.query_params.get("file_id"))
+            if not file_id:
+                return Response({"error": "file_id required"}, status=400)
+
+            qs = _qs_for_file(file_id)
+
+            total_spend = qs.aggregate(
+                v=Coalesce(Sum('current_plan_charges', output_field=DECIMAL_OUT), DEC0)
+            )['v'] or Decimal("0.00")
+
+            monthly_savings = qs.aggregate(
+                v=Coalesce(Sum('recommended_plan_savings', output_field=DECIMAL_OUT), DEC0)
+            )['v'] or Decimal("0.00")
+
+            annualized_savings = monthly_savings * 12  
+
+            zero_use_lines = qs.filter(data_usage_range='zero_usage') \
+                            .values('wireless_number').distinct().count()
+
+            before_total = total_spend
+
+            after_total = qs.aggregate(
+                v=Coalesce(Sum(_expense_after_expr(), output_field=DECIMAL_OUT), DEC0)
+            )['v'] or Decimal("0.00")
+
+            by_bucket = (
+                qs.values('data_usage_range')
+                .annotate(
+                    lines=Count('id'),
+                    savings=Coalesce(Sum('recommended_plan_savings', output_field=DECIMAL_OUT), DEC0),
+                    spend=Coalesce(Sum('current_plan_charges', output_field=DECIMAL_OUT), DEC0),
+                )
+                .order_by('-savings')
+            )
+            total_savings_for_share = float(sum(row['savings'] for row in by_bucket) or Decimal("1.00"))
+            savings_breakdown = [
+                {
+                    "bucket": row["data_usage_range"],
+                    "lines": row["lines"],
+                    "savings": float(row["savings"]),
+                    "share_pct": round(100.0 * float(row["savings"]) / total_savings_for_share, 2),
+                }
+                for row in by_bucket
+            ]
+
+            series = (
+                qs.values('bill_year', 'bill_month')
+                .annotate(
+                    spend=Coalesce(Sum('current_plan_charges', output_field=DECIMAL_OUT), DEC0),
+                    savings=Coalesce(Sum('recommended_plan_savings', output_field=DECIMAL_OUT), DEC0),
+                )
+                .order_by('bill_year', 'bill_month')
+            )
+            savings_over_time = [
+                {
+                    "label": f"{row['bill_year']}-{int(row['bill_month']):02d}",
+                    "spend": float(row["spend"]),
+                    "savings": float(row["savings"]),
+                }
+                for row in series
+            ]
+
+            payload = {
+                "file_id": file_id,
+                "kpis": {
+                    "total_spend": float(total_spend),
+                    "zero_use_lines": int(zero_use_lines),
+                    "monthly_savings": float(monthly_savings),
+                    "annualized_savings": float(annualized_savings),
+                    "expense_reduction": {
+                        "before": float(before_total),
+                        "after": float(after_total),
+                        "delta": float(before_total - after_total),
+                    },
+                },
+                "breakdown": savings_breakdown,
+                "savings_over_time": savings_over_time,
+            }
+
+            compare_file_id = safe_int(request.query_params.get("compare_file_id"))
+            if compare_file_id:
+                qs2 = _qs_for_file(compare_file_id)
+                before2 = qs2.aggregate(
+                    v=Coalesce(Sum('current_plan_charges', output_field=DECIMAL_OUT), DEC0)
+                )['v'] or Decimal("0.00")
+
+                after2  = qs2.aggregate(
+                    v=Coalesce(Sum(_expense_after_expr(), output_field=DECIMAL_OUT), DEC0)
+                )['v'] or Decimal("0.00")
+
+                payload["comparison"] = {
+                    "compare_file_id": compare_file_id,
+                    "expense_reduction": {
+                        "before": float(before2),
+                        "after": float(after2),
+                        "delta": float(before2 - after2),
+                    }
+                }
+
+            return Response(payload)
+
+
+        except Exception as e:
+            print("DASHBOARD ERROR")
+            traceback.print_exc()
+            return Response({"error": str(e)}, status=500)
+
+class AnalysisLinesPagination(PageNumberPagination):
+    page_size = 25
+    max_page_size = 200
+
+class AnalysisLinesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            file_id = safe_int(request.query_params.get("file_id"))
+            if not file_id:
+                return Response({"error": "file_id required"}, status=400)
+
+            qs = _qs_for_file(file_id)
+            print("DEBUG lines:", qs.count())
+
+            qs = qs.values(
+                'wireless_number', 'user_name',
+                'current_plan', 'current_plan_charges',
+                'recommended_plan', 'recommended_plan_charges',
+                'recommended_plan_savings', 'data_usage_range',
+                'bill_year', 'bill_month', 'bill_day'
+            ).order_by('user_name', 'wireless_number')
+
+            paginator = AnalysisLinesPagination()
+            page = paginator.paginate_queryset(qs, request)
+            return paginator.get_paginated_response(page)
+
+        except Exception as e:
+            print("LINES ERROR")
+            traceback.print_exc()
+            return Response({"error": str(e)}, status=500)

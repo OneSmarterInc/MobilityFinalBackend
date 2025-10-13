@@ -9,7 +9,7 @@ from ..models import Contracts
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 from .ser import showOrganizationSerializer, vendorshowSerializer, showContractSerializer, saveContractSerializer
 from OnBoard.Ban.models import UploadBAN, BaseDataTable, OnboardBan
-
+from Batch.views import create_notification
 class viewContractView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -62,12 +62,14 @@ class viewContractView(APIView):
 
                 accountNo = contractObj.uploadedban.account_number if contractObj.uploadedban else contractObj.onboardedban.account_number
                 saveuserlog(request.user, f"Contract for ban {accountNo} updated successfully!")
+                # create_notification(request.user, f"Contract for ban {accountNo} updated successfully!",request.user.company)
                 return Response({"message": "Contract updated successfully"}, status=status.HTTP_201_CREATED)
 
             else:
                 contractObj = Contracts.objects.create(**data)
                 accountNo = contractObj.uploadedban.account_number if contractObj.uploadedban else contractObj.onboardedban.account_number
                 saveuserlog(request.user, f"Contract for ban {accountNo} created successfully!")
+                # create_notification(request.user, f"Contract for ban {accountNo} created successfully!",request.user.company)
                 return Response({"message": "Contract uploaded successfully"}, status=status.HTTP_201_CREATED)
 
         except Exception as e:
@@ -82,6 +84,7 @@ class viewContractView(APIView):
             update_data = {k: v for k, v in data.items() if k in valid_fields}
             obj.update(**update_data)
             saveuserlog(request.user, f'Contract with name: {obj.first().contract_name} updated successfully!')  # TODO: log user action with ID and details.
+            # create_notification(request.user, f'Contract with name: {obj.first().contract_name} updated successfully!',request.user.company) 
             return Response({"message": "Contract updated successfully"}, status=status.HTTP_200_OK)
             
         except Contracts.DoesNotExist:
@@ -96,6 +99,7 @@ class viewContractView(APIView):
             number = obj.uploadedban.account_number if obj.uploadedban else obj.onboardedban.account_number
             obj.delete()
             saveuserlog(request.user, f'Contract of ban {number} deleted successfully!')
+            # create_notification(request.user, f'Contract of ban {number} deleted successfully!',request.user.company) 
             return Response({
                 'message': f"Contract deleted successfully!"
             }, status=status.HTTP_200_OK)

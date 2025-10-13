@@ -9,7 +9,7 @@ from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, Bas
 from .ser import showOrganizationSerializer, showBanSerializer, vendorshowSerializer, basedatahowSerializer, paytypehowSerializer, uniquepdftableSerializer, BaselinedataSerializer, BaselineDataTableShowSerializer, showaccountbasetable, BaselineWithOnboardedCategorySerializer,showbaselinenotesSerializer
 from Dashboard.ModelsByPage.DashAdmin import Vendors, PaymentType
 from ..models import ViewUploadBill, PaperBill
-
+from Batch.views import create_notification
 class ViewBill(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -50,18 +50,21 @@ class ViewBill(APIView):
         print(request.data)
         if request.data['type'] == 'change-payment':
             obj.paymentType = request.data['paymentType']
+            
             saveuserlog(
-                request.user, "Changed payment type to " + request.data['paymentType'] + " for: " + {obj.accountnumber}-{obj.bill_date}
+                request.user, f"Changed payment type to {request.data['paymentType']} for {obj.accountnumber}-{obj.bill_date}"
             )
         elif request.data['type'] == 'change-status':
             obj.billstatus = request.data['status']
+            
             saveuserlog(
-                request.user, "Changed bill status to " + request.data['status'] + " for: " + {obj.accountnumber}-{obj.bill_date}
+                request.user, f"Changed bill status to {request.data['status']} for {obj.accountnumber}-{obj.bill_date}"
             )
         elif request.data['type'] == 'change-check':
             obj.Check = request.data['check']
+            
             saveuserlog(
-                request.user, "Changed check to " + request.data['check'] + " for: " + {obj.accountnumber}-{obj.bill_date}
+                request.user, f"Changed check to {request.data['check']} for {obj.accountnumber}-{obj.bill_date}"
             )
         elif request.data['type'] == 'add-summaryfile':
             obj.summary_file = request.data['file']
@@ -75,6 +78,7 @@ class ViewBill(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         obj.save()
+        # create_notification(request.user, f"Bill of account number {obj.accountnumber} and bill date {obj.bill_date} updated successfully!",request.user.company)
         
         return Response({
             "message": "Data successfully Updated!"
@@ -95,6 +99,7 @@ class ViewBill(APIView):
         else:
             obj.delete()
         saveuserlog(request.user, f"Bill of account number {acc} and bill date {bd} deleted successfully!")
+        # create_notification(request.user, f"Bill of account number {acc} and bill date {bd} deleted successfully!",request.user.company)
         return Response({"message": "Bill deleted successfully."}, status=status.HTTP_200_OK)
 
 from datetime import datetime
@@ -170,17 +175,13 @@ from ..bot import init_database, get_sql_from_gemini, run_query, make_human_resp
 
 from Dashboard.ModelsByPage.aimodels import BotChats
 from Dashboard.Serializers.chatser import ChatSerializer
+from bot1 import BotClass
 import pandas as pd
 class ViewBillBotView(APIView):
     permission_classes = [IsAuthenticated]
     connection = None
     schema = None
 
-    @classmethod
-    def initialize_db(cls):
-        """Initialize DB connection + schema once."""
-        if cls.connection is None or cls.schema is None:
-            cls.connection, cls.schema = init_database("db.sqlite3")
             
     def get(self,request,billType,pk,*args,**kwargs):
         if not pk:
@@ -191,42 +192,46 @@ class ViewBillBotView(APIView):
         return Response({"data":ser.data},status=status.HTTP_200_OK)
         
     def post(self,request,billType,pk,*args,**kwargs):
+        botObj = BotClass(bot_type="bill")
         data = request.data
         if not pk:
             return Response({"message":"Key required!"},status=status.HTTP_400_BAD_REQUEST)
-        self.initialize_db()
+        self.connection, self.schema = botObj.init_database()
 
         data = request.data
         question = data.get("prompt")
         baseId = data.get("base_id")
         chatHis=BotChats.objects.filter(M_analysisChat=pk).values("question", "response", "created_at")
         df = pd.DataFrame(list(chatHis))
-        print(df.columns)
         try:
-            sql_query = get_sql_from_gemini(question, self.schema, bill_type=billType, special_id=pk, chathistory=df)
-
-
-            result_df = run_query(conn=self.connection, sql=sql_query, billType=billType, billId=pk)
-
-            if result_df is None:
-                return Response(
-                    {"message": "No data found for the given query."},
-                    status=status.HTTP_200_OK
-                )
-            
-
-            response_text = make_human_response(question, result_df, db_schema=self.schema)
-
+            instance = BotChats.objects.create(
+                user=request.user,
+                question=question,
+                billChat=BaseDataTable.objects.filter(id=baseId).first()
+            )
+            is_generated, sql_query = botObj.get_view_sql_from_gemini(question, self.schema, bill_type=billType, special_id=pk, chathistory=df)
+            print(is_generated, sql_query)
+            if not is_generated:
+                instance.is_query_generated = False
+                instance.response = "I need a bit more info to answer.\nCould you please elaborate more on your question."
+                instance.save()
+                return Response({"response":"Unable to answer the question!"},status=status.HTTP_200_OK)
+            is_ran, result_df = botObj.run_query(conn=self.connection, sql=sql_query)
+            print(result_df)
+            response_text = botObj.make_human_response(question, result_df, db_schema=self.schema)
+            print()
             allLines = response_text.split("\n")
             questions = [line.strip() for line in allLines if line.strip().endswith("?")]
             other_lines = "\n".join([line.strip() for line in allLines if line.strip() and not line.strip().endswith("?")])
-            BotChats.objects.create(
-                    user=request.user,
-                    question=question,
-                    response=other_lines,
-                    recommended_questions=questions,
-                    billChat=BaseDataTable.objects.filter(id=baseId).first()
-            )
+            print(is_ran, result_df)
+            instance.response = other_lines
+            instance.recommended_questions = questions
+            if is_ran:
+                instance.is_query_generated = True
+                instance.is_query_ran = True
+            else:
+                instance.is_df_empty = True
+            instance.save()   
                 
 
             # saveuserlog(request.user, f"Chatbot query executed: {question} | Response: {response_text}")

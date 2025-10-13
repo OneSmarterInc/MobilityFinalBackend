@@ -8,6 +8,9 @@ from Scripts.Tmobile2New import Tmobile2Class
 import pandas as pd
 import json
 import time
+from Batch.views import create_notification
+from authenticate.models import PortalUser
+from OnBoard.Company.models import Company
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 class ProcessPdf2:
@@ -29,6 +32,8 @@ class ProcessPdf2:
         self.sub_company = self.buffer_data.get('sub_company')
         self.variance = self.buffer_data.get('variance')
         self.t_mobile_type = btype if btype else 0
+        self.user_obj = PortalUser.objects.filter(email=self.email).first()
+        self.company_obj = Company.objects.filter(Company_name=self.company_name).first()
 
         logger.info(f'Processing PDF from buffer: {self.pdf_path}, {self.company_name}, {self.vendor_name}, {self.pdf_filename}')
 
@@ -295,6 +300,7 @@ class ProcessPdf2:
                     self.baseline_data_table(baseline_df)
                 self.reflect_category_object()
             print("Process completed successfully.")
+            create_notification(self.user_obj, f"New BAN {self.account_number} of vendor {self.vendor_name} created successfully!",company=self.company_obj)
             return True, "PDF Onboarded successfully", ProcessTime
         except Exception as e:
             logger.error(f"Error processing PDF: {e}")

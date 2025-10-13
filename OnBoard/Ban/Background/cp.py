@@ -3,7 +3,9 @@ import json
 import time
 from ..models import PdfDataTable, BaseDataTable, UniquePdfDataTable, BaselineDataTable, PortalInformation
 import re
-
+from Batch.views import create_notification
+from OnBoard.Company.models import Company
+from authenticate.models import PortalUser
 
 class ProcessCSVOnboard:
     def __init__(self, buffer_data,instance,uploadtype=None):
@@ -24,6 +26,9 @@ class ProcessCSVOnboard:
         self.location = self.buffer_data.get('location')
         self.month = self.buffer_data.get('month')
         self.email = self.buffer_data.get('email')
+
+        self.user_obj = PortalUser.objects.filter(email=self.email).first()
+        self.company_obj = Company.objects.filter(Company_name=self.company).first()
         self.year = self.buffer_data.get('year')
 
         print("init complete")
@@ -138,6 +143,7 @@ class ProcessCSVOnboard:
         self.instance.account_number = self.account_number
         self.instance.is_processed = True
         self.instance.save()
+        create_notification(self.user_obj, f"New BAN {self.account_number} of vendor {self.vendor} created successfully!",company=self.company_obj)
         return {'code' : 0, 'message':f"Excel file with account number {file_account_number} onboarded successfully!"}
 
 

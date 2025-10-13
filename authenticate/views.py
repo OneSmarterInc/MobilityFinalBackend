@@ -28,13 +28,14 @@ class RegisterView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         data['string_password'] = data.get('password')
-        print(data)
-        
+        data['temp_password'] = data.get('password')
         try:
+            print(data)
             serializer = RegisterSerializer(data=data)
             if serializer.is_valid():
                 user = serializer.save()
                 saveuserlog(request.user, description=f'{user.email} registered successfully!')
+                create_notification(request.user, msg=f'{user.email} registered successfully!', company=request.user.company)
                 return Response({
                     'message' : 'User created successfully',
                     'status':True,
@@ -51,10 +52,21 @@ class LoginView(APIView):
         data = request.data
         username = data.get("username")
         password = data.get("password")
+        
+
         user = PortalUser.objects.filter(username=username).first()
         if not user:
             user = PortalUser.objects.filter(email=username).first()
+        if not user:
+            return Response({"message": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # print(password,check_password(password, user.temp_password))
+        temp_check = check_password(password, user.temp_password) if user and user.temp_password else False
+
         if user and user.check_password(password):
+            if user.last_login and temp_check:
+                return Response({"message": "You must change your password using the 'Forgot Password' option before logging in."}, status=status.HTTP_400_BAD_REQUEST)
+
             login(request, user)
             refresh = RefreshToken.for_user(user)
             userser = showUsersSerializer(user)
@@ -94,6 +106,7 @@ class ProfileView(APIView):
                 return Response({"message": "user not found."}, status=status.HTTP_404_NOT_FOUND)
             user.delete()
             saveuserlog(request.user, description=f'{email} deleted successfully!')
+            # create_notification(request.user, msg=f'{email} deleted successfully!', company=request.user.company)
             return Response({"message": "User deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
         except PortalUser.DoesNotExist or Exception as e:
             return Response({"message": "Unable to delete user."}, status=status.HTTP_404_NOT_FOUND)
@@ -104,6 +117,7 @@ class ProfileView(APIView):
             if serializer.is_valid():
                 serializer.save()
                 saveuserlog(request.user, description=f'{user.email} updated successfully!')
+                # create_notification(request.user, msg=f'{user.email} updated successfully!', company=request.user.company)
                 return Response({"message": "User updated successfully."}, status=status.HTTP_200_OK)
             
             return Response({"message": "Unable to update user."}, status=status.HTTP_400_BAD_REQUEST)
@@ -115,7 +129,9 @@ class ProfileView(APIView):
             serializer = RegisterSerializer(data=request.data)
             if serializer.is_valid():
                 serializer.save()
-                saveuserlog(request.user, description=f'{serializer.data["email"]} registered successfully!')
+                em = serializer.data["email"]
+                saveuserlog(request.user, description=f'{em} registered successfully!')
+                create_notification(request.user, msg=f'{em} registered successfully!', company=request.user.company)
                 return Response({"message": "User created successfully."}, status=status.HTTP_201_CREATED)
             return Response({"message": "unable to register user."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -144,6 +160,23 @@ def saveuserlog(user, description):
         usrlogSer.save()
     else:
         print("Error saving userlog: " + str(usrlogSer.errors))
+
+from Batch.ser import NotificationSaveSerializer
+from rest_framework.decorators import api_view, permission_classes
+
+def create_notification(user, msg, company=None):
+    data={
+        "company_key":company.id if company else None,
+        "company":company.Company_name if company else "",
+        "user":user.id if user else None,
+        "description":msg
+    }
+    print(data)
+    ser = NotificationSaveSerializer(data=data)
+    if ser.is_valid():
+        ser.save()
+    else:
+        print("Error saving notification",ser.errors)
     
 class UserLogView(APIView):
     permission_classes = [IsAuthenticated]
@@ -179,6 +212,17 @@ from .serializers import EmailSerializer, OTPVerifySerializer
 from .models import EmailOTP
 import random
 from sendmail import send_generic_mail
+
+class verifyEmailView(APIView):
+    def post(self, request):
+        serializer = EmailSerializer(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data["email"]
+            if PortalUser.objects.filter(email=email).exists():
+                return Response({"message": "Email exists"}, status=status.HTTP_200_OK)
+            else:
+                return Response({"message": "Email does not exist"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class SendOTPView(APIView):
     def post(self, request):
@@ -239,16 +283,17 @@ class VerifyOTPView(APIView):
 from django.contrib.auth.hashers import make_password, check_password
 
 class ForgotPassswordView(APIView):
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
         data = request.data
-        user = request.user
-        print(user.password)
-        print(data)
+        
+        email = data.get('email')
+        user = PortalUser.objects.filter(email=email).first()
+        if not user:
+            return Response({"message":"User not found!"}, status=status.HTTP_400_BAD_REQUEST)
         new = data.get('new_password')
         confirm = data.get('confirm_password')
-        print(new, confirm)
         if new != confirm:
             return Response({"message":"new password and confirm password not matched!"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -256,6 +301,7 @@ class ForgotPassswordView(APIView):
             user.password = make_password(new)
             user.save()
             saveuserlog(request.user, f"password updated for account {user.email}")
+            # create_notification(request.user, f"password updated for account {user.email}")
             return Response({"message":"password updated successfully!"}, status=status.HTTP_200_OK)
         except Exception as e:
             print(e)
@@ -290,6 +336,7 @@ class BulkUserUpload(APIView):
         df["account_number"] = ban
         df['designation'] = usertpe
         df["username"] = df["email"].str.split("@").str[0]
+        df['temp_password'] = passw
         df['string_password'] = passw
         df['password'] = passw
         df['password2'] = passw
@@ -305,11 +352,10 @@ class BulkUserUpload(APIView):
             ser = RegisterSerializer(data=record)
             if ser.is_valid():
                 ser.save()
+        sub = "Bulk User Upload"
+        email = request.user.email
+        existing_emails = "\n".join(existance)
         if existance:
-            sub = "Bulk User Upload"
-            email = request.user.email
-            existing_emails = "\n".join(existance)
-
             msg = f"""
             Hello {request.user.username},
 
@@ -323,7 +369,18 @@ class BulkUserUpload(APIView):
             Regards,
             Team Mobility
             """
-            send_custom_email(company=company, to=email, subject=sub, body_text=msg)
+        else:
+            msg = f"""
+            Hello {request.user.username},
+
+            Bulk user upload completed successfully.
+
+            📌 All {total_len} users were registered successfully.
+
+            Regards,
+            Team Mobility
+            """
+        send_custom_email(company=company, to=email, subject=sub, body_text=msg)
 
         saveuserlog(request.user, description=f'{request.user.email} uploaded bulk users!')
         return Response({"message":"User added in bulk successfully!"},status=status.HTTP_201_CREATED)

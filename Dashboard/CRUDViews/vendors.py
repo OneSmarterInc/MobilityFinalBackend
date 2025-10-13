@@ -8,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 from ..Serializers.ven import VendorsSerializer, OrganizationListSerializer
 from authenticate.views import saveuserlog
-
+from Batch.views import create_notification
 class VendorsView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request,pk=None, *args, **kwargs):
@@ -22,12 +22,14 @@ class VendorsView(APIView):
         else:
             ven = Vendors.objects.all()
             serializer = VendorsSerializer(ven, many=True)
+
         orgser = OrganizationListSerializer(orgs, many=True)
         return Response({"data": serializer.data, "orgs": orgser.data},status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
         pass
     def put(self, request, pk, *args, **kwargs):
         vendor = Vendors.objects.filter(id=pk)
+        name = vendor.first().name
         org = request.data.pop('organization_name', None)
         org = Organizations.objects.get(Organization_name=org)
         if request.data['action'] == 'add-favorite':
@@ -37,7 +39,8 @@ class VendorsView(APIView):
             print(vendor)
             org.favorite_vendors.remove(vendor.first())
             org.save()
-            saveuserlog(request.user, f"vendor {vendor.first().name} updated successfully!")
+            saveuserlog(request.user, f"vendor {name} updated successfully!")
+            # create_notification(user=request.user,msg=f"vendor {name} updated successfully.")
         return Response({"message":"vendor updated successfully!"})
     def delete(self, request, pk, *args, **kwargs):
         pass

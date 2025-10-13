@@ -11,10 +11,11 @@ from ..Serializers.promange import OrganizationsShowSerializer, showdesignations
 from ..ModelsByPage.DashAdmin import UserRoles
 from authenticate.models import PortalUser
 from ..ModelsByPage.ProfileManage import Profile
+from Batch.views import create_notification
 from authenticate.views import saveuserlog
 
 class GetUserbyOrgView(APIView):
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
     def get(self, request,org, *args, **kwargs):
         if not org:
             return Response({"message": f"Organization required!"}, status=status.HTTP_400_BAD_REQUEST)
@@ -23,7 +24,7 @@ class GetUserbyOrgView(APIView):
         return Response({"data": ser.data}, status=status.HTTP_200_OK)
         
 class ProfileManageView(APIView):
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
     def get(self, request, *args, **kwargs):   
         if request.user.designation.name == "Superadmin":
             orgs = Organizations.objects.all()
@@ -53,6 +54,7 @@ class ProfileManageView(APIView):
             if ser.is_valid():
                 ser.save()
                 saveuserlog(request.user, f"user profile {obj.email} updated.")
+                # create_notification(request.user, f"user profile {obj.email} updated.",company=request.user.company)
                 return Response({"message": "Profile updated successfully!"}, status=status.HTTP_200_OK)
             else:
                 print(ser.errors)
@@ -62,6 +64,7 @@ class ProfileManageView(APIView):
             ser.save()
             data = ser.data
             saveuserlog(request.user, f"new user profile for {data['email']} created.")
+            # create_notification(request.user, f"new user profile for {data['email']} created.",request.user.company)
             return Response({"message": "New User added successfully!"}, status=status.HTTP_200_OK)
         else:
             print(ser.errors)
@@ -83,6 +86,7 @@ class ProfileManageView(APIView):
                 print(ser.errors)
                 return Response({"message": "Unable to update profile."}, status=status.HTTP_400_BAD_REQUEST)
         saveuserlog(request.user, f"user profile {obj.email} updated.")
+        # create_notification(request.user, f"user profile {obj.email} updated.",company=request.user.company)
         return Response({"message": f"Contact list for organization {org.Organization_name} updated successfully!"}, status=status.HTTP_200_OK)
     def delete(self, request, pk, *args, **kwargs):
         return Response({"message": "Delete"}, status=status.HTTP_200_OK)
@@ -103,6 +107,7 @@ class ProfilePermissionsView(APIView):
         if ser.is_valid():
             ser.save()
             saveuserlog(request.user, f"permissions for {role.email} updated.")
+            # create_notification(request.user, f"permissions for {role.email} updated.",request.user.company)
             return Response({"message": f"Permission list for {role.role.name} updated successfully!"}, status=status.HTTP_200_OK)
         else:
             print(ser.errors)
@@ -119,6 +124,7 @@ class ProfileUpdateView(APIView):
         if ser.is_valid():
             ser.save()
             saveuserlog(request.user, f"user profile {obj.email} updated.")
+            # create_notification(request.user, f"user profile {obj.email} updated.",company=request.user.company)
             return Response({"message": "Profile updated successfully!"}, status=status.HTTP_200_OK)
         else:
             print(ser.errors)

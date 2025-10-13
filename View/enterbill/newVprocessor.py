@@ -15,7 +15,10 @@ from django.core.files import File
 logging.basicConfig(level=logging.INFO)
 from baselineTag import object_tagging
 from addon import get_cat_obj_total
+from OnBoard.Company.models import Company
+from authenticate.models import PortalUser
 from django.utils import timezone
+from Batch.views import create_notification
 logger = logging.getLogger(__name__)
 class ProcessPdf2:
     def __init__(self, buffer_data,btype,instance=None):
@@ -37,6 +40,9 @@ class ProcessPdf2:
         self.t_mobile_type = btype if btype else 0
 
         logger.info(f'Processing PDF from buffer: {self.pdf_path}, {self.company_name}, {self.vendor_name}, {self.pdf_filename}')
+
+        self.user_obj = PortalUser.objects.filter(email=self.email).first()
+        self.company_obj = Company.objects.filter(Company_name=self.company_name).first()
 
         self.bill_date = None
         self.net_amount = 0
@@ -621,6 +627,7 @@ class ProcessPdf2:
                 print(e)
                 message = str(e).strip()
             print("Process completed successfully.")
+            create_notification(user=self.user_obj, msg=f"Bill with date {self.bill_date} of ban {self.account_number} uploaded.",company=self.company_obj)
             return True, message, ProcessTime
         except Exception as e:
             logger.error(f"Error processing PDF: {e}")

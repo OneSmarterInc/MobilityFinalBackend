@@ -21,6 +21,7 @@ from OnBoard.Ban.models import UniquePdfDataTable
 import os
 from checkbill import prove_bill_ID
 from addon import parse_until_dict
+from Batch.views import create_notification
 class UploadBANView(APIView):
     def __init__(self):
         self.instance = None
@@ -206,6 +207,7 @@ class UploadBANView(APIView):
 
             )
             obj.save()
+            create_notification(request.user, f"New BAN {upload_ban.account_number} of vendor {upload_ban.Vendor.name} created successfully!", company=upload_ban.company)
             batch = BatchReport.objects.create(
                 banUploaded = upload_ban,
                 sub_company_name = upload_ban.organization.Organization_name if upload_ban.organization else None,
@@ -235,7 +237,7 @@ class UploadBANView(APIView):
                 User_email_id = request.user.email,
             )
             portal.save()
-            saveuserlog(request.user, f"New ban {upload_ban.account_number} created successfully!")
+            saveuserlog(request.user, f"New ban {upload_ban.account_number} created successfully!",)
 
         except Exception as e:
             if self.instance and self.instance.pk: self.instance.delete()
@@ -781,9 +783,10 @@ class ExcelUploadView(APIView):
                 else:
                     saveuserlog(request.user, "Ban onboarded via excel file.")
                     return Response({"message":"Ban onboarded via excel file successfully!"},status=status.HTTP_200_OK)
-            except:
+            except Exception as e:
+                print(e)
                 if obj and obj.pk: obj.delete()
-                return Response({"message":f"{process['message']}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({"message":f"Unable to onboard ban!"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
             return Response({"message":"Mapping not found!"},status=status.HTTP_400_BAD_REQUEST)
 

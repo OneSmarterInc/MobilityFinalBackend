@@ -42,7 +42,7 @@ def init_database(db_path="db.sqlite3", query_type=None):
         col_descriptions = []
         for col in columns:
             col_name, col_type = col[1], col[2]
-            if col_name == "data_usage_range":
+            if table == "AnalysisData" and col_name == "data_usage_range":
                 choices_text = ", ".join([f"'{c[0]}' ({c[1]})" for c in type_choices])
                 col_descriptions.append(f"{col_name} {col_type} [choices: {choices_text}]")
             else:
@@ -155,8 +155,8 @@ def run_query(conn, sql, analysis_id):
 def make_human_response(user_question, result, db_schema=None):
     model = genai.GenerativeModel("gemini-2.5-flash-lite")
 
-    if not isinstance(result, pd.DataFrame):
-        return "I couldn't find any information matching your request."
+    # if not isinstance(result, pd.DataFrame):
+    #     return "I couldn't find any information matching your request."
 
     prompt = f"""
     You are a helpful assistant. The user asked:
@@ -164,7 +164,7 @@ def make_human_response(user_question, result, db_schema=None):
     **User Question:** "{user_question}"
 
     I executed a database query and got the following results:
-    {result.to_string()}
+    {result}
     Summarize this result clearly in plain, natural language as human-readable text.
     
     ## Instructions

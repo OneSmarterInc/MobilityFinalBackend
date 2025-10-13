@@ -7,6 +7,7 @@ from ...Serializers.AdminPage import PermissionOperationSerializer, PermissionSh
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 
+from Batch.views import create_notification
 from authenticate.views import saveuserlog
 
 class PermissionView(APIView):
@@ -29,7 +30,8 @@ class PermissionView(APIView):
         ser = PermissionOperationSerializer(data=request.data)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, "Added new permission")  # save user log for audit trail
+            saveuserlog(request.user, f"New permission added with name {ser.data["name"]}")  # save user log for audit trail
+            create_notification(request.user, f"New permission added with name {ser.data["name"]}",request.user.company) 
             return Response({"message" : "new permission created successfully!", "data":ser.data}, status=status.HTTP_201_CREATED)
         return Response({"message":ser.errors}, status=status.HTTP_400_BAD_REQUEST)
     
@@ -42,6 +44,7 @@ class PermissionView(APIView):
         if ser.is_valid():
             ser.save()
             saveuserlog(request.user, description=f'Permission updated: {ser.data["name"]}')
+            # create_notification(request.user, description=f'Permission {ser.data["name"]} updated',company=request.user.company)
             return Response({"message" : "permission updated successfully!", "data":ser.data}, status=status.HTTP_200_OK)
         return Response({"message":ser.errors}, status=status.HTTP_400_BAD_REQUEST)
     
@@ -49,7 +52,8 @@ class PermissionView(APIView):
         try:
             permission = Permission.objects.get(name=pk)
             permission.delete()
-            saveuserlog(request.user, description=f'Permission deleted: {pk}')
+            saveuserlog(request.user, description=f'Permission {pk} deleted')
+            # create_notification(request.user, description=f'Permission {pk} deleted',company=request.user.company)
             return Response({"message" : "permission deleted successfully!"}, status=status.HTTP_200_OK)
         except Permission.DoesNotExist:
             return Response({"message": 'Permission not found'}, status=status.HTTP_404_NOT_FOUND)

@@ -2,16 +2,28 @@ from rest_framework import serializers
 from .models import Reminder, Ticket
 from authenticate.models import PortalUser
 
+from Dashboard.ModelsByPage.DashAdmin import UserRoles
 class PortalUserSerializer(serializers.ModelSerializer):
     designation = serializers.CharField(source='designation.name', read_only=True)
     company = serializers.CharField(source='company.Company_name', read_only=True)
     class Meta:
         model = PortalUser
         fields = ['email', 'first_name', 'last_name', 'designation', 'company']
+
 class ReminderSerializer(serializers.ModelSerializer):
+    # to_roles = serializers.SlugRelatedField(
+    #     many=True,
+    #     slug_field='name',
+    #     queryset=UserRoles.objects.all()
+    # )
+    to_roles = serializers.SerializerMethodField()
     class Meta:
         model = Reminder
         fields = '__all__'
+    def get_to_roles(self, obj):
+        # return id and name
+        return list(obj.to_roles.values('id', 'name'))
+
 class TicketSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticket

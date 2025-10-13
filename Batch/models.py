@@ -108,14 +108,17 @@ class EmailConfiguration(models.Model):
 
     
 from django.db import models
+from authenticate.models import PortalUser
 
 class Notification(models.Model):
     company_key = models.ForeignKey(Company, related_name='company_notifications', on_delete=models.CASCADE, null=True, blank=True)
-    company = models.CharField(max_length=255,default="OneSmarter")
+    user = models.ForeignKey(PortalUser, related_name='user_notifications', on_delete=models.CASCADE, null=True, blank=True)
+    company = models.CharField(max_length=255,null=True,blank=True)
     description = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        db_table = 'Notification'
         ordering = ["-created_at"]
 
     def __str__(self):

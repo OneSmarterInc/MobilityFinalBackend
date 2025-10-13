@@ -15,13 +15,14 @@ from authenticate.models import PortalUser
 from Dashboard.ModelsByPage.ProfileManage import Profile
 from authenticate.views import saveuserlog
 from django.forms.models import model_to_dict
+from Batch.views import create_notification
 
 class RequestsView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request,pk=None, *args, **kwargs):
         if pk is None:
             if request.user.company is None:
-                all_objs = Requests.objects.all().order_by('-created')
+                all_objs = Requests.objects.filter(status="Completed").order_by('-created')
             else:
                 if request.user.designation.name == "Admin":
                     all_objs = Requests.objects.filter(organization__company=request.user.company).order_by('-created')
@@ -54,7 +55,6 @@ class RequestsView(APIView):
             vendor_name = getattr(obj, "vendor", None)
             
             ban_number = getattr(obj, "ban", None)
-            print(org_name, vendor_name,ban_number)
             log_msg = (
                 f"Request {data.get('request_type')} updated"
                 f"{' for organization ' + str(org_name) if org_name else ''}"
@@ -63,6 +63,7 @@ class RequestsView(APIView):
             )
 
             saveuserlog(request.user, log_msg)
+            create_notification(request.user, f"request of type {ser.data["request_type"]} updated successfully!",company=request.user.company)
             return Response({"message":"Request updated successfully!"},status=status.HTTP_200_OK)
         else:
             return Response({"message":"Unable to update request."},status=status.HTTP_400_BAD_REQUEST)
@@ -73,6 +74,7 @@ class RequestsView(APIView):
             line = re.mobile
             re.delete()
             saveuserlog(request.user, f"Request {re.request_type}  deleted.")
+            create_notification(request.user, f"Request {re.request_type} deleted.",request.user.company)
             return Response({"message": "Request deleted successfully!"}, status=status.HTTP_200_OK)
         except Requests.DoesNotExist:
             return Response({"message": "request does not exist"}, status=status.HTTP_400_BAD_REQUEST)
@@ -91,7 +93,6 @@ class OnlineFormView(APIView):
         onboarded = showOnboardedSerializer(BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).exclude(Entry_type="Master Account"), many=True)
         unique = UniquePdfShowSerializer(UniquePdfDataTable.objects.filter(viewuploaded=None,viewpapered=None), many=True)
         profile_users = Profile.objects.filter(organization__in=all_orgs).select_related("user")
-        print(profile_users)
         users = [p.user for p in profile_users if p.user.company is not None]
         users_data = showUsers(users, many=True)
         return Response({"organizations":orgs.data, "vendors":vendors.data, "bans":onboarded.data, "lines":unique.data,"users":users_data.data},status=status.HTTP_200_OK)
@@ -130,6 +131,7 @@ class OnlineFormView(APIView):
                 ser.save()
                 data = request.data
                 saveuserlog(request.user, f"request with type {r_type} created in organization {org_name}") 
+                create_notification(request.user, f"request with type {r_type} created in organization {org_name}",request.user.company) 
             else:
                 print(ser.errors)
                 return Response({"message":"Unable to create request"},status=status.HTTP_400_BAD_REQUEST)
@@ -166,6 +168,7 @@ class RequestLogsView(APIView):
             ser.save()
             data = ser.data
             saveuserlog(request.user, f"request of type {obj.request_type} updated for organization {org}")
+            create_notification(request.user, f"request of type {obj.request_type} updated for organization {org}",request.user.company)
             return Response({"message":"Request updated successfully!"},status=status.HTTP_200_OK)
         else:
             return Response({"message":"Unable to update request."},status=status.HTTP_400_BAD_REQUEST)
@@ -178,6 +181,7 @@ class RequestLogsView(APIView):
             mobile = re.mobile
             re.delete()
             saveuserlog(request.user, f"request of type {rt} of organization {org} deleted.")
+            create_notification(request.user, f"request of type {rt} of organization {org} deleted.",request.user.company)
             return Response({"message": "Request deleted successfully!"}, status=status.HTTP_200_OK)
         except Requests.DoesNotExist:
             return Response({"message": "request does not exist"}, status=status.HTTP_400_BAD_REQUEST)
@@ -219,6 +223,7 @@ class RequestExcelUploadView(APIView):
                 instance = Requests(**obj)
                 instance.save()  # Save individually to trigger signals or validations
             saveuserlog(request.user, f"Requests in bulk for organization {org} created successfully.")
+            create_notification(request.user, f"Requests in bulk for organization {org} created successfully.",request.user.company)
             return Response({"message": "Excel data uploaded successfully!"}, status=status.HTTP_200_OK)
 
         except Exception as e:
@@ -244,8 +249,6 @@ class RequestUsersExcelUploadView(APIView):
             return Response({"message": f"Organization with name '{org}' does not exist."},status=status.HTTP_400_BAD_REQUEST)
         
         data = request.data.copy()
-        print(data)
-
         for obj in data:
             if not obj.get('email'):
                 continue
@@ -264,7 +267,6 @@ class RequestUsersExcelUploadView(APIView):
                 "designation":roleObj.id,
                 "password":1234,
             }
-            print(PortalDict)
             portalobj = PortalUser.objects.filter(email=obj.get('email'))
             if not portalobj.exists():
                 portalser = AddusertoPortalSerializer(data=PortalDict)
@@ -274,7 +276,6 @@ class RequestUsersExcelUploadView(APIView):
                     print(portalser.errors)
             else: 
                 portalser = AddusertoPortalSerializer(portalobj.first())
-            print(self.vendors)
             ProfileDict = {
                 "user":portalser.data.get('id'),
                 "organization":orgobj.id,
@@ -297,9 +298,9 @@ class RequestUsersExcelUploadView(APIView):
             else:
                 print("errors==",profileser.errors)
                 continue
-            print(profileser.data)
         print(errorBuffer)
         saveuserlog(request.user, f"Profile users in bulk for organization {orgobj.Organization_name} created successfully.")
+        create_notification(request.user, f"Profile users in bulk for organization {orgobj.Organization_name} created successfully.",request.user.company)
         return Response({"message":"Bulk users created successfully!"},status=status.HTTP_200_OK)
 
             

@@ -126,24 +126,28 @@ class InventoryDataView(APIView):
                 name = company.Company_name
                 company.delete()
                 saveuserlog(request.user, f"Company named {name} deleted successfully!")
+                # create_notification(request.user, f"Company named {name} deleted successfully!",request.user.company)
                 return Response({"message": "company deleted successfully!"}, status=status.HTTP_200_OK)
             elif subject == "Organization":
                 organization = Organizations.objects.filter(id=id).first()
                 name = organization.Organization_name
                 organization.delete()
                 saveuserlog(request.user, f"Organization named {name} deleted successfully!")
+                create_notification(request.user, f"Organization named {name} deleted successfully!",request.user.company)
                 return Response({"message" : "organization deleted successfully!"}, status=status.HTTP_200_OK)
             elif subject == "Location":
                 location = Location.objects.filter(id=id).first()
                 name = location.site_name
                 location.delete()
                 saveuserlog(request.user, f"Location named {name} deleted successfully!")
+                # create_notification(request.user, f"Location named {name} deleted successfully!",request.user.company)
                 return Response({"message" : "Location deleted successfully!"}, status=status.HTTP_200_OK)
             elif subject == "Vendor":
                 vendor = Vendors.objects.filter(id=id)
                 name = vendor.name
                 vendor.delete()
                 saveuserlog(request.user, f"Vendor named {name} deleted successfully!")
+                # create_notification(request.user, f"Vendor named {name} deleted successfully!",request.user.company)
                 return Response({"message" : "Vendor deleted successfully!"}, status=status.HTTP_200_OK)
             else:
                 return Response({"message" : "Invalid subject"}, status=status.HTTP_400_BAD_REQUEST)
@@ -156,6 +160,7 @@ from OnBoard.Organization.models import Division
 from OnBoard.Ban.models import PortalInformation
 from .ser import UniqueTableShowSerializer, BanSaveSerializer, BaseDataTableAllShowSerializer
 from OnBoard.Ban.PortalInfo.ser import showPortalInfoser
+from Batch.views import create_notification
 class BanInfoView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -229,6 +234,7 @@ class BanInfoView(APIView):
         print(obj.remarks)
 
         saveuserlog(request.user, f"account number {obj.accountnumber} updated successfully.")
+        # create_notification(request.user, f"account number {obj.accountnumber} updated",request.user.company)
         return Response({
             "message": "Ban information updated successfully!"
         }, status=status.HTTP_200_OK)
@@ -269,11 +275,18 @@ class BanInfoView(APIView):
 
             change_log = "; ".join(change_log_lines) if change_log_lines else "No changes detected."
 
+
+            # create_notification(user=request.user, msg=f"BAN {ban} updated successfully!",company=request.user.company)
             # --- Save log ---
             saveuserlog(
                 request.user,
                 f"BAN '{instance.accountnumber}' updated. Changes: {change_log}"
             )
+            # create_notification(
+            #     request.user,
+            #     f"Account number '{instance.accountnumber}' updated", request.user.company
+            # )
+
 
             return Response({"message": "Ban updated successfully"}, status=status.HTTP_200_OK)
 
@@ -298,6 +311,7 @@ class BanInfoView(APIView):
         acc = obj.account_number
         obj.delete()
         saveuserlog(request.user, f"account number {acc} deleted successfully.")
+        # create_notification(user=request.user, msg=f"BAN {acc} deleted successfully!",company=request.user.company)
         return Response({"message":f"Ban with account number {ban} deleted successfully!"},status=status.HTTP_200_OK)
         
 
@@ -416,6 +430,7 @@ class MobileView(APIView):
                 if baseser.is_valid():
                     baseser.save()
                 saveuserlog(request.user, f"new line with wireless number {data['wireless_number']} in account {data['account_number']} created successfully!")
+                # create_notification(request.user, f"new line with wireless number {data['wireless_number']} in account {data['account_number']} created successfully!",request.user.company)
                 return Response({
                     "message": f"new line with wireless number {data['wireless_number']} created successfully!"
                 },status=status.HTTP_201_CREATED)
@@ -453,6 +468,10 @@ class MobileView(APIView):
                         request.user,
                         f'wireless number {wireless_number} in account number {account_number} and  updated successfully!'
                     )
+                    # create_notification(
+                    #     request.user,
+                    #     f'wireless number {wireless_number} in account number {account_number} and  updated successfully!', request.user.company
+                    # )
             return Response({
                 "message": f"mobile {wireless_number} updated successfully!"
             },status=status.HTTP_200_OK)
@@ -475,6 +494,10 @@ class MobileView(APIView):
                 request.user,
                 f'wireless number {wireless_number} in account number {account_number} deleted successfully!'
             )
+            # create_notification(
+            #     request.user,
+            #     f'wireless number {wireless_number} in account number {account_number} deleted successfully!', request.user.company
+            # )
             return Response({
                 "message": f"mobile data of number {wireless_number} deleted successfully!"
             },status=status.HTTP_200_OK)
@@ -954,6 +977,7 @@ class BanInfoNoVendorView(APIView):
             return Response({"message": "Invalid request type."}, status=status.HTTP_400_BAD_REQUEST)
 
         saveuserlog(request.user, f"account number {obj.accountnumber} updated successfully.")
+        # create_notification(request.user, f"account number {obj.accountnumber} updated successfully.", request.user.company)
         return Response({"message": "Ban information updated successfully!"}, status=status.HTTP_200_OK)
 
     def put(self, request, org, search_by, criteria, *args, **kwargs):
@@ -996,6 +1020,7 @@ class BanInfoNoVendorView(APIView):
         change_log = "; ".join(changes) if changes else "No changes detected."
 
         saveuserlog(request.user, f"BAN '{instance.accountnumber}' updated. Changes: {change_log}")
+        # create_notification(request.user, f"BAN '{instance.accountnumber}' updated",request.user.company)
         return Response({"message": "Ban updated successfully"}, status=status.HTTP_200_OK)
 
     def delete(self, request, org, search_by, criteria, *args, **kwargs):
@@ -1027,6 +1052,7 @@ class BanInfoNoVendorView(APIView):
         acc = getattr(obj, "account_number", base.accountnumber)
         obj.delete()
         saveuserlog(request.user, f"account number {acc} deleted successfully.")
+        # create_notification(request.user, f"account number {acc} deleted successfully.",request.user.company)
         return Response({"message": f"Ban with account number {base.accountnumber} deleted successfully!"},
                         status=status.HTTP_200_OK)
 

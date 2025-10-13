@@ -9,6 +9,7 @@ from ..ModelsByPage.Req import Device
 from OnBoard.Organization.models import Organizations
 from ..Serializers.requestser import devicesSerializer, showdevicesSerializer,showOrganizations
 from authenticate.views import saveuserlog
+from Batch.views import create_notification
 class DevicesView(APIView):
     # permission_classes = [IsAuthenticated]
 
@@ -33,6 +34,7 @@ class DevicesView(APIView):
             obj = Device.objects.filter(id=ser.data['id']).first()
 
             saveuserlog(request.user, f"{data['device_type']} device type  created for organization {obj.sub_company.Organization_name}.")
+            # create_notification(request.user, f"{data['device_type']} device type  created for organization {obj.sub_company.Organization_name}.",request.user.company)
             return Response({"message":"Device added succesfully!"},status=status.HTTP_200_OK)
         else:
             return Response({"message":"unable to add device."},status=status.HTTP_400_BAD_REQUEST)
@@ -43,7 +45,9 @@ class DevicesView(APIView):
         ser = devicesSerializer(obj,data=request.data,partial=True)
         if ser.is_valid():
             ser.save()
+            data = ser.data
             saveuserlog(request.user, f"{data['device_type']} device updated for organization {data['sub_company']}.")
+            # create_notification(request.user, f"{data['device_type']} device updated for organization {data['sub_company']}.",request.user.company)
             return Response({"message":"Device updated succesfully!"},status=status.HTTP_200_OK)
         else:
             return Response({"message":"unable to update device."},status=status.HTTP_400_BAD_REQUEST)
@@ -53,6 +57,7 @@ class DevicesView(APIView):
         dtype = obj.device_type
         if not obj:
             saveuserlog(request.user, f"{dtype} device deleted for organization {org}.")
+            # create_notification(request.user, f"{dtype} device deleted for organization {org}.",request.user.company)
             return Response({"message":"Device not found"},status=status.HTTP_400_BAD_REQUEST)
         obj.delete()
         return Response({"message":"Device deleted sucessfully!"},status=status.HTTP_200_OK)

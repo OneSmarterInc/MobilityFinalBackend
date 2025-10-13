@@ -10,7 +10,7 @@ from Dashboard.ModelsByPage.DashAdmin import Vendors
 from rest_framework.permissions import IsAuthenticated
 from addon import parse_until_dict
 from authenticate.views import saveuserlog
-
+from Batch.views import create_notification
 class CategoryView(APIView):
     # permission_classes = [IsAuthenticated]
     
@@ -49,6 +49,7 @@ class CategoryView(APIView):
             if ser.is_valid():
                 ser.save()
                 saveuserlog(request.user, f"Baseline category {ser.data['category']} created for ban {ban}.")
+                # create_notification(request.user, f"Baseline category {ser.data['category']} created for ban {ban}.",company=request.user.company)
                 return Response({"message" : "new Category created successfully!"}, status=status.HTTP_201_CREATED)
             else:
                 print(ser.errors)
@@ -77,6 +78,7 @@ class CategoryView(APIView):
         if ser.is_valid():
             ser.save()
             saveuserlog(request.user, f"Baseline category {ser.data['category']} updated for ban {ban}.")
+            # create_notification(request.user, f"Baseline category {ser.data['category']} updated for ban {ban}.",request.user.company)
             return Response({"message" : "Category updated successfully!"}, status=status.HTTP_200_OK)
         else:
             return Response({"message":"unable to update category."}, status=status.HTTP_400_BAD_REQUEST)
@@ -88,6 +90,7 @@ class CategoryView(APIView):
             cat = category.category
             category.delete()
             saveuserlog(request.user, f"Baseline category {category} of ban {ban} deleted.")
+            # create_notification(request.user, f"Baseline category {category} of ban {ban} deleted.",request.user.company)
             return Response({"message": "category deleted successfully!"}, status=status.HTTP_200_OK)
         except BaselineCategories.DoesNotExist:
             return Response({"message": "category does not exist"}, status=status.HTTP_400_BAD_REQUEST)

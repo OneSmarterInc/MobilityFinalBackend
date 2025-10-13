@@ -280,6 +280,7 @@ def email_config_detail(request, pk):
             serializer.save()
             data = serializer.data
             saveuserlog(request.user, description=f"Email configuration updated for organization {data['organization']}")
+            # create_notification(request.user, msg=f"Email configuration updated for organization {data['organization']}",company=request.user.company)
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -374,8 +375,22 @@ class EmailConfigurationViewSet(viewsets.ModelViewSet):
 
 
 from .models import Notification
-from .ser import NotificationSerializer
+from .ser import NotificationSerializer, NotificationSaveSerializer
 from rest_framework.decorators import api_view, permission_classes
+
+def create_notification(user, msg, company=None):
+    data={
+        "company_key":company.id if company else None,
+        "company":company.Company_name if company else "",
+        "user":user.id if user else None,
+        "description":msg
+    }
+    print(data)
+    ser = NotificationSaveSerializer(data=data)
+    if ser.is_valid():
+        ser.save()
+    else:
+        print("Error saving notification",ser.errors)
 
 
 @api_view(["GET"])
@@ -384,10 +399,9 @@ def notifications_by_company(request,*args, **kwargs):
     """
     GET /api/notifications?company_id=OneSmarter
     """
-    qs = Notification.objects.filter(company_key=request.user.company) if request.user.company else Notification.objects.all()
+    qs = Notification.objects.filter(user=request.user) if request.user.company else Notification.objects.all()
     qs = qs.order_by("-created_at")
     data = NotificationSerializer(qs, many=True).data
-    print(data)
     return Response({"data": data}, status=status.HTTP_200_OK)
 
 @api_view(["DELETE"])
@@ -407,9 +421,6 @@ def delete_notification(request, pk: int):
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
 def delete_all_notification(request):
-    """
-    DELETE /api/notifications/<id>/
-    """
     try:
         n = Notification.objects.filter(company_key=request.user.company) if request.user.company else Notification.objects.all()
     except Notification.DoesNotExist:

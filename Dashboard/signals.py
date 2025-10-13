@@ -4,7 +4,14 @@ from .ModelsByPage.cat import BaselineCategories
 from OnBoard.Ban.models import BaselineDataTable, UniquePdfDataTable
 from addon import parse_until_dict
 from django.dispatch import receiver
+from Dashboard.ModelsByPage.DashAdmin import UserRoles
 import json
+
+
+# @receiver(post_save, sender=UserRoles)
+# def send_mail_on_update(sender, instance, created, **kwargs):
+
+    
 
 @receiver(post_save, sender=Vendors)
 def print_vendor_created(sender, instance, created, **kwargs):

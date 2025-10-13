@@ -7,7 +7,7 @@ from ...ModelsByPage.DashAdmin import Vendors
 from ...Serializers.AdminPage import VendorsOperationSerializer, VendorsShowSerializer, Vendorallserializer
 from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
-
+from Batch.views import create_notification
 class VendorView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -27,7 +27,9 @@ class VendorView(APIView):
         ser = VendorsOperationSerializer(data=request.data)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, f'new vendor created {ser.data["name"]}')  # save log here  # todo: add logging functionality
+            name = ser.data["name"]
+            saveuserlog(request.user, f'new vendor {name} created successfully.')  
+            create_notification(user=request.user,msg=f"new vendor {name} created successfully.")
             return Response({"message" : "new vendor created successfully!", "data" : ser.data}, status=status.HTTP_201_CREATED)
         return Response({"message":ser.errors}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -38,13 +40,13 @@ class VendorView(APIView):
         except Vendors.DoesNotExist:
             return Response({"message": 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
         data = request.data
-        print(vendor)
-        print(data)
         ser = VendorsOperationSerializer(vendor, data=data, partial=True)
         
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, description=f'vendor updated: {ser.data["name"]}')  # save log here  # todo: add logging functionality  # todo: add logging functionality
+            name = ser.data["name"]
+            saveuserlog(request.user, description=f"vendor {name} updated successfully.")  # save log here  # todo: add logging functionality  # todo: add logging functionality
+            # create_notification(user=request.user,msg=f"vendor {name} updated successfully.")
             return Response({"message" : "vendor updated successfully!", "data":ser.data}, status=status.HTTP_200_OK)
         return Response({"message": ser.errors}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -57,10 +59,12 @@ class VendorView(APIView):
                 vendor = Vendors.objects.filter(id=pk).first()
             except:
                 vendor = Vendors.objects.filter(name=pk).first()
+            name = vendor.name
             if not vendor:
                 return Response({"message":"Vendor not found!"},status=status.HTTP_400_BAD_REQUEST)
             vendor.delete()
-            saveuserlog(request.user, description=f'vendor deleted: {pk}')  # sav
+            saveuserlog(request.user, description=f'vendor name {name} deleted successfully.')  # sav
+            # create_notification(user=request.user,msg=f"vendor {name} deleted successfully.")
             return Response({'message': "Vendor Deleted Successfully!"}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)

@@ -13,7 +13,7 @@ import pandas as pd
 from OnBoard.Ban.models import UniquePdfDataTable
 from datetime import datetime
 from ..ser import showUnbilledReport
-
+from Batch.views import create_notification
 class UploadUnbilledReportView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     def __init__(self, **kwargs):
@@ -142,6 +142,10 @@ class UploadUnbilledReportView(APIView):
                     request.user, 
                     f"Unbilled Data Usage Report uploaded of file  {file.name} and Vendor: {vendor.name}"
                 )
+            # create_notification(
+            #         request.user, 
+            #         f"Unbilled Data Usage Report uploaded of file  {file.name} and Vendor: {vendor.name}", request.user.company
+            #     )
             return Response({
                 "message": "Unbilled Data Usage Report uploaded successfully",
             }, status=status.HTTP_200_OK)
@@ -184,6 +188,10 @@ class UploadUnbilledReportView(APIView):
                 request.user, 
                 f"{self.report_type} report attributions company:{self.com}, organization:{self.org}, vendor:{self.vendor}, month:{self.month}, year:{self.year}. account number:{self.account_number}, month:{self.month}, and year:{self.year} deleted successfully."
             )
+            # create_notification(
+            #     request.user, 
+            #     f"{self.report_type} report attributions company:{self.com}, organization:{self.org}, vendor:{self.vendor}, month:{self.month}, year:{self.year}. account number:{self.account_number}, month:{self.month}, and year:{self.year} deleted successfully.", request.user.company
+            # )
             return Response({"message": f"{self.report_type} Report deleted successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
             print(e)

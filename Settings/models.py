@@ -1,8 +1,18 @@
 from django.db import models
 from django.utils import timezone
-
+from OnBoard.Company.models import Company
+from Dashboard.ModelsByPage.DashAdmin import UserRoles
 # Create your models here.
+
 class Ticket(models.Model):
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        default=None,
+        null=True,
+        blank=True, 
+        related_name="companytickets",  
+    )
     issue_type = models.CharField(max_length=100, null=True, blank=True)
     sub_company = models.CharField(max_length=100, null=True, blank=True)
     vendor = models.CharField(max_length=100, null=True, blank=True)
@@ -52,6 +62,14 @@ class Ticket(models.Model):
         db_table = 'Ticket'
 
 class Reminder(models.Model):
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        default=None,
+        null=True,
+        blank=True, 
+        related_name="companyreminders",  
+    )
     title = models.CharField(max_length=100, null=True, blank=True)
     description = models.CharField(max_length=100, null=True, blank=True)
     date = models.CharField(max_length=100, null=True, blank=True)
@@ -59,6 +77,7 @@ class Reminder(models.Model):
     log_email = models.CharField(max_length=100, null=True, blank=True)
     weekly_Reminders = models.JSONField(null=True, blank=True, default=dict)
     reminder_type = models.CharField(max_length=100, null=True, blank=True)
+    to_roles = models.ManyToManyField(UserRoles, blank=True)
 
     def __str__(self):
         return self.title

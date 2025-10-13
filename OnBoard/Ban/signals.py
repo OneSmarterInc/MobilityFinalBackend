@@ -3,7 +3,7 @@ from django.dispatch import receiver
 from .models import BaseDataTable, OnboardBan, UploadBAN
 from Dashboard.ModelsByPage.Req import CostCenters
 from View.models import Contracts
-
+from Batch.ser import NotificationSerializer
 @receiver(post_save, sender=BaseDataTable)
 def remittance_format_after_save(sender, instance, created, **kwargs):
 

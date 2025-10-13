@@ -98,11 +98,8 @@ def clean_sql_query(query: str) -> str:
     return query
 
 # Run query safely
-def run_query(conn, sql, billType, billId):
-    if billType == "paper":
-        main_column = "viewpapered_id"
-    else:
-        main_column = "viewuploaded_id"
+def run_query(conn, sql):
+
     print("Original SQL:", sql)
 
     # Normalize SQL
