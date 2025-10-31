@@ -18,8 +18,14 @@ from addon import get_cat_obj_total
 from OnBoard.Company.models import Company
 from authenticate.models import PortalUser
 from django.utils import timezone
+from View.models import BillSummaryData, BillAnalysisData
+from django.db import transaction
+
 from Batch.views import create_notification
 logger = logging.getLogger(__name__)
+
+from dateutil import parser
+import re
 class ProcessPdf2:
     def __init__(self, buffer_data,btype,instance=None):
         self.instance = instance
@@ -74,7 +80,8 @@ class ProcessPdf2:
             "master_account": self.master_account,
             "Entry_type":self.entry_type
         }
-        return BaseDataTable.objects.create(**baseDatamapped)
+        obj = BaseDataTable.objects.create(**baseDatamapped)
+        return obj
         
         print("Added to base data table")
     def pdf_data_table(self, datadf):
@@ -539,6 +546,25 @@ class ProcessPdf2:
         sheet4 = sheet4[["Account Number", "Wireless Number", "Username", "Cost Center", "Total Charges", "Sum of Total Charges"]]
         return sheet4
     
+    def get_filename(self,path):
+        file_path = path.split("/")[-1]        
+        name, ext = file_path.rsplit(".", 1)     
+        ext = "." + ext                          
+
+        if "_" in name:
+            name = name.rsplit("_", 1)[0]
+
+        return f"{name}{ext}"
+    
+    def parse_bill_date(self, date_str):
+        try:
+            return parser.parse(date_str, dayfirst=False)  # US-style month/day
+        except Exception:
+            raise ValueError(f"Date format not supported: {date_str}")
+
+    
+
+    
     def start_process(self):
         if not (self.pdf_path and self.instance and self.company_name and self.sub_company and self.vendor_name):
             return False, "Unable to process pdf due to incomplete data.", None
@@ -563,10 +589,14 @@ class ProcessPdf2:
             onboarded = BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(sub_company=self.sub_company, vendor=self.vendor_name, accountnumber=self.account_number).first()
             onboarded_id = onboarded.banOnboarded
             baseinstance = self.base_data_table(basic_data)
+            print(onboarded.variance)
+            baseinstance.variance = onboarded.variance
+            baseinstance.save()
             bill_main_id = baseinstance.viewuploaded.id
             self.pdf_data_table(baseline_df)
             self.unique_data_table(unique_df)
             self.baseline_data_table(baseline_df)
+
 
             self.reflect_category_object(bill_main_id)
             self.reflect_baselinetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id)

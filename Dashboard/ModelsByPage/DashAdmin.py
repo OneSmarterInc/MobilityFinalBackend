@@ -121,15 +121,25 @@ class Permission(models.Model):
         if self.Type:
             self.Type = self.Type.capitalize()
         super(Permission, self).save(*args, **kwargs)
-    
+
+from OnBoard.Company.models import Company
+from OnBoard.Organization.models import Organizations
 class UserRoles(models.Model):
-    name = models.CharField(max_length=255, unique=True)
+    company = models.ForeignKey(Company, related_name="company_roles", on_delete=models.CASCADE, null=True, blank=True)
+    organization = models.ForeignKey(Organizations, related_name="organization_roles", on_delete=models.CASCADE, null=True, blank=True)
+    name = models.CharField(max_length=255)
     created = models.DateTimeField(null=False, auto_now_add=True)
     updated = models.DateTimeField(null=True, blank=True, auto_now=True)
     
     permissions = models.ManyToManyField(Permission, related_name='roles')
+
+
     class Meta:
         db_table = 'UserRoles'
+        constraints = [
+            models.UniqueConstraint(fields=['company', 'organization', 'name'], name='unique_role')
+        ]
+
 
 class ManuallyAddedLocation(models.Model):
     name = models.CharField(max_length=255, unique=True)

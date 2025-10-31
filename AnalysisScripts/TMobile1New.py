@@ -70,7 +70,6 @@ class Tmobile1Class:
             "Bill Period": self.bill_period,
             "Invoice Number": self.invoice_number,
             "Total Amount": self.total_amount,
-            "Bill Date": self.bill_date,
             "Due Date": self.due_date,
             "Billing Info": self.billing,
             "Remittance Info": self.remmitance,
@@ -93,7 +92,7 @@ class Tmobile1Class:
         """, re.VERBOSE)
         matches = pattern.search(text)
         self.bill_date = matches[0].replace(",","") if matches else None
-        line_pattern = re.compile(r"^(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}).*$")
+        print("bill date===",self.bill_date)
         for page in pages:
             text = page.extract_text()
             lines = text.splitlines()
@@ -257,11 +256,12 @@ class Tmobile1Class:
 
         process_finish_time = time.perf_counter()
         tt = process_finish_time - start_time
+        basic["Bill Date"] = self.bill_date
         return basic, self.format_wn(unique_df), round(float(tt), 2)
         
     
 
-# path = "Bills/Scripts/t-mobiles/Type1/aug-Tmob.pdf"
+# path = "/home/marshal19/Desktop/BillsProject/Bills/media/ViewUploadedBills/aug-Tmob.pdf"
 # obj = Tmobile1Class(path)
 # basic, plandf,t = obj.extract_all()
 # print(basic)

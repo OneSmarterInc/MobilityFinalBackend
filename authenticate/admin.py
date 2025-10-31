@@ -14,6 +14,7 @@ class PortalUserAdmin(UserAdmin):
         "last_name", 
         "designation", 
         "company", 
+        "organization",
         "phone_number", 
         "mobile_number",
         "is_staff", 
@@ -25,7 +26,8 @@ class PortalUserAdmin(UserAdmin):
         "is_superuser", 
         "is_active", 
         "designation", 
-        "company"
+        "company",
+        "organization",
     )
 
     search_fields = (
@@ -34,7 +36,9 @@ class PortalUserAdmin(UserAdmin):
         "first_name", 
         "last_name", 
         "phone_number", 
-        "mobile_number"
+        "mobile_number",
+        "organization",
+        "company"
     )
 
     ordering = ("email",)

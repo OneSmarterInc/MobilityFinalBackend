@@ -3,7 +3,6 @@ from django.db import models
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 # from Company.models import Company
 from ..Company.models import Company
-from authenticate.models import PortalUser
 from django.utils.timezone import now
 # Create your models here.
 import datetime

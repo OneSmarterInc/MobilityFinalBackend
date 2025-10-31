@@ -131,8 +131,10 @@ class EnterBillProcessExcel:
 
         onboarded = BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(sub_company=self.sub_company, vendor=self.vendor, accountnumber=self.account_number).first()
         # Insert into BaseDataTable
-        BaseDataTable.objects.create(viewuploaded=self.instance,month=self.month, year=self.year,RemittanceAdd=onboarded.RemittanceAdd, **b_dict)
+        baseinstance = BaseDataTable.objects.create(viewuploaded=self.instance,month=self.month, year=self.year,RemittanceAdd=onboarded.RemittanceAdd, **b_dict)
         print("Data added to BaseDataTable")
+        baseinstance.variance = onboarded.variance
+        baseinstance.save()
         
         df_csv['wireless_number'] = df_csv['wireless_number'].apply(self.format_wireless_number)
         df_csv_dict = df_csv.to_dict(orient='records')

@@ -3,8 +3,8 @@ from django.contrib.auth.models import AbstractUser
 from Dashboard.ModelsByPage.DashAdmin import UserRoles
 from OnBoard.Company.models import Company
 from django.contrib.auth.hashers import make_password, is_password_usable
-# from OnBoard.Organization.models import Organizations
-# from Dashboard.ModelsByPage.DashAdmin import Vendors
+from OnBoard.Organization.models import Organizations
+from Dashboard.ModelsByPage.DashAdmin import Vendors
 # Create your models here.
 
 class PortalUser(AbstractUser):
@@ -26,9 +26,9 @@ class PortalUser(AbstractUser):
 
     )
 
-    organization = models.CharField(max_length=255, null=True, blank=True)
+    organization = models.ForeignKey(Organizations, related_name="organization_users", on_delete=models.CASCADE, null=True, blank=True)
 
-    vendor = models.CharField(max_length=255, null=True, blank=True)
+    vendor = models.ForeignKey(Vendors, related_name="vendor_users", on_delete=models.SET_NULL, null=True, blank=True)
 
     account_number = models.CharField(max_length=255, null=True, blank=True)
 

@@ -10,6 +10,7 @@ import json
 import time
 from Batch.views import create_notification
 from authenticate.models import PortalUser
+from Settings.Views.History import save_ban_history, save_wireless_history
 from OnBoard.Company.models import Company
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -299,7 +300,9 @@ class ProcessPdf2:
                 if self.baseline_check:
                     self.baseline_data_table(baseline_df)
                 self.reflect_category_object()
+                
             print("Process completed successfully.")
+            save_ban_history(onboardID=self.instance.id, action=f"BAN Onboarded with pdf file", user=self.email, ban=self.account_number)
             create_notification(self.user_obj, f"New BAN {self.account_number} of vendor {self.vendor_name} created successfully!",company=self.company_obj)
             return True, "PDF Onboarded successfully", ProcessTime
         except Exception as e:

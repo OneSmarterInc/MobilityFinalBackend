@@ -124,7 +124,7 @@ def create_savings_pdf(df, acc, bill_dates):
     # ----------------------------------------------------
     elements.append(Spacer(1, 10)) # Add a small space after the table
     
-    note_text = "Note: This is AI generated report"
+    note_text = "Note: This is an AI generated report"
     # Use 'Normal' style for the paragraph
     note_paragraph = Paragraph(note_text, styles["Normal"])
     

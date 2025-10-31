@@ -6,6 +6,7 @@ import re
 from Batch.views import create_notification
 from OnBoard.Company.models import Company
 from authenticate.models import PortalUser
+from Settings.Views.History import save_ban_history, save_wireless_history
 
 class ProcessCSVOnboard:
     def __init__(self, buffer_data,instance,uploadtype=None):
@@ -144,6 +145,7 @@ class ProcessCSVOnboard:
         self.instance.is_processed = True
         self.instance.save()
         create_notification(self.user_obj, f"New BAN {self.account_number} of vendor {self.vendor} created successfully!",company=self.company_obj)
+        save_ban_history(onboardID=self.instance.id, action=f"BAN Onboarded with excel file", user=self.email, ban=self.account_number)
         return {'code' : 0, 'message':f"Excel file with account number {file_account_number} onboarded successfully!"}
 
 

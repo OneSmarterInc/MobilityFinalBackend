@@ -7,6 +7,8 @@ from ...Serializers.AdminPage import UserRoleSaveSerializer, UserRoleShowSeriali
 from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
 
+from OnBoard.Company.models import Company
+from OnBoard.Organization.models import Organizations
 
 class UserRoleView(APIView):
     permission_classes = [IsAuthenticated]
@@ -16,7 +18,8 @@ class UserRoleView(APIView):
             ser = UserRoleShowSerializer(user_role)
             return Response({"data":ser.data}, status=status.HTTP_200_OK)
         else:
-            user_roles = UserRoles.objects.all()
+            user_roles = UserRoles.objects.exclude(id=request.user.designation.id).filter(company=request.user.company, organization=request.user.organization)
+            print(user_roles)
             ser = UserRoleShowSerializer(user_roles, many=True)
             return Response({"data":ser.data}, status=status.HTTP_200_OK)
         
@@ -24,7 +27,14 @@ class UserRoleView(APIView):
         if UserRoles.objects.filter(name=request.data["name"]).exists():
             return Response({"message": "User role with this name already exists!"}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            ser = UserRoleSaveSerializer(data=request.data)
+            data=request.data
+            company = data.pop('company')
+            companyObj = Company.objects.filter(Company_name=company).first()
+            companyID = companyObj.id if companyObj else None
+            organization = data.pop('organization')
+            orgObj = Organizations.objects.filter(Organization_name=organization).first()
+            orgID = orgObj.id if orgObj else None
+            ser = UserRoleSaveSerializer(data={"company":companyID, "organization":orgID, **data})
             if ser.is_valid():
                 ser.save()
                 saveuserlog(request.user, f'new user role created {ser.data["name"]}')

@@ -44,7 +44,7 @@ class InventorySubjectView(APIView):
 
     def get(self, request):
 
-        if request.user.designation.name == "Superadmin":
+        if request.user.company and not request.user.organization:
             objs = Company.objects.all()
             onboardbanObjs = BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None)
             onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
@@ -52,7 +52,7 @@ class InventorySubjectView(APIView):
             all_lines = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None)
             lines_Ser = UniqueTableShowSerializer(all_lines, many=True)
             return Response({"data": serializer.data, 'banonboarded':onbanser.data, "lines":lines_Ser.data}, status=status.HTTP_200_OK)
-        elif request.user.designation.name == "Admin":
+        elif request.user.company and request.user.organization:
             com = Company.objects.get(Company_name=request.user.company)
             objs = Organizations.objects.filter(company=com)
             allobjs = OnboardBan.objects.all()
@@ -63,12 +63,12 @@ class InventorySubjectView(APIView):
             lines_Ser = UniqueTableShowSerializer(all_lines, many=True)
             return Response({"data": serializer.data, 'banonboarded':onbanser.data, "lines":lines_Ser.data}, status=status.HTTP_200_OK)
         try:
-            if request.user.designation.name == "Superadmin":
+            if request.user.company and not request.user.organization:
                 objs = Company.objects.all()
                 serializer = CompanyShowOnboardSerializer(objs, many=True)
                 print(serializer.data)
                 return Response({"data": serializer.data}, status=status.HTTP_200_OK)
-            elif request.user.designation.name == "Admin":
+            if request.user.company and request.user.organization:
                 objs = Organizations.objects.all()
                 serializer = OrganizationShowOnboardSerializer(objs, many=True)
                 print(serializer.data)

@@ -63,7 +63,7 @@ class RequestsView(APIView):
             )
 
             saveuserlog(request.user, log_msg)
-            create_notification(request.user, f"request of type {ser.data["request_type"]} updated successfully!",company=request.user.company)
+            create_notification(request.user, f"request of type {ser.data['request_type']} updated successfully!",company=request.user.company)
             return Response({"message":"Request updated successfully!"},status=status.HTTP_200_OK)
         else:
             return Response({"message":"Unable to update request."},status=status.HTTP_400_BAD_REQUEST)
@@ -330,7 +330,8 @@ class TrackingInfoView(APIView):
         if ser.is_valid():
             ser.save()
             data = ser.data
-            saveuserlog(request.user, f"Tracking info for request {data['mobile']} updated.")
+            print(data)
+            saveuserlog(request.user, f"Tracking info for request {data['tracking_id']} updated.")
             return Response({"message":"Tracking Information  updated succesfully!","data":ser.data},status=status.HTTP_200_OK)
         else:
             return Response({"message":str(ser.errors)},status=status.HTTP_400_BAD_REQUEST)

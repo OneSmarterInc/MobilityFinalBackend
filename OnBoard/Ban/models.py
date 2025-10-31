@@ -364,7 +364,6 @@ class BaseDataTable(models.Model):
     BillingCurrency = models.CharField(max_length=255, null=True, blank=True)
     
     charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    location = models.CharField(max_length=255, blank=True, null=True, default="")
     RemittanceAdd = models.CharField(max_length=255, blank=True, null=True, default="")
 
     BillingName = models.CharField(max_length=255, blank=True, null=True, default="")
@@ -451,13 +450,8 @@ class BaseDataTable(models.Model):
     batch_file = models.FileField(upload_to='batchfiles/', null=True, blank=True, default=None)
     variance = models.FloatField(default=5)
 
-    def save(self, *args, **kwargs):
-        
-        if self.viewuploaded or self.viewpapered:
-            self.variance = 0
-        else:
-            self.batch_approved_date = None  
-        super().save(*args, **kwargs)
+    uploaded_by = models.ForeignKey(PortalUser, related_name="user_bills", null=True, blank=True, on_delete=models.SET_NULL)
+
 
     class Meta:
         db_table = 'BaseDataTable'

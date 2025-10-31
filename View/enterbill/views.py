@@ -379,6 +379,8 @@ class UploadfileView(APIView):
                 tp = None
         else:
             tp = None
+
+        buffer_data = json.dumps({'pdf_path': obj.file.path,'vendor_name': obj.vendor.name if obj.vendor else None,'pdf_filename':obj.file.name,'company_name':obj.company.Company_name if obj.company else None,'sub_company_name':obj.organization.Organization_name if obj.organization else None,'types':obj.types, 'month':obj.month, 'year':obj.year, 'email':request.user.email,'account_number':obj.ban})
                 
         if str(file.name).endswith('.pdf'):
             try:
@@ -397,9 +399,11 @@ class UploadfileView(APIView):
                         {"message": f"Problem to upload file, {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
                     )
             
-            buffer_data = json.dumps({'pdf_path': obj.file.path,'vendor_name': obj.vendor.name if obj.vendor else None,'pdf_filename':obj.file.name,'company_name':obj.company.Company_name if obj.company else None,'sub_company_name':obj.organization.Organization_name if obj.organization else None,'types':obj.types, 'month':obj.month, 'year':obj.year, 'email':request.user.email,'account_number':obj.ban})
+            
             print(buffer_data)
             verizon_att_enterBill_processor.delay(buffer_data, obj.id,btype=tp)
+            # bill_analysis_processor.delay(buffer_data, obj.id,btype=tp)
+
         elif (str(file.name).endswith('.xls') or str(file.name).endswith('.xlsx')):
             map = request.data.pop('mappingobj', None)[0]
             map = map.replace('null', 'None')
@@ -452,14 +456,19 @@ class UploadfileView(APIView):
                 if obj and obj.pk: obj.delete()
                 return Response({"message":f"{str(e)}"},status=status.HTTP_400_BAD_REQUEST)
         elif str(file.name).endswith('.zip'):
-            addon = ProcessZip(obj)
-            check = addon.startprocess()
-            print(check)
-            if check['error'] == -1:
+            try:
+                addon = ProcessZip(obj, request.user.email)
+                check = addon.startprocess()
+                print(check)
+                if check['error'] == -1:
+                    if obj and obj.pk: obj.delete()
+                    return Response(
+                        {"message": f"Problem to add data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
+                    )
+                bill_analysis_processor.delay(buffer_data, obj.id,btype=tp)
+            except Exception:
                 if obj and obj.pk: obj.delete()
-                return Response(
-                    {"message": f"Problem to add data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
-                )
+                return Response({"message":"Unable to upload zip!"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
         else:
 
@@ -564,7 +573,7 @@ def compare_values(base_val, bill_val,variance):
 
 
 # from .tasks import process_view_bills
-from View.enterbill.tasks import process_view_bills, process_view_excel, verizon_att_enterBill_processor
+from View.enterbill.tasks import process_view_bills, process_view_excel, verizon_att_enterBill_processor, bill_analysis_processor
 import re
 import os
 import zipfile
@@ -686,7 +695,7 @@ from authenticate.models import PortalUser
 from django.utils import timezone
 from addon import get_cat_obj_total
 class ProcessZip:
-    def __init__(self, instance, **kwargs):
+    def __init__(self, instance, user_email, **kwargs):
         self.instance = instance
         self.path = instance.file
         if not self.path:
@@ -702,6 +711,7 @@ class ProcessZip:
         self.types = None
         self.ban = instance.ban
         self.account_number = None
+        self.email = user_email
         self.net_amount = None
 
         self.user_obj = PortalUser.objects.filter(email=self.email).first()
@@ -819,6 +829,8 @@ class ProcessZip:
                     obj.save()
                 bill_main_id = obj.viewuploaded.id
                 onboarded_id = BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(sub_company=obj.sub_company, vendor=obj.vendor, accountnumber=obj.accountnumber).first()
+                obj.variance = onboarded_id.variance
+                obj.save()
                 print('done')
                 self.save_to_pdf_data_table(data_pdf, v, t,obj)
                 print("saved to pdf data table")

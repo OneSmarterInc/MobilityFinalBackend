@@ -6,6 +6,32 @@ from addon import parse_until_dict
 from django.dispatch import receiver
 from Dashboard.ModelsByPage.DashAdmin import UserRoles
 import json
+from Dashboard.ModelsByPage.Req import Requests
+from sendmail import send_custom_email, send_generic_mail
+
+@receiver(post_save, sender=Requests)
+def send_mail(sender, instance, created, **kwargs):
+
+    try:
+        requester_mail = instance.requester.email
+        if created:
+            sub = f"Request Created: {instance.request_type}"
+            msg = f"Your request for {instance.request_type} has been created successfully."
+        else:
+            # for request rejected
+            if instance.status == "Rejected":
+                sub = f"Request Rejected: {instance.request_type}"
+                msg = f"Your request for {instance.request_type} has been rejected."
+            elif instance.status == "Completed":
+                sub = f"Request Approved: {instance.request_type}"
+                msg = f"Your request for {instance.request_type} has been approved."
+            else:
+                sub = None
+                msg = None
+        if sub and msg: send_custom_email(to=requester_mail, subject=sub, body_text=msg, company=instance.organization.company.Company_name)
+    except Exception as e:
+        print(e)
+        
 
 
 # @receiver(post_save, sender=UserRoles)

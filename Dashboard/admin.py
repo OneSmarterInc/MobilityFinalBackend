@@ -10,13 +10,13 @@ from django.apps import apps
 models = apps.get_models()
 
 class RoleAdmin(admin.ModelAdmin):
-    list_display = ('name', 'created', 'updated')
-    search_fields = ('name', 'permissions')
+    list_display = ('name', 'company', 'organization', 'created', 'updated')
+    search_fields = ('name', 'permissions', 'company', 'organization')
     list_filter = ('created', 'updated')
     readonly_fields = ('created', 'updated')
     list_per_page = 10
     ordering = ('-created',)
-    fields  = ('name', 'created', 'updated', 'permissions')
+    fields  = ('name', 'created', 'updated', 'permissions', 'company', 'organization')
 
 
 

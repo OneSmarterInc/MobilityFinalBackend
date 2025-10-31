@@ -63,6 +63,8 @@ class SummaryData(models.Model):
         help_text="Reference to the uploaded file set for this analysis"
     )
     file_name = models.CharField(max_length=255, null=True, blank=True)
+    company = models.CharField(max_length=255, null=True, blank=True)
+    vendor = models.CharField(max_length=255, null=True, blank=True)
     account_number = models.CharField(
         max_length=255,
         help_text="Unique identifier for the customer account"
@@ -199,6 +201,8 @@ class AnalysisData(models.Model):
     multiple_analysis = models.ForeignKey(
         MultipleFileUpload, related_name='multipleanalysis', on_delete=models.CASCADE, null=True, blank=True
     )
+    company = models.CharField(max_length=255, null=True, blank=True)
+    vendor = models.CharField(max_length=255, null=True, blank=True)
     account_number = models.CharField(max_length=255, null=True, blank=True)
     bill_date = models.CharField(max_length=255, null=True, blank=True)
     bill_day = models.IntegerField(default=0)

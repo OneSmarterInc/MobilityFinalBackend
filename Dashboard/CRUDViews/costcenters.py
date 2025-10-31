@@ -56,9 +56,11 @@ class CostCentersView(APIView):
         if ser.is_valid():
             ser.save()
             data = ser.data
+            print(data)
             saveuserlog(request.user, f"Cost Center updated for account {data['ban']}")
             return Response({"message": "Cost Center updated successfully!"}, status=status.HTTP_200_OK)
         else:
+            print(ser.errors)
             return Response({"message": "unable to update cost center."}, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request,org, pk, *args, **kwargs):
@@ -83,7 +85,6 @@ class BulkCostCenterUpload(APIView):
             dct['sub_company'] = sub_company
             dct['vendor'] = vendor
             dct['ban'] = ban
-            ba
             dct['cost_center'] = center
             ser = CostCentersSaveSerializer(data=dct)
             if ser.is_valid(): 

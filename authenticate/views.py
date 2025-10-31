@@ -1,6 +1,5 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import authentication, permissions
 from django.contrib.auth import login, logout
 from Dashboard.ModelsByPage.DashAdmin import UserRoles
 from OnBoard.Company.models import Company
@@ -9,13 +8,15 @@ from .serializers import RegisterSerializer, showUsersSerializer, UserLogSaveSer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 from .models import PortalUser, UserLogs
-
+from OnBoard.Organization.models import Organizations
 class RegisterView(APIView):
+
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         allCompanies = Company.objects.all()
         Comser = CompanyShowSerializer(allCompanies, many=True)
-        allDesignations = UserRoles.objects.all()
+        allDesignations = UserRoles.objects.exclude(id=request.user.designation.id).filter(company=request.user.company, organization=request.user.organization)
         ser = allDesignationsSerializer(allDesignations, many=True)
         return Response({"designations": ser.data, "companies" : Comser.data}, status=status.HTTP_200_OK)
     
@@ -27,10 +28,14 @@ class RegisterView(APIView):
                 {"message": "Email address is already in use."},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        print(data)
+        # orgName = data.get('organization')
+        # if orgName:
+        #     orgObj = Organizations.objects.filter(Organization_name=orgName).first()
+        # data['organization'] = orgObj.id if orgObj else None
         data['string_password'] = data.get('password')
         data['temp_password'] = data.get('password')
         try:
-            print(data)
             serializer = RegisterSerializer(data=data)
             if serializer.is_valid():
                 user = serializer.save()
@@ -41,6 +46,7 @@ class RegisterView(APIView):
                     'status':True,
                     "data":serializer.data
                 }, status=status.HTTP_201_CREATED)
+            print(serializer.errors)
             return Response({"message":"Unable to register user."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             print(e)
@@ -64,8 +70,8 @@ class LoginView(APIView):
         temp_check = check_password(password, user.temp_password) if user and user.temp_password else False
 
         if user and user.check_password(password):
-            if user.last_login and temp_check:
-                return Response({"message": "You must change your password using the 'Forgot Password' option before logging in."}, status=status.HTTP_400_BAD_REQUEST)
+            # if user.last_login and temp_check:
+            #     return Response({"message": "You must change your password using the 'Forgot Password' option before logging in."}, status=status.HTTP_400_BAD_REQUEST)
 
             login(request, user)
             refresh = RefreshToken.for_user(user)
@@ -198,7 +204,7 @@ class UserLogView(APIView):
                 return Response(serializer.data, status=status.HTTP_200_OK)
             except UserLogs.DoesNotExist:
                 return Response({"message": "User log not found."}, status=status.HTTP_404_NOT_FOUND)
-    
+
     def delete(self, request, id):
         try:
             userlog = UserLogs.objects.filter(id=id).first()

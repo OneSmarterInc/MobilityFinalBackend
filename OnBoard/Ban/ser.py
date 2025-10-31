@@ -226,3 +226,9 @@ class BaseBansSerializer(serializers.ModelSerializer):
     class Meta:
         model = BaseDataTable
         fields = ['sub_company', 'vendor', 'accountnumber', "Entry_type"]
+
+class baseallserializer(serializers.ModelSerializer):
+    class Meta:
+        model = BaseDataTable
+        fields = "__all__"
+

@@ -241,6 +241,7 @@ class MultipleUploadView(APIView):
             if obj.file3: buffer_data.update({"file3_path": obj.file3.path})
 
             buffer_data.update({
+                'company':request.user.company.Company_name if request.user.company else "",
                 'vendor': obj.vendor.name,
                 'type': tmobile_type,
                 'user_email': request.user.email,
@@ -274,10 +275,10 @@ class MultipleUploadView(APIView):
                 request.user,
                 f"{request.user.email} deleted {vendor} analysis files of client {client if client else '-'}"
             )
-            # create_notification(
-            #     request.user,
-            #     f"{request.user.email} deleted {vendor} analysis files of client {client if client else '-'}", request.user.company
-            # )
+            create_notification(
+                request.user,
+                f"{request.user.email} deleted {vendor} analysis files of client {client if client else '-'}", request.user.company
+            )
             return Response({"message": "Analysis files deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
         except Analysis.DoesNotExist:
             return Response({"message": "Analysis files not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -1381,3 +1382,700 @@ class AnalysisLinesView(APIView):
             print("LINES ERROR")
             traceback.print_exc()
             return Response({"error": str(e)}, status=500)
+        
+        
+        
+        
+        
+# Common Dashboard        
+
+
+# views.py
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from collections import defaultdict
+from decimal import Decimal
+from datetime import date
+from collections import namedtuple
+
+from OnBoard.Ban.models import BaseDataTable
+from .utils import parse_money, parse_date
+from .filters import apply_common_filters
+from Dashboard.ModelsByPage.Req import Requests
+from django.db.models import Count
+from django.utils import timezone
+from datetime import timedelta
+
+
+from datetime import datetime, date
+from decimal import Decimal
+from django.db.models import Q
+from rest_framework.views import APIView
+from rest_framework.response import Response
+
+# if you already have parse_money, keep using it
+# from .utils import parse_money
+
+# robust but simple date parser for your formats
+def try_parse_due_date(raw):
+    if not raw:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+
+    # handle the special marker
+    if s.lower() == "past":
+        return "PAST"  # sentinel we’ll treat as overdue
+
+    # supported formats in your screenshot
+    fmts = (
+        "%m/%d/%y",   # 02/14/24 or 9/11/24
+        "%m/%d/%Y",   # 02/14/2024
+        "%b %d %Y",   # Jul 24 2023 / May 24 2025
+        "%b %d %y",   # Jul 24 23
+        "%B %d %Y",   # July 24 2023
+        "%B %d %y",   # July 24 23
+    )
+    for fmt in fmts:
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None  # unparseable stays ignored
+
+class BillSummaryView(APIView):
+    def get(self, request):
+        qs = apply_common_filters(BaseDataTable.objects.all(), request)
+        today = date.today()
+
+        total_bills = 0
+        total_charges_sum = Decimal("0")
+        total_amount_due_sum = Decimal("0")
+        due_soon = 0
+        overdue = 0
+
+        for b in qs.iterator():
+            total_bills += 1
+            total_charges_sum += parse_money(b.net_amount)
+            total_amount_due_sum += parse_money(b.Total_Amount_Due)
+
+            parsed = try_parse_due_date(b.date_due)
+
+            if parsed == "PAST":
+                # explicit marker → overdue
+                overdue += 1
+                continue
+
+            if isinstance(parsed, date):
+                if parsed < today:
+                    overdue += 1
+                else:
+                    delta = (parsed - today).days
+                    if 0 <= delta <= 7:
+                        due_soon += 1
+            # else: None/unparseable → ignore for overdue/soon
+
+        return Response({
+            "total_bills": total_bills,
+            "total_charges_sum": float(total_charges_sum),
+            "total_amount_due_sum": float(total_amount_due_sum),
+            "overdue_count": overdue,
+            "due_soon_count": due_soon,
+        })
+
+
+
+class BillExtremesView(APIView):
+    def get(self, request):
+        """
+        Returns highest and lowest total_charges for the currently filtered slice,
+        with no duplication between the two lists—even when the dataset is tiny.
+        """
+        # 1) Base queryset: uploaded bills only + common filters
+        qs = apply_common_filters(
+            BaseDataTable.objects.filter(banOnboarded__isnull=False),
+            request
+        )
+
+        # 2) Optional date window passed via apply_common_filters
+        date_from = getattr(request, "_analytics_date_from", None)
+        date_to = getattr(request, "_analytics_date_to", None)
+
+        # 3) Limit handling
+        try:
+            limit = int(request.query_params.get("limit", 10))
+        except (TypeError, ValueError):
+            limit = 10
+        limit = max(1, min(limit, 50))  # 1..50
+
+        # 4) Collect items (parse numbers/dates safely)
+        items = []
+        for b in qs.iterator():
+            bdate = parse_date(b.bill_date) or parse_date(b.BillingDate)
+            if date_from and (not bdate or bdate < date_from):
+                continue
+            if date_to and (not bdate or bdate > date_to):
+                continue
+
+            items.append({
+                "id": b.id,
+                "company": b.company,
+                "sub_company": b.sub_company,
+                "vendor": b.vendor,
+                "invoicenumber": b.invoicenumber,
+                "accountnumber": b.accountnumber,
+                "bill_date": b.bill_date,
+                "date_due": b.date_due,
+                "total_charges_num": parse_money(b.total_charges),  # Decimal
+            })
+
+        # 5) Sort by numeric total_charges
+        items.sort(key=lambda x: x["total_charges_num"])
+
+        # 6) Build non-overlapping extremes
+        n = len(items)
+        if n == 0:
+            lowest, highest = [], []
+        elif n == 1:
+            # one bill → show it once, mark as high (low would be redundant)
+            lowest, highest = [], items
+        elif n == 2:
+            # two bills → one low, one high (no duplication)
+            lowest, highest = [items[0]], [items[1]]
+        else:
+            # pick up to `limit` from each side, with no overlap
+            half = min(limit, n // 2) or 1
+            lowest = items[:half]
+            highest = items[-half:]
+
+            # safety: ensure disjoint sets by id
+            low_ids = {i["id"] for i in lowest}
+            highest = [i for i in highest if i["id"] not in low_ids]
+
+        # 7) JSON-safe numbers
+        for arr in (lowest, highest):
+            for it in arr:
+                it["total_charges_num"] = float(it["total_charges_num"])
+
+        # 8) Echo active filters for transparency/debug
+        ctx = {
+            "company": request.query_params.get("company"),
+            "sub_company": request.query_params.get("sub_company"),
+            "vendor": request.query_params.get("vendor"),
+            "year": request.query_params.get("year"),
+            "month": request.query_params.get("month"),
+            "date_from": request.query_params.get("date_from"),
+            "date_to": request.query_params.get("date_to"),
+            "uploaded_only": True,
+            "limit": limit,
+            "total_considered": n,
+        }
+
+        return Response({
+            "highest": highest,
+            "lowest": lowest,
+            "filters": ctx,
+        })
+class BillTotalsView(APIView):
+    def get(self, request):
+        dim = request.query_params.get("by", "vendor")
+        if dim not in ("vendor", "company", "sub_company"):
+            dim = "vendor"
+
+        qs = apply_common_filters(BaseDataTable.objects.all(), request)
+        bucket = defaultdict(lambda: {"sum": Decimal("0"), "count": 0, "currency": None})
+
+        for b in qs.iterator():
+            key = getattr(b, dim) or "Unknown"
+            bucket[key]["sum"] += parse_money(b.total_charges)
+            bucket[key]["count"] += 1
+            bucket[key]["currency"] = b.BillingCurrency
+
+        out = [
+            {"label": k, "count": v["count"], "sum": float(v["sum"]), "currency": v["currency"]}
+            for k, v in bucket.items()
+        ]
+        out.sort(key=lambda x: x["sum"], reverse=True)
+        return Response({"dimension": dim, "rows": out})
+
+
+class BillStatusBreakdownView(APIView):
+    def get(self, request):
+        qs = apply_common_filters(BaseDataTable.objects.all(), request)
+        batch = defaultdict(int)
+        ban = defaultdict(int)
+
+        for b in qs.iterator():
+            batch[b.batch_approved or "Pending"] += 1
+            ban[b.banstatus or "Unknown"] += 1
+
+        return Response({
+            "batch_approved": [{"status": k, "count": v} for k, v in batch.items()],
+            "banstatus": [{"status": k, "count": v} for k, v in ban.items()],
+        })
+
+
+class BillTimeSeriesView(APIView):
+    def get(self, request):
+        dim = request.query_params.get("by", "total_charges")
+        if dim not in ("total_charges", "Total_Amount_Due"):
+            dim = "total_charges"
+
+        qs = apply_common_filters(BaseDataTable.objects.all(), request)
+        series = defaultdict(lambda: Decimal("0"))
+        for b in qs.iterator():
+            y, m = str(b.year or ""), str(b.month or "")
+            if not (y and m):
+                continue
+            key = f"{y}-{m.zfill(2)}"
+            val = getattr(b, dim, "")
+            series[key] += parse_money(val)
+
+        out = [{"period": k, "sum": float(v)} for k, v in sorted(series.items())]
+        return Response({"metric": dim, "points": out})
+
+
+
+
+class RequestSummaryView(APIView):
+    def get(self, request):
+        qs = Requests.objects.select_related("vendor", "organization").all()
+
+        vendor = request.query_params.get("vendor")
+        org = request.query_params.get("organization")
+        request_type = request.query_params.get("request_type")
+
+        if vendor:
+            qs = qs.filter(vendor__name__iexact=vendor)
+        if org:
+            qs = qs.filter(organization__name__iexact=org)
+        if request_type:
+            qs = qs.filter(request_type__iexact=request_type)
+
+        total = qs.count()
+        pending = qs.filter(status__iexact="Pending").count()
+        approved = qs.filter(status__iexact="Approved").count()
+        completed = qs.filter(status__iexact="Completed").count()
+        cancelled = qs.filter(status__iexact="Cancelled").count()
+
+        last_7_days = qs.filter(created__gte=timezone.now() - timedelta(days=7)).count()
+        last_30_days = qs.filter(created__gte=timezone.now() - timedelta(days=30)).count()
+
+        # --- status breakdown for charts ---
+        status_order = ["Pending", "Approved", "Completed", "Cancelled"]
+        raw = (
+            qs.exclude(status__isnull=True)
+              .exclude(status__exact="")
+              .values("status")
+              .annotate(count=Count("id"))
+        )
+        by_status = {row["status"].strip(): row["count"] for row in raw if row["status"]}
+
+        request_status = [
+            {"status": s, "count": by_status.get(s, 0)}
+            for s in status_order
+        ]
+
+        # request type + vendor breakdowns (unchanged from earlier fix)
+        type_breakdown = (
+            qs.values("request_type").annotate(count=Count("id")).order_by("-count")[:8]
+        )
+        vendor_breakdown = (
+            qs.values("vendor__name").annotate(count=Count("id")).order_by("-count")[:8]
+        )
+
+        data = {
+            "total_requests": total,
+            "pending_requests": pending,
+            "approved_requests": approved,
+            "completed_requests": completed,
+            "cancelled_requests": cancelled,
+            "last_7_days": last_7_days,
+            "last_30_days": last_30_days,
+            "type_breakdown": [
+                {"type": t["request_type"], "count": t["count"]} for t in type_breakdown
+            ],
+            "vendor_breakdown": [
+                {"vendor": v["vendor__name"], "count": v["count"]}
+                for v in vendor_breakdown
+            ],
+            # 👇 this is what your chart should bind to
+            "request_status": request_status,
+        }
+        return Response(data)
+
+
+
+from django.db.models import Sum, Count, F
+from .filters import apply_ba_filters
+from View.models import BillAnalysisData  # adjust import to your app path
+
+
+
+USAGE_LABELS = {
+    "zero_usage": "Zero-Use",
+    "less_than_5_gb": "Less Than 5 GB",
+    "between_5_and_15_gb": "Between 5–15 GB",
+    "more_than_15_gb": "More Than 15 GB",
+    "NA_not_unlimited": "N/A (Not Unlimited)",
+    "NA_unlimited": "N/A (Unlimited)",
+}
+
+class BAUsageSummaryView(APIView):
+    def get(self, request):
+        qs = apply_ba_filters(BillAnalysisData.objects.all(), request)
+
+        raw = qs.values("data_usage_range").annotate(count=Count("id"))
+        usage = [
+            {"key": r["data_usage_range"],
+             "range": USAGE_LABELS.get(r["data_usage_range"], r["data_usage_range"] or "NA"),
+             "count": r["count"]}
+            for r in raw
+        ]
+
+        total_lines = qs.count()
+        zero_use = qs.filter(data_usage_range="zero_usage").count()
+
+        # downgrade candidates ~= low / moderate usage lines
+        downgrade_candidates = qs.filter(
+            data_usage_range__in=["less_than_5_gb","between_5_and_15_gb"]
+        ).count()
+
+        return Response({
+            "total_lines": total_lines,
+            "zero_use": zero_use,
+            "downgrade_candidates": downgrade_candidates,
+            "usage": usage,
+        })
+
+class BAOptimizationSummaryView(APIView):
+    def get(self, request):
+        qs = apply_ba_filters(BillAnalysisData.objects.filter(is_plan_recommended=True), request)
+        agg = qs.aggregate(
+            recommended_lines=Count("id"),
+            potential_savings=Sum("recommended_plan_savings"),
+        )
+        total = int(agg["recommended_lines"] or 0)
+        monthly_savings = float(agg["potential_savings"] or 0)
+        return Response({
+            "recommended_lines": total,
+            "monthly_savings": monthly_savings,
+            "annualized_savings": monthly_savings * 12.0,
+            "avg_savings_per_line": (monthly_savings / total) if total else 0.0,
+        })
+
+class BATopSavingsView(APIView):
+    def get(self, request):
+        try:
+            limit = int(request.query_params.get("limit", 10))
+        except Exception:
+            limit = 10
+        limit = max(1, min(limit, 50))
+        qs = apply_ba_filters(
+            BillAnalysisData.objects.filter(is_plan_recommended=True), request
+        ).order_by(F("recommended_plan_savings").desc(nulls_last=True))[:limit]
+
+        rows = [{
+            "wireless_number": r.wireless_number,
+            "user_name": r.user_name,
+            "vendor": r.vendor,
+            "account_number": r.account_number,
+            "current_plan": r.current_plan,
+            "current_plan_charges": float(r.current_plan_charges or 0),
+            "recommended_plan": r.recommended_plan,
+            "recommended_plan_charges": float(r.recommended_plan_charges or 0),
+            "recommended_plan_savings": float(r.recommended_plan_savings or 0),
+            "data_usage_range": USAGE_LABELS.get(r.data_usage_range, r.data_usage_range or "NA"),
+        } for r in qs]
+        return Response({"rows": rows})
+
+class BASavingsTimeSeriesView(APIView):
+    """
+    Potential savings by bill month (pairs to your spend time series).
+    """
+    def get(self, request):
+        qs = apply_ba_filters(
+            BillAnalysisData.objects.filter(is_plan_recommended=True),
+            request,
+        )
+        points = (
+            qs.values("bill_year","bill_month")
+              .annotate(sum=Sum("recommended_plan_savings"))
+        )
+        # produce 'YYYY-MM' keys sorted
+        def key(p):
+            y = int(p["bill_year"] or 0); m = int(p["bill_month"] or 0)
+            return f"{y}-{str(m).zfill(2)}"
+        out = [{"period": key(p), "sum": float(p["sum"] or 0)} for p in points]
+        out.sort(key=lambda x: x["period"])
+        return Response({"metric":"recommended_plan_savings","points": out})
+
+
+
+
+
+# User Dashboard
+
+
+
+
+# analytics/views.py
+import json
+from decimal import Decimal
+from django.db.models import Count, Q
+from django.db.models.functions import Lower
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+
+from OnBoard.Ban.models import BaselineDataTable
+from Dashboard.ModelsByPage.Req import Requests, TrackingInfo
+
+
+def _parse_category_object(value):
+    """
+    Accepts dict or JSON string; returns dict[str, dict[str, Decimal/float]].
+    Silently falls back to {} if invalid.
+    """
+    if not value:
+        return {}
+    try:
+      # if already dict-ish
+      if isinstance(value, dict):
+          return value
+      # JSONField sometimes stores strings in DB; try parse
+      return json.loads(value)
+    except Exception:
+      return {}
+
+
+def _category_totals(cat_obj_dict):
+    """
+    cat_obj_dict = {"CATEGORY": {"sub": num, ...}, ...}
+    -> [{"label": "CATEGORY", "sum": <float>}]
+    """
+    out = []
+    for cat, sub in (cat_obj_dict or {}).items():
+        total = 0.0
+        if isinstance(sub, dict):
+            for _, v in sub.items():
+                try:
+                    total += float(v or 0)
+                except Exception:
+                    pass
+        out.append({"label": cat, "sum": total})
+    # highest first for nicer charts
+    out.sort(key=lambda x: x["sum"], reverse=True)
+    return out
+
+
+class BaselineDetailView(APIView):
+    """
+    Returns a single BaselineDataTable record for the required 5 filters.
+    Enforces that viewuploaded_id and viewpapered_id are NOT NULL.
+    """
+
+    REQUIRED_KEYS = ("company", "sub_company", "vendor", "account_number", "wireless_number")
+
+    def get(self, request):
+        # 1) validate required params
+        missing = [k for k in self.REQUIRED_KEYS if not (request.query_params.get(k) or "").strip()]
+        if missing:
+            return Response(
+                {"detail": f"Missing required query params: {', '.join(missing)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        company = request.query_params.get("company").strip()
+        sub_company = request.query_params.get("sub_company").strip()
+        vendor = request.query_params.get("vendor").strip()
+        account_number = request.query_params.get("account_number").strip()
+        wireless_number = request.query_params.get("wireless_number").strip()
+
+        # 2) base queryset with required documents present
+        qs = BaselineDataTable.objects.filter(
+    Q(banOnboarded__isnull=False) | Q(banUploaded__isnull=False),
+    company__icontains=company,
+    sub_company__icontains=sub_company,
+    vendor__icontains=vendor,
+    account_number__icontains=account_number,
+    Wireless_number__icontains=wireless_number,
+)
+        # 3) fetch the single record
+        if not qs.exists():
+            return Response({"detail": "No matching baseline record found with required docs."},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        if qs.count() > 1:
+            # If data integrity ever breaks, let the caller know
+            return Response({"detail": "Multiple records found for the given filters; expected exactly one."},
+                            status=status.HTTP_409_CONFLICT)
+
+        obj = qs.first()
+
+        # 4) parse category_object and compute totals (backend does the heavy lift)
+        cat_obj = _parse_category_object(obj.category_object)
+        cat_totals = _category_totals(cat_obj)
+
+        # 5) shape the response (only fields needed by frontend)
+        record = {
+            "id": obj.id,
+            "company": obj.company,
+            "sub_company": obj.sub_company,
+            "vendor": obj.vendor,
+            "account_number": obj.account_number,
+            "Wireless_number": obj.Wireless_number,
+            "user_name": obj.user_name,
+            "plans": obj.plans,
+            "plan_type": obj.plan_type,
+            "data_allotment": obj.data_allotment,
+            "plan_fee": obj.plan_fee,
+            "smartphone": obj.smartphone,
+            "tablet_computer": obj.tablet_computer,
+            "mifi": obj.mifi,
+            "wearables": obj.wearables,
+            "cost_center": obj.cost_center,
+            "VendorNumber": obj.VendorNumber,
+            "paymentstatus": obj.paymentstatus,
+            "bill_date": obj.bill_date,
+            "banOnboarded_id": getattr(obj, "banOnboarded_id", None),
+            "banUploaded_id": getattr(obj, "banUploaded_id", None),
+            "category_object": cat_obj,     # normalized object
+        }
+
+        return Response(
+            {
+                "record": record,
+                "category_totals": cat_totals,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class BaselineAnalyticsView(APIView):
+    """
+    (Optional) Keep your previous summary endpoint if other screens still use it.
+    """
+    def get(self, request):
+        company = request.query_params.get('company')
+        sub_company = request.query_params.get('sub_company')
+        vendor = request.query_params.get('vendor')
+        account_number = request.query_params.get('account_number')
+        wireless_number = request.query_params.get('wireless_number')
+
+        qs = BaselineDataTable.objects.all()
+
+        if company:
+            qs = qs.filter(company__icontains=company)
+        if sub_company:
+            qs = qs.filter(sub_company__icontains=sub_company)
+        if vendor:
+            qs = qs.filter(vendor__icontains=vendor)
+        if account_number:
+            qs = qs.filter(account_number__icontains=account_number)
+        if wireless_number:
+            qs = qs.filter(Wireless_number__icontains=wireless_number)
+
+        total_records = qs.count()
+        unique_accounts = qs.values_list("account_number", flat=True).distinct().count()
+        unique_wireless = qs.values_list("Wireless_number", flat=True).distinct().count()
+        unique_vendors = qs.values_list("vendor", flat=True).distinct().count()
+
+        by_vendor = qs.values(label=Lower("vendor")).annotate(count=Count("id")).order_by("-count")
+        by_company = qs.values(label=Lower("company")).annotate(count=Count("id")).order_by("-count")
+        by_subcompany = qs.values(label=Lower("sub_company")).annotate(count=Count("id")).order_by("-count")
+
+        return Response(
+            {
+                "totals": {
+                    "records": total_records,
+                    "uniqueAccounts": unique_accounts,
+                    "uniqueWireless": unique_wireless,
+                    "vendors": unique_vendors,
+                },
+                "breakdowns": {
+                    "byVendor": list(by_vendor),
+                    "byCompany": list(by_company),
+                    "bySubCompany": list(by_subcompany),
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class RequestsAnalyticsView(APIView):
+    def get(self, request):
+        requester_id = request.query_params.get("requester_id")
+
+        qs = Requests.objects.all()
+        if requester_id:
+            qs = qs.filter(requester_id=requester_id)
+
+        total_requests = qs.count()
+        pending = qs.filter(status__iexact="Pending").count()
+        completed = qs.filter(status__iexact="Completed").count()
+
+        by_type = (
+            qs.values(label=Lower("request_type"))
+            .annotate(count=Count("id"))
+            .order_by("-count")
+        )
+        by_status = (
+            qs.values(label=Lower("status"))
+            .annotate(count=Count("id"))
+            .order_by("-count")
+        )
+
+        recent = (
+            qs.order_by("-request_date")
+            .values("id", "request_type", "status", "user_name", "request_date")[:10]
+        )
+
+        return Response(
+            {
+                "totals": {
+                    "requests": total_requests,
+                    "pending": pending,
+                    "completed": completed,
+                },
+                "byType": list(by_type),
+                "byStatus": list(by_status),
+                "recent": list(recent),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class TrackingAnalyticsView(APIView):
+    """
+    Tracking overview; minor hardening so empty strings are treated as unknown status.
+    """
+    def get(self, request):
+        qs = TrackingInfo.objects.all()
+
+        total_shipments = qs.count()
+        vendors = qs.values_list("shipment_vendor", flat=True).distinct().count()
+        device_status_known = qs.filter(~Q(device_status__isnull=True) & ~Q(device_status="")).count()
+
+        by_vendor = qs.values(label=Lower("shipment_vendor")).annotate(count=Count("id")).order_by("-count")
+        by_status = qs.values(label=Lower("device_status")).annotate(count=Count("id")).order_by("-count")
+
+        recent = qs.order_by("-updated").values(
+            "id", "shipment_vendor", "tracking_id", "device_status", "updated"
+        )[:10]
+
+        return Response(
+            {
+                "totals": {
+                    "shipments": total_shipments,
+                    "deviceStatusKnown": device_status_known,
+                    "vendors": vendors,
+                },
+                "byShipmentVendor": list(by_vendor),
+                "byDeviceStatus": list(by_status),
+                "recent": list(recent),
+            },
+            status=status.HTTP_200_OK,
+        )

@@ -419,13 +419,12 @@ class AttClass:
         return basic, self.format_wn(unique_df), self.format_wn(baseline_df), round(float(tt), 2)
     
 
-# obj = AttClass("Bills/media/BanUploadBill/mob_1646_287021439454_20250425_F_fkLFUvk.pdf")
+# obj = AttClass("/home/marshal19/Desktop/BillsProject/Bills/media/BanUploadBill/Att-3may25.pdf")
+
 # basic, unique_df, baseline_df,totalTime = obj.extract_all()
 # print(basic)
 # print(unique_df)
 # unique_df.to_csv("unique.csv")
-# unique_df.to_json("unique.json",orient="records",indent=2)
 # print(baseline_df)
 # baseline_df.to_csv("baseline.csv")
-# baseline_df.to_json("baseline.json",orient="records",indent=2)
 # print(totalTime)

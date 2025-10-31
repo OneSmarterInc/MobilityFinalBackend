@@ -21,6 +21,7 @@ from OnBoard.Ban.models import UniquePdfDataTable
 import os
 from checkbill import prove_bill_ID
 from addon import parse_until_dict
+from Settings.Views.History import save_ban_history, save_wireless_history
 from Batch.views import create_notification
 class UploadBANView(APIView):
     def __init__(self):
@@ -131,6 +132,18 @@ class UploadBANView(APIView):
 
             if UploadBAN.objects.filter(organization=org,Vendor=vendor,account_number=accnum).exists():
                 return Response({"message":"Account Number already exists!"},status=status.HTTP_400_BAD_REQUEST)
+            valid_fields = {f.name for f in UploadBAN._meta.get_fields()}
+
+            filtered_data = {k: v for k, v in mutable_data.items() if k in valid_fields}
+            print("filtered_data", filtered_data)
+            filtered_data.pop('user_email', None)
+            filtered_data.pop('company', None)
+            filtered_data.pop('entryType', None)
+            filtered_data.pop('banstatus', None)
+            filtered_data.pop('bantype', None)
+            filtered_data.pop('paymenttype', None)
+            filtered_data.pop('masteraccount', None)
+
             upload_ban = UploadBAN.objects.create(
                 user_email=get_object_or_404(PortalUser, email=mutable_data.pop('user_email', None)),
                 Vendor=vendor,
@@ -146,7 +159,7 @@ class UploadBANView(APIView):
                 invoicemethod=invoicemethod,
                 masteraccount=mutable_data.pop('masteraccount', None),
                 account_number = accnum,
-                **mutable_data
+                **filtered_data
             )
             upload_ban.save()
             self.instance = upload_ban
@@ -238,6 +251,7 @@ class UploadBANView(APIView):
             )
             portal.save()
             saveuserlog(request.user, f"New ban {upload_ban.account_number} created successfully!",)
+            save_ban_history(uploadID=obj.banUploaded.id, action=f"BAN Onboarded manually", user=request.user.email,ban=obj.accountnumber)   
 
         except Exception as e:
             if self.instance and self.instance.pk: self.instance.delete()
@@ -456,7 +470,8 @@ class OnboardBanView(APIView):
                             check = addon.startprocess()
                             print(check)
                             if check['error'] != 0:
-                                if obj and obj.pk:obj.delete()             
+                                if obj and obj.pk:obj.delete()      
+                                   
                         except:
                             if obj and obj.pk:obj.delete()
                                     
@@ -1299,6 +1314,7 @@ class ProcessZip:
                 self.reflect_category_object()
                 self.instance.is_processed = True
                 self.instance.save()
+                save_ban_history(onboardID=self.instance.id, action=f"BAN Onboarded with zip file", user=self.mail, ban=self.account_number)   
                 return {'message' : 'RDD uploaded successfully!', 'error' : 0}
         except Exception as e:
             print(f'Error occurred while processing zip file: {str(e)}')
@@ -1704,3 +1720,4 @@ def remove_filds(model, data):
     filtered_data = {key: value for key, value in data.items() if key in valid_fields}
 
     return filtered_data
+

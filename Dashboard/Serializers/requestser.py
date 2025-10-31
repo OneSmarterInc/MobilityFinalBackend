@@ -297,18 +297,11 @@ class CostCentersShowSerializer(serializers.ModelSerializer):
     class Meta:
         model = CostCenters
         exclude = ('created', 'updated')
+
 class CostCentersSaveSerializer(serializers.ModelSerializer):
     class Meta:
         model = CostCenters
         fields = '__all__'
-
-    def validate(self, data):
-        if not data.get('sub_company'):
-            raise serializers.ValidationError("Sub company is required.")
-        if not data.get('vendor'):
-            raise serializers.ValidationError("Vendor is required.")
-        return data
-    
 
 class EmployeeSerializer(serializers.ModelSerializer):
     sub_company = serializers.SerializerMethodField()

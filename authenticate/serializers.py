@@ -3,7 +3,7 @@ from django.contrib.auth.models import AbstractUser
 from .models import PortalUser, UserLogs
 from django.db.utils import IntegrityError
 from django.contrib.auth.password_validation import validate_password
-from Dashboard.ModelsByPage.DashAdmin import UserRoles
+from Dashboard.ModelsByPage.DashAdmin import UserRoles, Permission
 from Dashboard.ModelsByPage.ProfileManage import Profile
 
 from Dashboard.Serializers.AdminPage import UserRoleShowSerializer
@@ -16,7 +16,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PortalUser
-        fields = ['username', 'email', 'password', 'password2', 'designation', 'company', 'first_name','last_name','phone_number','mobile_number','string_password','temp_password']
+        fields = ['username', 'email', 'password', 'password2', 'designation', 'company', 'first_name','last_name','phone_number','mobile_number','string_password','temp_password', 'organization']
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
@@ -54,25 +54,30 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 
+
 class showUsersSerializer(serializers.ModelSerializer):
-    designation = UserRoleShowSerializer()
+    designation = serializers.CharField(source='designation.name',max_length=255, read_only=True)
     company = serializers.CharField(max_length=255, read_only=True)
-    organization = serializers.SerializerMethodField()
-    orgRole = serializers.SerializerMethodField()
+    organization = serializers.CharField(max_length=255, read_only=True)
+    is_admin = serializers.SerializerMethodField()
+    permissions = serializers.SerializerMethodField()
     """
     Serializer to display user data.
     """
     class Meta:
         model = PortalUser
-        fields = ['username', 'email', 'designation', 'company', 'organization','orgRole']
-    
-    def get_organization(self,obj):
-        obj = Profile.objects.filter(user=obj).first()
-        return obj.organization.Organization_name if obj and obj.organization else None
+        fields = ['username', 'email', 'designation', 'company', 'organization', 'mobile_number', 'account_number', 'id','is_admin','permissions']
+    def get_is_admin(self, user):
+        return "admin" in user.designation.name.lower() if user.designation else True
+    def get_permissions(self,user):
+        return list(
+            Permission.objects.filter(
+                permissions_by_company__company=user.company,
+                permissions_by_company__organization=user.organization,
+                permissions_by_company__role=user.designation
+            ).values_list('name', flat=True).distinct()
+        )
 
-    def get_orgRole(self,obj):
-        obj = Profile.objects.filter(user=obj).first()
-        return obj.role.name if obj and obj.role else None
 
 class UserLogSaveSerializer(serializers.ModelSerializer):
     class Meta:

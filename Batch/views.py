@@ -89,7 +89,7 @@ class BatchView(APIView):
             
             df = pd.DataFrame.from_records(base_ids.values())
             df = df.drop(columns=['created', 'updated','auto_pay_enabled','Entry_type','master_account', 'website', 'Total_Current_Charges','plans','charges', 'location','duration','id', 'banUploaded_id','Total_Amount_Due', 'banOnboarded_id', 'viewuploaded_id','viewpapered_id', 'inventory_id','costcenterlevel', 'costcentertype','costcenterstatus', 'CostCenter', 'CostCenterNotes', 'PO','Displaynotesonbillprocessing', 'POamt', 'FoundAcc', 'bantype','invoicemethod', 'vendorCS', 'vendor_alias', 'month', 'year',
-            'pdf_filename', 'pdf_path', 'remarks', 'account_password','payor', 'GlCode', 'ContractTerms', 'ContractNumber', 'Services','Billing_cycle', 'BillingDay', 'PayTerm', 'AccCharge','CustomerOfRecord', 'contract_name', 'contract_file', 'paymentType',
+            'pdf_filename', 'pdf_path', 'remarks', 'account_password','payor', 'GlCode', 'ContractTerms', 'ContractNumber', 'Services','Billing_cycle', 'BillingDay', 'PayTerm', 'AccCharge','CustomerOfRecord', 'paymentType',
             'billstatus', 'banstatus', 'Check', 'summary_file','is_baseline_approved','workbook_path','batch_file','current_annual_review',
             'previous_annual_review','variance','is_production'])
 
@@ -129,8 +129,11 @@ class BatchView(APIView):
                 'batch_approved': 'Batch Approved',
                 'batch_approved_changer': 'Batch Approved By',
                 'baseline_notes': 'Baseline Notes',
-                'net_amount': 'Net Amount'
+                'net_amount': 'Net Amount',
+                "bill_approved_date": "Bill approved date"
             }, inplace=True)
+
+            df['Bill approved date'] = df['Bill approved date'].dt.tz_localize(None)
 
             
             # empty all 

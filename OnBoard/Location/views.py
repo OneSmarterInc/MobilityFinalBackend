@@ -149,7 +149,8 @@ class LocationView(APIView):
         loc.delete()
         saveuserlog(request.user, f"location with site name {name} deleted successfully!") 
         return Response({"message" : "Location deleted successfully!"}, status=status.HTTP_200_OK)
-        
+
+from addon import parse_until_dict
 
 class LocationBulkUpload(APIView):
     permission_classes = [IsAuthenticated]
@@ -167,28 +168,30 @@ class LocationBulkUpload(APIView):
                 df = pd.read_excel(file)
             else:
                 return Response({'message': 'Invalid file format. Only CSV and Excel files are allowed.'}, status=status.HTTP_400_BAD_REQUEST)
-            print(df)
+            data = request.data
+            print(data)
+            division = data.get('division')
+            div_obj = Division.objects.filter(name=division).first()
+            mapping = parse_until_dict(data.get('mapping'))
+            mapping_inverted = {v: k for k, v in mapping.items()}
+
+            # Keep only mapped columns
+            df = df[[col for col in mapping_inverted if col in df.columns]]
+
+            # Rename columns using the inverted mapping
+            df = df.rename(columns=mapping_inverted)
+
+            print(df,df.columns)
             to_db = add_bulk_file(organization, file)
             if not to_db:
-                return Response({'message': 'Failed to add bulk locations.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            else:
-                saveuserlog(request.user, f"bulk locations uploaded successfully for organization {organization.Organization_name}")
-            
+                return Response({'message': 'Failed to add bulk locations.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)                
             columns = df.columns.to_list()
             for index, row in df.iterrows():
                 data = {column: value for column, value in zip(columns, row)}
-                if 'division' in data and data['division'] is not None:
-                    div = Division.objects.filter(name=data.pop('division'))
-                    if div.exists():
-                        div = div.first()
-                    else:
-                        div = None
-                else:
-                    div=None
-                    data.pop('division')
                 print(data)
-                obj = Location.objects.create(bulkfile=to_db, company=organization.company, organization=organization, division=div, **data)
+                obj = Location.objects.create(bulkfile=to_db, company=organization.company, organization=organization, division=div_obj, **data)
                 obj.save()
+            saveuserlog(request.user, f"bulk locations uploaded successfully for organization {organization.Organization_name}")
             return Response({'message': 'Bulk locations added successfully!'}, status=status.HTTP_201_CREATED)
         except Exception as e:
             print(f"Error in bulk upload: {e}")

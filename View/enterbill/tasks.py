@@ -11,7 +11,9 @@ def get_error_message():
     Our technical team has been alerted and is working diligently to restore service, and we will notify you as soon as the issue is resolved. In the meantime, we kindly ask that you resubmit your document after a few hours.\n
 
     We sincerely apologize for this service interruption and appreciate your cooperation.'''
+
 import time
+from .billAnalysis import BillAnalysis
 @shared_task
 def verizon_att_enterBill_processor(buffer_data, instance_id,btype):
     buffer_data_dict = json.loads(buffer_data)
@@ -45,11 +47,13 @@ def verizon_att_enterBill_processor(buffer_data, instance_id,btype):
         if not check:
             msg = get_error_message()
         else:
+            bill_analysis_processor.delay(buffer_data, instance_id,btype=btype)
             msg = f"{Smsg}\nYour pdf {pdf_filename} took {ProcessTime} to process"
         send_custom_email(company=com, organization=sc,to=email, subject=sub, body_text=msg)
         if not check:
             if instance and instance.pk: instance.delete()
             send_custom_email(company=com, organization=sc,to="gauravdhale09@gmail.com", subject=sub, body_text=f"{msg}\nReason-{Smsg}")
+        
     except Exception as e:
         print(e)
         errormsg = get_error_message()
@@ -63,6 +67,51 @@ def verizon_att_enterBill_processor(buffer_data, instance_id,btype):
         send_custom_email(company=com, organization=sc,to="gauravdhale09@gmail.com", subject=sub, body_text=msg)
     
         if instance and instance.pk: instance.delete()
+    
+
+    
+
+@shared_task
+def bill_analysis_processor(buffer_data, instance_id,btype):
+    buffer_data_dict = json.loads(buffer_data)
+    com = buffer_data_dict.get('company_name')
+    sc = buffer_data_dict.get('sub_company_name')
+    email = buffer_data_dict.get('email')
+
+    try:
+        instance = ViewUploadBill.objects.get(id=instance_id)
+    except ViewUploadBill.DoesNotExist:
+        print(f"Error: BaseDataTable object with ID {instance_id} not found.")
+        return {"message": f"Error: BaseDataTable object with ID {instance_id} not found.", "error": 1}
+    try:
+        analysis = BillAnalysis(instance=instance, buffer_data=buffer_data,btype=btype)
+        acheck, Amsg, AProcessTime, error = analysis.process()
+    
+        if not acheck:
+            sub = "Bill Analysis-Internal Server Error"
+            msg = f"""Error occur during Bill Analysis
+                {Amsg}
+            """
+            if instance and instance.pk: instance.delete()
+            send_custom_email(company=com, organization=sc,to="gauravdhale09@gmail.com", subject=sub, body_text=msg)
+        else:
+            if AProcessTime >= 60:
+                AProcessTime = f"{AProcessTime / 60:.2f} minutes"
+            else:
+                AProcessTime = f"{AProcessTime:.2f} seconds"
+            print("Analysis Process Time:", AProcessTime)
+            sub = "Bill Analysis Completed"
+            msg = f"Your Bill Analysis took {AProcessTime} to process"
+            # send_custom_email(company=com, organization=sc,to=email, subject=sub, body_text=msg)
+    except Exception as e:
+        print(e)
+        if instance and instance.pk: instance.delete()
+        print("Internal Server Error in Bill Analysis")
+        sub = "Bill Analysis-Internal Server Error"
+        msg = f"""Error occur during Bill Analysis
+            {e}
+        """
+        send_custom_email(company=com, organization=sc,to="gauravdhale09@gmail.com", subject=sub, body_text=msg)
 
 from View.enterbill.ep import EnterBillProcessExcel
 from .newbillprocessor import ProcessBills

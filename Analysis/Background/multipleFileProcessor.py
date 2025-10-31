@@ -23,7 +23,9 @@ import numpy as np
 from addon import extract_data_from_zip
 from .savingspdf import create_savings_pdf
 from datetime import datetime
-
+from authenticate.views import create_notification
+from authenticate.models import PortalUser
+from OnBoard.Company.models import Company
 class MultipleFileProcessor:
     def __init__(self, instance, buffer_data):
         self.instance = instance
@@ -37,7 +39,9 @@ class MultipleFileProcessor:
         self.file_names = [os.path.basename(f) for f in self.file_paths]
 
         self.vendor = self.buffer_data.get('vendor')
+        self.company = self.buffer_data.get('company')
         self.type = self.buffer_data.get('type')
+        self.email = self.buffer_data.get('email')
 
         self.account_number = None
         self.all_plans = []
@@ -668,6 +672,8 @@ class MultipleFileProcessor:
         # just create new entries, even if wireless_number already exists
         for _, row in data_df.iterrows():
             obj = AnalysisData.objects.create(
+                company=self.company,
+                vendor=self.vendor,
                 account_number=row["account_number"],
                 bill_date=row["bill_date"],
                 wireless_number=row["wireless_number"],
@@ -743,7 +749,7 @@ class MultipleFileProcessor:
         records = []
         for row in df.to_dict(orient="records"):
             filtered = {k: v for k, v in row.items() if k in model_fields}
-            records.append(SummaryData(multiple_analysis=self.instance,**filtered))
+            records.append(SummaryData(company=self.company,vendor=self.vendor,multiple_analysis=self.instance,**filtered))
 
         # bulk insert
         SummaryData.objects.bulk_create(records, ignore_conflicts=True)
@@ -840,6 +846,10 @@ class MultipleFileProcessor:
             pdf_file = ContentFile(pdf)
             self.instance.savings_pdf.save(filename, pdf_file)
             self.instance.save()
+            companyObj = Company.objects.filter(Company_name=self.company).first()
+            userObj = PortalUser.objects.filter(email=self.email).first()
+            msg = f'Analysis files of account number {self.account_number} processed successfully'
+            create_notification(msg=msg, user=userObj, company=companyObj)
             end = time.perf_counter()
             return True, "Files processed successfully", round(end - start, 2), 1
 

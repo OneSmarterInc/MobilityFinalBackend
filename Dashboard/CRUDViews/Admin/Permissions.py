@@ -30,8 +30,8 @@ class PermissionView(APIView):
         ser = PermissionOperationSerializer(data=request.data)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, f"New permission added with name {ser.data["name"]}")  # save user log for audit trail
-            create_notification(request.user, f"New permission added with name {ser.data["name"]}",request.user.company) 
+            saveuserlog(request.user, f"New permission added with name {ser.data['name']}")  # save user log for audit trail
+            create_notification(request.user, f"New permission added with name {ser.data['name']}",request.user.company) 
             return Response({"message" : "new permission created successfully!", "data":ser.data}, status=status.HTTP_201_CREATED)
         return Response({"message":ser.errors}, status=status.HTTP_400_BAD_REQUEST)
     

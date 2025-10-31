@@ -84,3 +84,53 @@ class Reminder(models.Model):
     
     class Meta:
         db_table = 'Reminder'
+
+from OnBoard.Ban.models import UploadBAN, OnboardBan
+
+class BanHistory(models.Model):
+    banUploaded = models.ForeignKey(UploadBAN, related_name='banuploadedhistory', on_delete=models.CASCADE, null=True, blank=True)
+    banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedhistory', on_delete=models.CASCADE, null=True, blank=True)
+    account_number = models.CharField(max_length=255)
+    user = models.CharField(max_length=255, null=True, blank=True)
+    action = models.TextField(null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'BanHistory'
+    def __str__(self):
+        return f'{self.user} - {self.action} - {self.timestamp}'
+    
+class WirelessHistory(models.Model):
+    banUploaded = models.ForeignKey(UploadBAN, related_name='wirelessuploadedhistory', on_delete=models.CASCADE, null=True, blank=True)
+    banOnboarded = models.ForeignKey(OnboardBan, related_name='wirelessOnboardedhistory', on_delete=models.CASCADE, null=True, blank=True)
+    wireless_number = models.CharField(max_length=255)
+    user = models.CharField(max_length=255, null=True, blank=True)
+    action = models.CharField(max_length=255, null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'WirelessHistory'
+    def __str__(self):
+        return f'{self.user} - {self.action} - {self.timestamp}'
+    
+
+from Dashboard.ModelsByPage.DashAdmin import UserRoles, Permission
+from OnBoard.Company.models import Company
+from OnBoard.Organization.models import Organizations
+class PermissionsbyCompany(models.Model):
+    company = models.ForeignKey(Company, related_name="company_permissions", on_delete=models.CASCADE, null=True, blank=True)
+    organization = models.ForeignKey(Organizations, related_name="organization_permissions", on_delete=models.CASCADE, null=True, blank=True)
+    role = models.OneToOneField(UserRoles, related_name="role_permissions", on_delete=models.CASCADE) 
+    permissions = models.ManyToManyField(Permission, related_name="permissions_by_company")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)  
+
+
+
+    class Meta:
+        db_table = 'PermissionsbyCompany'
+    
+    def _str_(self):
+        return f'{self.company.Company_name}-{self.role.name}-{self.permssion.name}'
+    

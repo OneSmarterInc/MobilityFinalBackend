@@ -165,6 +165,7 @@ class CostCenters(models.Model):
     vendor = models.ForeignKey(Vendors, related_name="vendor_costcenters", null=False,on_delete=models.CASCADE)
     ban = models.CharField(max_length=255, null=False)
     cost_center = models.CharField(max_length=255, null=False)
+    remark = models.TextField(null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True, null=True)
     updated= models.DateTimeField(auto_now=True,null=True)
 

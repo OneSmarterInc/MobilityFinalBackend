@@ -107,9 +107,42 @@ class OnboardOrganizationView(APIView):
         except Organizations.DoesNotExist:
             return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
         
+from Dashboard.ModelsByPage.DashAdmin import Vendors
+class AddVendortoOrg(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, org, *args, **kwargs):
+        orgObj = Organizations.objects.filter(id=org).first()
+        if not orgObj:
+            return Response(
+                {"message": f"Organization '{org}' does not exist!"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        vendor_id = request.data.get('vendor')
+        if not vendor_id:
+            return Response(
+                {"message": "Vendor ID is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        vendor = Vendors.objects.filter(name=vendor_id).first()
+        if not vendor:
+            return Response(
+                {"message": f"Vendor with ID {vendor_id} not found."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Add this vendor to the organization (no duplicates)
+        orgObj.vendors.add(vendor)
+
+        return Response(
+            {"message": f"Vendor '{vendor}' added successfully to '{orgObj.Organization_name}'."},
+            status=status.HTTP_200_OK
+        )
+
 
 from .models import Division
-
 
 class DivisionView(APIView):
     permission_classes = [IsAuthenticated]

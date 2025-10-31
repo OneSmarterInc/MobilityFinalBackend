@@ -53,3 +53,78 @@ class TicketSerializer(serializers.ModelSerializer):
         return instance
 
 
+from .models import BanHistory, WirelessHistory
+
+class saveBanhistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BanHistory
+        fields = "__all__"
+
+class showBanhistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BanHistory
+        fields = ("account_number", "user", "action", "timestamp")
+
+class saveWirelesshistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WirelessHistory
+        fields = "__all__"
+
+class showWirelesshistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WirelessHistory
+        fields = ("wireless_number", "user", "action", "timestamp")
+
+from .models import PermissionsbyCompany
+from Dashboard.ModelsByPage.DashAdmin import Permission
+
+class PermissionShowSerializer(serializers.ModelSerializer):
+    role = serializers.CharField(source='role.name')
+    permissions = serializers.StringRelatedField(many=True)
+    class Meta:
+        model = UserRoles
+        fields = ['role','permissions']
+
+    def get_permissions(self, obj):
+        return [permission.name for permission in obj.permissions.all()]
+    
+class permissionsSerializer(serializers.ModelSerializer):
+    permissions = serializers.ListField(
+        child=serializers.CharField(max_length=255),
+        write_only=True,
+        required=True
+    )
+
+    class Meta:
+        model = PermissionsbyCompany
+        fields = "__all__"
+        read_only_fields = ['created', 'updated']
+
+    def create(self, validated_data):
+        permissions_data = validated_data.pop('permissions', [])
+        
+        # Create instance first
+        instance = PermissionsbyCompany.objects.create(**validated_data)
+        
+        # Attach permission objects
+        if permissions_data:
+            permissions = Permission.objects.filter(name__in=permissions_data)
+            instance.permissions.set(permissions)
+        
+        instance.save()
+        return instance
+    def update(self, instance, validated_data):
+        permissions_data = validated_data.pop('permissions', [])
+        
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        if permissions_data:
+            permissions = Permission.objects.filter(name__in=permissions_data)
+            instance.permissions.set(permissions)
+        
+        instance.save()
+        return instance
+
+
+    
