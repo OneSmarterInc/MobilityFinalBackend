@@ -1683,7 +1683,7 @@ def get_inventory_report(request):
 
     response = InventorySerializer(filtered_data, many=True).data
 
-
+    if response:print(response[0])
     if is_download:
         reportObj = GenerateExcelReport(report_name="Inventory Report", data=response)
         report, report_name = reportObj._generate()
