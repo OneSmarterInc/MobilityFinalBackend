@@ -21,11 +21,14 @@ class RequestsView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request,pk=None, *args, **kwargs):
         if pk is None:
-            if request.user.company is None:
-                all_objs = Requests.objects.filter(status="Completed").order_by('-created')
+            print(request.user.designation.name)
+            if "admin" not in request.user.designation.name.lower():
+                all_objs = Requests.objects.filter(requester=request.user).order_by('-created')
             else:
-                if request.user.designation.name == "Admin":
-                    all_objs = Requests.objects.filter(organization__company=request.user.company).order_by('-created')
+                if request.user.company and not request.user.organization:
+                    all_objs = Requests.objects.filter(status="Completed").order_by('-created')
+                elif request.user.company and request.user.organization:
+                    all_objs = Requests.objects.filter(organization=request.user.organization).order_by('-created')
                 else:
                     all_objs = Requests.objects.filter(requester=request.user).order_by('-created')
             ser = showRequestSerializer(all_objs, many=True)

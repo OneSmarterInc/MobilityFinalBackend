@@ -80,7 +80,7 @@ class ProcessPdf2:
             "master_account": self.master_account,
             "Entry_type":self.entry_type
         }
-        obj = BaseDataTable.objects.create(**baseDatamapped)
+        obj = BaseDataTable.objects.create(uploaded_by=PortalUser.objects.filter(email=self.email).first(),**baseDatamapped)
         return obj
         
         print("Added to base data table")

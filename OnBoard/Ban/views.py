@@ -215,7 +215,8 @@ class UploadBANView(APIView):
                 FoundAcc = upload_ban.FoundAcc,
                 bantype = upload_ban.bantype.name if upload_ban.bantype else "",
                 invoicemethod = upload_ban.invoicemethod.name if upload_ban.invoicemethod else "",
-                variance=upload_ban.variance
+                variance=upload_ban.variance,
+                uploaded_by=request.user
 
 
             )
@@ -1249,7 +1250,7 @@ class ProcessZip:
                 if BaseDataTable.objects.filter(accountnumber=acc_no, company=self.company, sub_company=self.org).exists():
                     return {'message' : f'Bill already exists for account number {acc_no}', 'error' : -1}
                 else:
-                    obj = BaseDataTable.objects.create(banOnboarded=self.instance, **data_base)
+                    obj = BaseDataTable.objects.create(banOnboarded=self.instance, uploaded_by=PortalUser.objects.filter(email=self.mail).first(), **data_base)
                     print("saved to base data table")
                     self.account_number = obj.accountnumber
                     obj.save()

@@ -111,7 +111,7 @@ class ProcessCSVOnboard:
         keys_to_keep = ['company', 'vendor', 'sub_company', 'accountnumber', 'Entry_type', 'location', 'master_account']
         b_dict = {key: base_dict[key] for key in keys_to_keep if key in base_dict}
 
-        BaseDataTable.objects.create(banOnboarded=self.instance,**b_dict)
+        BaseDataTable.objects.create(banOnboarded=self.instance, uploaded_by=PortalUser.objects.filter(email=self.email).first(),**b_dict)
         print("Data added to BaseDataTable")
         self.account_number = file_account_number
         df_csv['wireless_number'] = df_csv['wireless_number'].apply(self.format_wireless_number)

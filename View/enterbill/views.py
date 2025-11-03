@@ -823,7 +823,7 @@ class ProcessZip:
                     if self.instance and self.instance.pk: self.instance.delete()
                     return {'message' : f'Bill already exists for account number {acc_no}', 'error' : -1}
                 else:
-                    obj = BaseDataTable.objects.create(viewuploaded=self.instance,month=self.month, year=self.year,net_amount=self.net_amount, **data_base)
+                    obj = BaseDataTable.objects.create(viewuploaded=self.instance,month=self.month, year=self.year,net_amount=self.net_amount,uploaded_by=PortalUser.objects.filter(email=self.email).first(), **data_base)
                     print("saved to base data table")
                     self.account_number = obj.accountnumber
                     obj.save()
@@ -1604,14 +1604,7 @@ class ProcessZip:
                 print(f'Error saving to database: {e}')
                 return {'error':-1, 'message':f'{str(e)}'}
         
-            
-
-    def save_to_base_data_table(self, data):
-        print("save to base data table")
-        from OnBoard.Ban.models import BaseDataTable
-        for item in data:
-            bill_date = item.pop('bill_date').replace(",","")
-            BaseDataTable.objects.create(viewuploaded=self.instance,bill_date=bill_date, **item)
+        
 
 
     def extract_rdd_data(self, filepath, organization):
@@ -2143,7 +2136,8 @@ class PaperBillView(APIView):
                 bill_date=formatted_billdate,
                 date_due=formatted_duedate,
                 month=formatted_billdate.split(" ")[0],
-                year=formatted_billdate.split(" ")[2]
+                year=formatted_billdate.split(" ")[2],
+                uploaded_by=request.user,
             )
             new_base_obj.save()
             

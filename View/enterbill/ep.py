@@ -131,7 +131,7 @@ class EnterBillProcessExcel:
 
         onboarded = BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(sub_company=self.sub_company, vendor=self.vendor, accountnumber=self.account_number).first()
         # Insert into BaseDataTable
-        baseinstance = BaseDataTable.objects.create(viewuploaded=self.instance,month=self.month, year=self.year,RemittanceAdd=onboarded.RemittanceAdd, **b_dict)
+        baseinstance = BaseDataTable.objects.create(viewuploaded=self.instance,month=self.month, year=self.year,RemittanceAdd=onboarded.RemittanceAdd,uploaded_by=PortalUser.objects.filter(email=self.email).first(), **b_dict)
         print("Data added to BaseDataTable")
         baseinstance.variance = onboarded.variance
         baseinstance.save()

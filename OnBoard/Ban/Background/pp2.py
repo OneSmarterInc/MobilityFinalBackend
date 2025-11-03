@@ -69,7 +69,7 @@ class ProcessPdf2:
             "Entry_type":self.entry_type,
             "variance":self.variance
         }
-        BaseDataTable.objects.create(**baseDatamapped)
+        BaseDataTable.objects.create(uploaded_by=PortalUser.objects.filter(email=self.email).first(),**baseDatamapped)
         self.instance.account_number = self.account_number
         self.instance.save()
         
