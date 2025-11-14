@@ -24,7 +24,6 @@ class CompanyView(APIView):
     def post(self, request):
         if ManuallyAddedCompany.objects.filter(name=request.data["name"]).exists():
             return Response({"message": "company with this name already exists!"}, status=status.HTTP_400_BAD_REQUEST)
-        serializer = BanStatusOperationSerializer(data=request.data)
         serializer = CompanyOperationSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()

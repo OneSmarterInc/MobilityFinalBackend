@@ -2,6 +2,7 @@ from rest_framework import serializers
 from OnBoard.Organization.models import Organizations
 from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, BaselineDataTable
 from Dashboard.ModelsByPage.DashAdmin import Vendors, PaymentType
+from ..models import ViewUploadBill
 
 class showBanSerializer(serializers.ModelSerializer):
     organization = serializers.CharField(max_length=255)
@@ -29,13 +30,32 @@ class paytypehowSerializer(serializers.ModelSerializer):
         model = PaymentType
         fields = ['name',]
 
+class viewbillsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ViewUploadBill
+        fields = ["id", "is_processed", "month", "year", "ban", "file"]
+
 class basedatahowSerializer(serializers.ModelSerializer):
     banOnboarded = serializers.CharField(max_length=255)
     inventory = serializers.CharField(max_length=255)
     paymentType = serializers.CharField(max_length=255)
+    is_bill_in_batch = serializers.SerializerMethodField()
+    is_bill_approved = serializers.SerializerMethodField()
+    is_bill_payment_done = serializers.SerializerMethodField()
+    is_paper_bill = serializers.SerializerMethodField()
     class Meta:
         model = BaseDataTable
         fields = '__all__'
+    def get_is_bill_in_batch(self,obj):
+        return obj.is_baseline_approved
+    def get_is_bill_approved(self,obj):
+        return "approved" in obj.batch_approved.lower() if obj.batch_approved else False
+    def get_is_bill_payment_done(self,obj):
+        return obj.Check.lower() not in ("", None, "null", "false") if obj.Check else False
+    def get_is_paper_bill(self,obj):
+        return obj.viewpapered is not None
+    
+    
 
 class uniquepdftableSerializer(serializers.ModelSerializer):
     banOnboarded = serializers.CharField(max_length=255)

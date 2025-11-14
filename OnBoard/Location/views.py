@@ -118,7 +118,7 @@ class LocationView(APIView):
             # --- Save Log Entry ---
             saveuserlog(
                 request.user,
-                f"Location '{location.site_name}' updated. Changes: {change_log}"
+                f"Location of organization {org.Organization_name} name '{location.site_name}' updated. Changes: {change_log}"
             )
 
             return Response({"message": "Location updated successfully!"}, status=status.HTTP_200_OK)

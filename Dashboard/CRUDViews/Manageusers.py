@@ -11,6 +11,7 @@ from OnBoard.Organization.models import Organizations
 from ..Serializers.manageusers import showOrgsSerializer, UserRoleShowSerializer
 from Dashboard.ModelsByPage.DashAdmin import UserRoles
 from authenticate.views import saveuserlog
+from authenticate.models import PortalUser
 
 class ManageUsersView(APIView):
     permission_classes = [IsAuthenticated]
@@ -31,17 +32,17 @@ class ManageUsersView(APIView):
     
     def put(self, request, pk, *args, **kwargs):
         data = request.data
-        user = Profile.objects.filter(id=pk)
+        print(pk)
+        user = PortalUser.objects.filter(id=pk)
         print(data)
         if not user:
             return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-        role = UserRoles.objects.filter(id=data.get('role'))
+        role = UserRoles.objects.filter(id=data.get('role')).first()
         if not role.exists():
             return Response({"message": "Role not found"}, status=status.HTTP_404_NOT_FOUND)
         try:
-            user = user.first()
             role = role.first()
-            user.role = role
+            user.designation = role
             user.save()
             saveuserlog(request.user, f"user profile {user.email} updated.")
             return Response({"message": "User Updated successfully"}, status=status.HTTP_200_OK)

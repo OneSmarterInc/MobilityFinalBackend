@@ -24,7 +24,6 @@ class BillTypeView(APIView):
     def post(self, request):
         if BillType.objects.filter(name=request.data["name"]).exists():
             return Response({"message": "Bill type with this name already exists!"}, status=status.HTTP_400_BAD_REQUEST)
-        serializer = BanStatusOperationSerializer(data=request.data)
         serializer = saveBilltypeSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()

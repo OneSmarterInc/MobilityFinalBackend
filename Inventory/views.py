@@ -12,6 +12,7 @@ from .ser import OrganizationGetAllDataSerializer, CompanygetAllDataSerializer, 
 from .ser import CompanyShowOnboardSerializer, OrganizationShowOnboardSerializer, BanShowSerializer, OnboardBanshowserializer, BaseDataTableShowSerializer, UploadBANSerializer, UniqueTableShowSerializer, BaselineSaveSerializer, showallSerializer
 from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
+from detect_model_changes import track_model_changes
 from OnBoard.Ban.models import UploadBAN, OnboardBan, BaseDataTable, BaselineDataTable
 # Create your views here.
 from .homeser import showCompanySerializer, showOnboardedSerializer, showOrganizationSerializer, showUploadedSerializer
@@ -27,10 +28,11 @@ class Homepageview(APIView):
 
     def get(self, request,company):
         try:
+            org = request.user.organization
             obj = Company.objects.filter(Company_name=company).first()
             if not obj:
                 return Response({"message":"Company not found!"},status=status.HTTP_400_BAD_REQUEST)
-            orgs = Organizations.objects.filter(company=obj)
+            orgs = Organizations.objects.filter(company=request.user.company) if not org else Organizations.objects.filter(id=org.id)
             orgser = showOrganizationSerializer(orgs, many=True)
             bansOnboardSer = showOnboardedSerializer(OnboardBan.objects.filter(organization__in=orgs), many=True)
             bansUplaodSer = showUploadedSerializer(UploadBAN.objects.filter(organization__in=orgs), many=True)
@@ -43,8 +45,8 @@ class InventorySubjectView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-
-        if request.user.company and not request.user.organization:
+        org = request.user.organization
+        if not org:
             objs = Company.objects.all()
             onboardbanObjs = BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None)
             onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
@@ -52,45 +54,15 @@ class InventorySubjectView(APIView):
             all_lines = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None)
             lines_Ser = UniqueTableShowSerializer(all_lines, many=True)
             return Response({"data": serializer.data, 'banonboarded':onbanser.data, "lines":lines_Ser.data}, status=status.HTTP_200_OK)
-        elif request.user.company and request.user.organization:
-            com = Company.objects.get(Company_name=request.user.company)
-            objs = Organizations.objects.filter(company=com)
-            allobjs = OnboardBan.objects.all()
+        else:
+            objs = Organizations.objects.filter(id=org.id)
             serializer = OrganizationShowOnboardSerializer(objs, many=True)
-            onboardbanObjs = BaseDataTable.objects.filter(company=request.user.company).filter(viewuploaded=None, viewpapered=None)
+            onboardbanObjs = BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(banUploaded__organization=org, banOnboarded__organization=org)
             onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
             all_lines = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None)
             lines_Ser = UniqueTableShowSerializer(all_lines, many=True)
             return Response({"data": serializer.data, 'banonboarded':onbanser.data, "lines":lines_Ser.data}, status=status.HTTP_200_OK)
-        try:
-            if request.user.company and not request.user.organization:
-                objs = Company.objects.all()
-                serializer = CompanyShowOnboardSerializer(objs, many=True)
-                print(serializer.data)
-                return Response({"data": serializer.data}, status=status.HTTP_200_OK)
-            if request.user.company and request.user.organization:
-                objs = Organizations.objects.all()
-                serializer = OrganizationShowOnboardSerializer(objs, many=True)
-                print(serializer.data)
-                return Response({"data": serializer.data}, status=status.HTTP_200_OK)
-            company = Company.objects.all()
-            organization = Organizations.objects.all()
-            location = Location.objects.all()
-            vendors = Vendors.objects.all()
-            company_serializer = CompanygetNameSerializer(company, many=True)
-            organization_serializer = OrganizationgetNameSerializer(organization, many=True)
-            location_serializer = LocationGetNameSerializer(location, many=True)
-            vendor_serializer = VendorNameSerializer(vendors, many=True)
 
-            return Response({
-                "message" : "Data fetched successfully!",
-                "companies" : company_serializer.data,
-                "organizations" : organization_serializer.data,
-                "locations" : location_serializer.data,
-                "vendors" : vendor_serializer.data,
-            }, status=status.HTTP_200_OK)
-        except:
-            return Response({"message": "Error getting data"}, status=status.HTTP_401_UNAUTHORIZED)
         
 class InventoryDataView(APIView):
     permission_classes = [IsAuthenticated]
@@ -217,6 +189,7 @@ class BanInfoView(APIView):
             )
         
         obj = obj[0] 
+        original_data = {f.name: getattr(obj, f.name) for f in obj._meta.fields}
         print(request.data)
 
         if request.data['type'] == 'add-remark':
@@ -232,60 +205,35 @@ class BanInfoView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         print(obj.remarks)
-
-        saveuserlog(request.user, f"account number {obj.accountnumber} updated successfully.")
+        
+        change_log = track_model_changes(obj, original_data)
+        msg = f"Following fields are updated of account number {obj.accountnumber} : {change_log}"
+        saveuserlog(request.user, description=msg)
         # create_notification(request.user, f"account number {obj.accountnumber} updated",request.user.company)
         return Response({
             "message": "Ban information updated successfully!"
         }, status=status.HTTP_200_OK)
     
     def put(self, request, org, vendor, ban, *args, **kwargs):
+        
         obj_qs = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban)
 
         if not obj_qs.exists():
             return Response({"message": f"BAN with account number {ban} not found!"}, status=status.HTTP_400_BAD_REQUEST)
 
         instance = obj_qs.first()
+        original_data = {f.name: getattr(instance, f.name) for f in instance._meta.fields}
+
         data = request.data.copy()
 
-        # Get field names that are model fields (excluding auto fields like id, timestamps, etc.)
-        model_fields = {field.name for field in instance._meta.fields}
-
-        # --- Capture original values before update (only model fields) ---
-        original_data = {field: getattr(instance, field) for field in model_fields}
-
-        # Convert incoming string values to native Python types using serializer
         serializer = BanSaveSerializer(instance, data=data, partial=True)
 
         if serializer.is_valid():
             serializer.save()
-
-            # --- Refresh from DB to get updated values ---
-            instance.refresh_from_db()
-            updated_data = {field: getattr(instance, field) for field in original_data}
-
-            # --- Compare and track changed fields with type casting ---
-            change_log_lines = []
-            for field in original_data:
-                old_val = original_data[field]
-                new_val = updated_data[field]
-
-                if str(old_val) != str(new_val):  # Compare stringified values to handle type mismatch
-                    change_log_lines.append(f"{field}: '{old_val}' → '{new_val}'")
-
-            change_log = "; ".join(change_log_lines) if change_log_lines else "No changes detected."
-
-
-            # create_notification(user=request.user, msg=f"BAN {ban} updated successfully!",company=request.user.company)
-            # --- Save log ---
-            saveuserlog(
-                request.user,
-                f"BAN '{instance.accountnumber}' updated. Changes: {change_log}"
-            )
-            # create_notification(
-            #     request.user,
-            #     f"Account number '{instance.accountnumber}' updated", request.user.company
-            # )
+            
+            change_log = track_model_changes(instance, original_data)
+            msg = f"Following fields are updated of account number {instance.accountnumber} : {change_log}"
+            saveuserlog(request.user, description=msg)
 
 
             return Response({"message": "Ban updated successfully"}, status=status.HTTP_200_OK)
@@ -454,24 +402,23 @@ class MobileView(APIView):
         if not obj:
             return Response({"message":"Wireless Number not found!"},status=status.HTTP_400_BAD_REQUEST)
         print(obj)
+        original_data = {f.name: getattr(obj, f.name) for f in obj._meta.fields}
+
         try:
             serializer = UniqueTableShowSerializer(obj, data=data, partial=True)
             if serializer.is_valid():
                 serializer.save()
+                change_log = track_model_changes(obj, original_data)
+                msg = f"Following fields are updated of wireless number {obj.wireless_number} : {change_log}"
+                saveuserlog(request.user, description=msg)
             baselineobj = BaselineDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(account_number=account_number, Wireless_number=wireless_number).first()
-            print("baselineobj=", baselineobj)
+
+            
+
             if baselineobj:
                 baseline_ser = BaselineSaveSerializer(baselineobj, data=data, partial=True)
                 if baseline_ser.is_valid():
                     baseline_ser.save()
-                    saveuserlog(
-                        request.user,
-                        f'wireless number {wireless_number} in account number {account_number} and  updated successfully!'
-                    )
-                    # create_notification(
-                    #     request.user,
-                    #     f'wireless number {wireless_number} in account number {account_number} and  updated successfully!', request.user.company
-                    # )
             return Response({
                 "message": f"mobile {wireless_number} updated successfully!"
             },status=status.HTTP_200_OK)
@@ -590,202 +537,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 
-# class BanInfoNoVendorView(APIView):
-#     permission_classes = [permissions.IsAuthenticated]
-
-#     def _get_ban_queryset(self, org, ban):
-#         """
-#         Centralizes the base queryset for BAN lookups so all methods behave consistently.
-#         """
-#         return (BaseDataTable.objects
-#                 .filter(viewuploaded=None, viewpapered=None)
-#                 .filter(sub_company=org, accountnumber=ban))
-
-#     def _resolve_vendor_and_ban(self, org, ban):
-#         """
-#         Returns (banobject, vendorobject) after inferring vendor from BAN.
-#         If multiple or none are found, raises appropriate DRF error responses.
-#         """
-#         qs = self._get_ban_queryset(org, ban)
-
-#         count = qs.count()
-#         if count == 0:
-#             return Response({"message": "Ban not found"}, status=status.HTTP_404_NOT_FOUND)
-
-#         if count > 1:
-#             # Multiple rows for same org+ban — ambiguous vendor.
-#             # If you want a tie-breaker (e.g., latest updated), implement here.
-#             vendors = list(qs.values_list("vendor", flat=True).distinct())
-#             return Response(
-#                 {
-#                     "message": "Multiple vendors found for this BAN; cannot infer a single vendor.",
-#                     "vendors": vendors,
-#                 },
-#                 status=status.HTTP_400_BAD_REQUEST,
-#             )
-
-#         banobject = qs.first()
-#         vendor_name = getattr(banobject, "vendor", None)
-#         if not vendor_name:
-#             return Response({"message": "Vendor not linked to BAN"}, status=status.HTTP_400_BAD_REQUEST)
-
-#         try:
-#             vendorobject = Vendors.objects.get(name=vendor_name)
-#         except Vendors.DoesNotExist:
-#             return Response({"message": "Vendor not found"}, status=status.HTTP_404_NOT_FOUND)
-
-#         return banobject, vendorobject
-
-#     def get(self, request, org, ban, *args, **kwargs):
-#         # Resolve org
-#         try:
-#             orgobject = Organizations.objects.get(Organization_name=org)
-#         except Organizations.DoesNotExist:
-#             return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
-
-#         locobj = Location.objects.filter(organization=orgobject)
-#         divisions_qs = Division.objects.filter(organization=orgobject)
-
-#         # Infer vendor from BAN
-#         resolved = self._resolve_vendor_and_ban(org, ban)
-#         if isinstance(resolved, Response):
-#             return resolved  # error response bubbled up
-
-#         banobject, vendorobject = resolved
-
-#         # Portal info (same logic as original)
-#         portalinfo = None
-#         try:
-#             if banobject.banUploaded:
-#                 portalinfo = PortalInformation.objects.get(banUploaded=banobject.banUploaded.id)
-#             elif banobject.banOnboarded:
-#                 portalinfo = PortalInformation.objects.get(banOnboarded=banobject.banOnboarded.id)
-#         except PortalInformation.DoesNotExist:
-#             portalinfo = None
-
-#         # Serializers
-#         orgser = OrganizationGetAllDataSerializer(orgobject)
-#         vendorser = VendorGetAllDataSerializer(vendorobject)
-#         banser = BanShowSerializer(banobject)
-#         locser = LocationGetAllDataSerializer(locobj, many=True)
-#         divisions = DivisionNameSerializer(divisions_qs, many=True)
-
-#         allonboards_qs = (BaseDataTable.objects
-#                           .filter(viewuploaded=None, viewpapered=None)
-#                           .filter(sub_company=org))
-#         allonboards = BaseDataTableAllShowSerializer(allonboards_qs, many=True)
-
-#         banlines = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None)
-#         pser = showPortalInfoser(portalinfo) if portalinfo else None
-
-#         return Response({
-#             "organization": orgser.data,
-#             "vendor": vendorser.data,
-#             "ban": banser.data,
-#             "locations": locser.data,
-#             "onboarded": allonboards.data,
-#             "divisions": divisions.data,
-#             "linesall": UniqueTableShowSerializer(banlines, many=True).data,
-#             "portal": (pser.data if pser else None),
-#         }, status=status.HTTP_200_OK)
-
-#     def post(self, request, org, ban, *args, **kwargs):
-#         qs = self._get_ban_queryset(org, ban)
-#         if not qs.exists():
-#             return Response({"message": "Ban not found"}, status=status.HTTP_404_NOT_FOUND)
-#         if qs.count() > 1:
-#             return Response(
-#                 {"message": "Multiple records for this BAN. Unable to infer vendor uniquely."},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-
-#         obj = qs.first()
-
-#         req_type = request.data.get('type')
-#         if req_type == 'add-remark':
-#             obj.remarks = request.data.get('remarks', '')
-#             obj.save()
-#         elif req_type == 'add-contract':
-#             obj.contract_file = request.data.get('file')
-#             obj.contract_name = request.data.get('filename')
-#             obj.save()
-#         else:
-#             return Response({"message": "Invalid request type."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         saveuserlog(request.user, f"account number {obj.accountnumber} updated successfully.")
-#         return Response({"message": "Ban information updated successfully!"}, status=status.HTTP_200_OK)
-
-#     def put(self, request, org, ban, *args, **kwargs):
-#         qs = BaseDataTable.objects.filter(sub_company=org, accountnumber=ban)
-#         if not qs.exists():
-#             return Response({"message": f"BAN with account number {ban} not found!"}, status=status.HTTP_400_BAD_REQUEST)
-#         if qs.count() > 1:
-#             return Response(
-#                 {"message": "Multiple records for this BAN. Unable to infer vendor uniquely."},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-
-#         instance = qs.first()
-#         data = request.data.copy()
-
-#         # Model fields for comparison
-#         model_fields = {field.name for field in instance._meta.fields}
-
-#         # Capture original values
-#         original_data = {field: getattr(instance, field) for field in model_fields}
-
-#         serializer = BanSaveSerializer(instance, data=data, partial=True)
-
-#         if not serializer.is_valid():
-#             return Response(
-#                 {"message": "Unable to update ban.", "errors": serializer.errors},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-
-#         serializer.save()
-
-#         instance.refresh_from_db()
-#         updated_data = {field: getattr(instance, field) for field in model_fields}
-
-#         change_log_lines = []
-#         for field in model_fields:
-#             old_val = original_data.get(field)
-#             new_val = updated_data.get(field)
-#             if str(old_val) != str(new_val):
-#                 change_log_lines.append(f"{field}: '{old_val}' → '{new_val}'")
-
-#         change_log = "; ".join(change_log_lines) if change_log_lines else "No changes detected."
-
-#         saveuserlog(request.user, f"BAN '{instance.accountnumber}' updated. Changes: {change_log}")
-#         return Response({"message": "Ban updated successfully"}, status=status.HTTP_200_OK)
-
-#     def delete(self, request, org, ban, *args, **kwargs):
-#         qs = BaseDataTable.objects.filter(sub_company=org, accountnumber=ban)
-
-#         if not qs.exists():
-#             return Response({"message": f"Ban {ban} not found!"}, status=status.HTTP_400_BAD_REQUEST)
-#         if qs.count() > 1:
-#             return Response({"message": f"Cannot delete ban {ban}: multiple vendor records found."},
-#                             status=status.HTTP_400_BAD_REQUEST)
-
-#         base = qs.first()
-#         # Follow same linkage logic
-#         if base.banOnboarded:
-#             obj = OnboardBan.objects.get(id=base.banOnboarded.id)
-#         elif base.banUploaded:
-#             obj = UploadBAN.objects.get(id=base.banUploaded.id)
-#         else:
-#             return Response({"message": f"Ban with account number {ban} not found!"},
-#                             status=status.HTTP_400_BAD_REQUEST)
-
-#         acc = obj.account_number
-#         obj.delete()
-#         saveuserlog(request.user, f"account number {acc} deleted successfully.")
-#         return Response({"message": f"Ban with account number {ban} deleted successfully!"},
-#                         status=status.HTTP_200_OK)
-        
-        
-        
+                
 
 from django.db.models import Q
 from django.core.exceptions import FieldError
@@ -955,6 +707,7 @@ class BanInfoNoVendorView(APIView):
             )
 
         obj = qs.first()
+        original_data = {f.name: getattr(obj, f.name) for f in obj._meta.fields}
         req_type = request.data.get('type')
 
         if req_type == 'add-remark':
@@ -975,9 +728,10 @@ class BanInfoNoVendorView(APIView):
 
         else:
             return Response({"message": "Invalid request type."}, status=status.HTTP_400_BAD_REQUEST)
+        change_log = track_model_changes(obj, original_data)
+        msg = f"Following fields are updated of account number {obj.accountnumber} : {change_log}"
+        saveuserlog(request.user, description=msg)
 
-        saveuserlog(request.user, f"account number {obj.accountnumber} updated successfully.")
-        # create_notification(request.user, f"account number {obj.accountnumber} updated successfully.", request.user.company)
         return Response({"message": "Ban information updated successfully!"}, status=status.HTTP_200_OK)
 
     def put(self, request, org, search_by, criteria, *args, **kwargs):
@@ -1000,8 +754,7 @@ class BanInfoNoVendorView(APIView):
         data = request.data.copy()
 
         # Diff for audit
-        model_fields = {f.name for f in instance._meta.fields}
-        original_data = {f: getattr(instance, f) for f in model_fields}
+        original_data = {f.name: getattr(instance, f.name) for f in instance._meta.fields}
 
         serializer = BanSaveSerializer(instance, data=data, partial=True)
         if not serializer.is_valid():
@@ -1011,16 +764,11 @@ class BanInfoNoVendorView(APIView):
             )
         serializer.save()
 
-        instance.refresh_from_db()
-        updated_data = {f: getattr(instance, f) for f in model_fields}
-        changes = []
-        for f in model_fields:
-            if str(original_data.get(f)) != str(updated_data.get(f)):
-                changes.append(f"{f}: '{original_data.get(f)}' → '{updated_data.get(f)}'")
-        change_log = "; ".join(changes) if changes else "No changes detected."
+        change_log = track_model_changes(instance, original_data)
+        msg = f"Following fields are updated of account number {instance.accountnumber} : {change_log}"
+        saveuserlog(request.user, description=msg)   
 
-        saveuserlog(request.user, f"BAN '{instance.accountnumber}' updated. Changes: {change_log}")
-        # create_notification(request.user, f"BAN '{instance.accountnumber}' updated",request.user.company)
+
         return Response({"message": "Ban updated successfully"}, status=status.HTTP_200_OK)
 
     def delete(self, request, org, search_by, criteria, *args, **kwargs):

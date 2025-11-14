@@ -181,7 +181,7 @@ class UserRoleShowSerializer(serializers.ModelSerializer):
     permissions = serializers.StringRelatedField(many=True)
     class Meta:
         model = UserRoles
-        fields = ['name','permissions']
+        fields = ['id','name','permissions', 'organization']
 
     def get_permissions(self, obj):
         return [permission.name for permission in obj.permissions.all()]

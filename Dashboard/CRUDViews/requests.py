@@ -23,14 +23,15 @@ class RequestsView(APIView):
         if pk is None:
             print(request.user.designation.name)
             if "admin" not in request.user.designation.name.lower():
-                all_objs = Requests.objects.filter(requester=request.user).order_by('-created')
+                all_objs = Requests.objects.filter(requester=request.user)
             else:
                 if request.user.company and not request.user.organization:
-                    all_objs = Requests.objects.filter(status="Completed").order_by('-created')
+                    all_objs = Requests.objects.filter(status="Approved")
                 elif request.user.company and request.user.organization:
-                    all_objs = Requests.objects.filter(organization=request.user.organization).order_by('-created')
+                    all_objs = Requests.objects.filter(organization=request.user.organization)
                 else:
-                    all_objs = Requests.objects.filter(requester=request.user).order_by('-created')
+                    all_objs = Requests.objects.filter(requester=request.user)
+            all_objs = all_objs.order_by('-created')
             ser = showRequestSerializer(all_objs, many=True)
         else:
             obj = Requests.objects.get(id=pk)
@@ -144,8 +145,18 @@ class OnlineFormView(APIView):
 class RequestLogsView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request,pk=None, *args, **kwargs):
-        if pk==None:
-            all_objs = Requests.objects.all().order_by('-created')
+        if pk is None:
+            print(request.user.designation.name)
+            if "admin" not in request.user.designation.name.lower():
+                all_objs = Requests.objects.filter(requester=request.user)
+            else:
+                if request.user.company and not request.user.organization:
+                    all_objs = Requests.objects.filter(status="Approved")
+                elif request.user.company and request.user.organization:
+                    all_objs = Requests.objects.filter(organization=request.user.organization)
+                else:
+                    all_objs = Requests.objects.filter(requester=request.user)
+            all_objs = all_objs.order_by('-created')
             ser = showRequestSerializer(all_objs, many=True)
         else:
             obj = Requests.objects.get(id=pk)

@@ -9,6 +9,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 from .models import PortalUser, UserLogs
 from OnBoard.Organization.models import Organizations
+from Dashboard.ModelsByPage.DashAdmin import Vendors
+from rest_framework.decorators import api_view, permission_classes
 class RegisterView(APIView):
 
     permission_classes = [IsAuthenticated]
@@ -143,6 +145,16 @@ class ProfileView(APIView):
         except Exception as e:
             return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+def get_org_users(request, org):
+    orgObj = Organizations.objects.filter(id=org).first()
+    if not orgObj:
+        return Response({"message": "organization not found."}, status=status.HTTP_400_BAD_REQUEST)
+    users = PortalUser.objects.filter(organization=orgObj)
+    ser = showUsersSerializer(users, many=True)
+    return Response({"data":ser.data},status=status.HTTP_200_OK)
+
 class Logoutview(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request):
@@ -156,11 +168,14 @@ class Logoutview(APIView):
             print(e)
             return Response({"message": "Error occurred: " + "unable to logout."}, status=status.HTTP_400_BAD_REQUEST)
         
+        
 def saveuserlog(user, description):
     data = {
         "user": user.id,
+        "organization":user.organization.id if user.organization else None,
         "description": description,
     }
+    print(data)
     usrlogSer = UserLogSaveSerializer(data=data)
     if usrlogSer.is_valid():
         usrlogSer.save()
@@ -188,12 +203,14 @@ class UserLogView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, id=None):
+        org = request.user.organization
         if id is None:
-            userlogs = UserLogs.objects.all().order_by("created_at")
+            userlogs = UserLogs.objects.all() if not org else UserLogs.objects.filter(organization=org)
             serializer = UserLogShowSerializer(userlogs, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
         else:
             try:
+                
                 user = PortalUser.objects.filter(id=id).order_by('created_at').first()
                 if not user:
                     user = PortalUser.objects.filter(id=id).first()
@@ -327,17 +344,21 @@ class BulkUserUpload(APIView):
         mapping_inverted = {v: k for k, v in mapping.items()}
         df = df.rename(columns=(mapping_inverted))
         company = data.get('company')
-        organization = data.get('organization')
-        vendor = data.get('vendor')
-        ban = data.get('ban')
-        usertpe = data.get('usertype')
         if not company:
             return Response({"message":"Company Required"},status=status.HTTP_400_BAD_REQUEST)
+        organization = data.get('organization')
+        if not organization:
+            return Response({"message": "organization not found."}, status=status.HTTP_400_BAD_REQUEST)
+        vendor = data.get('vendor')
+        if not vendor:
+            return Response({"message": "vendor not found."}, status=status.HTTP_400_BAD_REQUEST)
+        ban = data.get('ban')
+        usertpe = data.get('usertype')
         if not usertpe:
             return Response({"message":"Usertype Required"},status=status.HTTP_400_BAD_REQUEST)
         passw = '1234'
         df['company'] = company
-        df["sub_company"] = organization
+        df["organization"] = organization
         df["vendor"] = vendor
         df["account_number"] = ban
         df['designation'] = usertpe

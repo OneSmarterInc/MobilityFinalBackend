@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import RegisterView, LoginView, ProfileView, Logoutview, UserLogView
-from .views import SendOTPView, VerifyOTPView, ForgotPassswordView, BulkUserUpload, verifyEmailView
+from .views import SendOTPView, VerifyOTPView, ForgotPassswordView, BulkUserUpload, verifyEmailView, get_org_users
 
 
 urlpatterns = [
@@ -16,4 +16,5 @@ urlpatterns = [
     path("verify-otp/", VerifyOTPView.as_view(), name="verify-otp"),
     path("forgot-password/", ForgotPassswordView.as_view(), name="forgot-password"),
     path("bulk-users-upload/", BulkUserUpload.as_view(), name="bulk-upload"),
+    path("org-users/<int:org>/", get_org_users, name="org-users"),
 ]   

@@ -81,9 +81,13 @@ from Dashboard.ModelsByPage.DashAdmin import Permission
 class PermissionShowSerializer(serializers.ModelSerializer):
     role = serializers.CharField(source='role.name')
     permissions = serializers.StringRelatedField(many=True)
+    organization = serializers.SerializerMethodField()
     class Meta:
         model = UserRoles
-        fields = ['role','permissions']
+        fields = ['role','permissions', 'organization']
+    def get_organization(self, obj):
+        return {"id":obj.organization.id, "name": obj.organization.Organization_name} if obj.organization else None
+    
 
     def get_permissions(self, obj):
         return [permission.name for permission in obj.permissions.all()]
@@ -101,6 +105,7 @@ class permissionsSerializer(serializers.ModelSerializer):
         read_only_fields = ['created', 'updated']
 
     def create(self, validated_data):
+        print(validated_data)
         permissions_data = validated_data.pop('permissions', [])
         
         # Create instance first
@@ -114,15 +119,18 @@ class permissionsSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
     def update(self, instance, validated_data):
-        permissions_data = validated_data.pop('permissions', [])
-        
+        print("permissions", validated_data)
+        permissions_data = validated_data.pop('permissions', None)
+
+        # update all other fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-        
-        if permissions_data:
+
+        # if permissions key present (even if empty list), update relation
+        if permissions_data is not None:
             permissions = Permission.objects.filter(name__in=permissions_data)
-            instance.permissions.set(permissions)
-        
+            instance.permissions.set(permissions)  # replaces old ones
+
         instance.save()
         return instance
 

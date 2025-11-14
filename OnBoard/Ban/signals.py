@@ -4,6 +4,8 @@ from .models import BaseDataTable, OnboardBan, UploadBAN, UniquePdfDataTable
 from Dashboard.ModelsByPage.Req import CostCenters
 from View.models import Contracts
 from Batch.ser import NotificationSerializer
+from detect_model_changes import detect_model_changes
+from authenticate.views import saveuserlog
 @receiver(post_save, sender=BaseDataTable)
 def remittance_format_after_save(sender, instance, created, **kwargs):
 
@@ -76,58 +78,55 @@ def contract_after_save(sender, instance, created, **kwargs):
 from Settings.Views.History import save_ban_history, save_wireless_history
 @receiver(pre_save, sender=BaseDataTable)
 def detect_changes_before_save(sender, instance, **kwargs):
-    if instance.pk and (instance.banOnboarded or instance.banUploaded):
-        old_instance = sender.objects.get(pk=instance.pk)
+    if not instance.pk and (instance.banOnboarded or instance.banUploaded):
+        return
 
-        changed_fields = []
-        for field in instance._meta.fields:
-            field_name = field.name
-            old_value = getattr(old_instance, field_name) 
-            old_value = None if old_value in (None,"") else old_value
-            new_value = getattr(instance, field_name)
-            new_value = None if new_value in (None,"") else new_value
-            if old_value != new_value:
-                changed_fields.append((field_name, old_value, new_value))
+    changes = detect_model_changes(instance)
+    if not changes:
+        return
 
-        if changed_fields:
-            msg = "The following fields have been updated:"
-            print("Changes detected:", changed_fields)
-            for field_name, old_value, new_value in changed_fields:
-                msg += f" {field_name}: '{old_value}' → '{new_value}';"
-            print(msg)
-            if instance.banOnboarded:
-                save_ban_history(onboardID=instance.banOnboarded.id, action=msg, user="System", ban=instance.accountnumber)
-            elif instance.banUploaded:
-                save_ban_history(uploadID=instance.banUploaded.id, action=msg, user="System", ban=instance.accountnumber)
+    if changes:
+        msg = "The following fields have been updated:"
+        print("Changes detected:", changes)
+        for field_name, old_value, new_value in changes:
+            msg += f" {field_name}: '{old_value}' → '{new_value}';"
+        print(msg)
+        if instance.banOnboarded:
+            save_ban_history(onboardID=instance.banOnboarded.id, action=msg, user="System", ban=instance.accountnumber)
+        elif instance.banUploaded:
+            save_ban_history(uploadID=instance.banUploaded.id, action=msg, user="System", ban=instance.accountnumber)
 
-    else:
-        print("New record being created!")
 
 @receiver(pre_save, sender=UniquePdfDataTable)
 def detect_changes_before_save_unique(sender, instance, **kwargs):
-    if instance.pk and (instance.banOnboarded or instance.banUploaded):
-        old_instance = sender.objects.get(pk=instance.pk)
+    if not instance.pk or not (instance.banOnboarded or instance.banUploaded):
+        return
 
-        changed_fields = []
-        for field in instance._meta.fields:
-            field_name = field.name
-            old_value = getattr(old_instance, field_name) 
-            old_value = None if old_value in (None,"") else old_value
-            new_value = getattr(instance, field_name)
-            new_value = None if new_value in (None,"") else new_value
-            if old_value != new_value:
-                changed_fields.append((field_name, old_value, new_value))
+    changes = detect_model_changes(instance)
+    if not changes:
+        return
 
-        if changed_fields:
-            msg = "The following fields have been updated:"
-            print("Changes detected:", changed_fields)
-            for field_name, old_value, new_value in changed_fields:
-                msg += f" {field_name}: '{old_value}' → '{new_value}';"
-            print(msg)
-            if instance.banOnboarded:
-                save_wireless_history(onboardID=instance.banOnboarded.id, action=msg, user="System", wn=instance.wireless_number)
-            elif instance.banUploaded:
-                save_wireless_history(uploadID=instance.banUploaded.id, action=msg, user="System", wn=instance.wireless_number)
+    msg = "The following fields have been updated:"
+    for field_name, old_value, new_value in changes:
+        msg += f" {field_name}: '{old_value}' → '{new_value}';"
+    
+    print("Changes detected:", changes)
+    print(msg)
+
+    if instance.banOnboarded:
+        save_wireless_history(
+            onboardID=instance.banOnboarded.id, 
+            action=msg, 
+            user="System", 
+            wn=instance.wireless_number
+        )
+    elif instance.banUploaded:
+        save_wireless_history(
+            uploadID=instance.banUploaded.id, 
+            action=msg, 
+            user="System", 
+            wn=instance.wireless_number
+        )
 
 @receiver(post_save, sender=UniquePdfDataTable)
 def detect_wireless_created(sender, instance, created, **kwargs):

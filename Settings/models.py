@@ -105,7 +105,7 @@ class WirelessHistory(models.Model):
     banOnboarded = models.ForeignKey(OnboardBan, related_name='wirelessOnboardedhistory', on_delete=models.CASCADE, null=True, blank=True)
     wireless_number = models.CharField(max_length=255)
     user = models.CharField(max_length=255, null=True, blank=True)
-    action = models.CharField(max_length=255, null=True, blank=True)
+    action = models.TextField(null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -120,7 +120,7 @@ from OnBoard.Organization.models import Organizations
 class PermissionsbyCompany(models.Model):
     company = models.ForeignKey(Company, related_name="company_permissions", on_delete=models.CASCADE, null=True, blank=True)
     organization = models.ForeignKey(Organizations, related_name="organization_permissions", on_delete=models.CASCADE, null=True, blank=True)
-    role = models.OneToOneField(UserRoles, related_name="role_permissions", on_delete=models.CASCADE) 
+    role = models.ForeignKey(UserRoles, related_name="role_permissions", on_delete=models.CASCADE, null=True, blank=True) 
     permissions = models.ManyToManyField(Permission, related_name="permissions_by_company")
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -132,5 +132,5 @@ class PermissionsbyCompany(models.Model):
         db_table = 'PermissionsbyCompany'
     
     def _str_(self):
-        return f'{self.company.Company_name}-{self.role.name}-{self.permssion.name}'
+        return f'{self.organization.Organization_name}-{self.role.name}-{self.permssion.name}'
     

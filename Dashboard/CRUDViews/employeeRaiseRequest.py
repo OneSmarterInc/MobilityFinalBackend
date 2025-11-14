@@ -33,10 +33,19 @@ class DeviceUpgradeView(APIView):
 
     def get(self, request, *args, **kwargs):
         if request.user.company:
-            objs = upgrade_device_request.objects.filter(sub_company__company=request.user.company)
+            if "admin" not in request.user.designation.name.lower():
+                all_objs = upgrade_device_request.objects.filter(raised_by=request.user)
+            else:
+                if request.user.company and not request.user.organization:
+                    all_objs = upgrade_device_request.objects.filter(status="Approved")
+                elif request.user.company and request.user.organization:
+                    all_objs = upgrade_device_request.objects.filter(sub_company=request.user.organization)
+                else:
+                    all_objs = upgrade_device_request.objects.filter(requester=request.user)
+            
         else:
-            objs = upgrade_device_request.objects.all()
-        ser = ShowUpgradeDeviceRequestSerializer(objs, many=True)
+            all_objs = upgrade_device_request.objects.all()
+        ser = ShowUpgradeDeviceRequestSerializer(all_objs.order_by('-created'), many=True)
         return Response({"data":ser.data}, status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
         data = request.data

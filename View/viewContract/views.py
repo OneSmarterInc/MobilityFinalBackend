@@ -14,9 +14,10 @@ class viewContractView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        orgs = showOrganizationSerializer(Organizations.objects.all(), many=True)
+        org = request.user.organization
+        orgs = showOrganizationSerializer(Organizations.objects.all() if not org else Organizations.objects.filter(id=org.id), many=True)
         vendors = vendorshowSerializer(Vendors.objects.all(), many=True)
-        contracts = showContractSerializer(Contracts.objects.all(), many=True)
+        contracts = showContractSerializer(Contracts.objects.all() if not org else Contracts.objects.filter(onboardedban__organization=org, uploadedban__organization=org), many=True)
 
         return Response(
             {"orgs": orgs.data, "vendors": vendors.data, "contracts":contracts.data},

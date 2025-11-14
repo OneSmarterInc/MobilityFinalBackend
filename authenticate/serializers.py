@@ -37,7 +37,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         # If designation is provided, get the UserRoles instance and assign it
         if designation_name:
             try:
-                designation = UserRoles.objects.get(name=designation_name)
+                designation = UserRoles.objects.filter(organization=user.organization,name=designation_name).first()
                 user.designation = designation
                 user.save()
             except UserRoles.DoesNotExist:

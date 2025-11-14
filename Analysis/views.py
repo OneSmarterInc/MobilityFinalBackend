@@ -43,7 +43,8 @@ class AnalysisView(APIView):
 
     def get(self, request, pk=None):
         if pk is None:
-            analysis = Analysis.objects.all()
+            org = request.user.organization
+            analysis = Analysis.objects.filter(created_by=request.user) if org else Analysis.objects.all()
             vendors = Vendors.objects.all()
             Vser = VendorsShowSerializer(vendors, many=True)
             ser = AnalysisShowSerializer(analysis, many=True)
@@ -160,8 +161,9 @@ class MultipleUploadView(APIView):
         self.is_pdf = False
         self.pdf_files = []
     def get(self,request,pk=None,*args,**kwargs):
+        org = request.user.organization
         if pk is None:
-            analysis = MultipleFileUpload.objects.all()
+            analysis = MultipleFileUpload.objects.filter(created_by=request.user) if org else MultipleFileUpload.objects.all()
             vendors = Vendors.objects.all()
             Vser = VendorsShowSerializer(vendors, many=True)
             ser = MultipleAnalysisShowSerializer(analysis, many=True)
@@ -1642,15 +1644,19 @@ class BillTimeSeriesView(APIView):
 class RequestSummaryView(APIView):
     def get(self, request):
         qs = Requests.objects.select_related("vendor", "organization").all()
-
+        print(request.query_params)
         vendor = request.query_params.get("vendor")
         org = request.query_params.get("organization")
         request_type = request.query_params.get("request_type")
 
+
+        userOrg = request.user.organization
+        if userOrg:
+            qs = qs.filter(organization=userOrg)
+        elif org:
+            qs = qs.filter(organization__Organization_name__iexact=org)
         if vendor:
             qs = qs.filter(vendor__name__iexact=vendor)
-        if org:
-            qs = qs.filter(organization__name__iexact=org)
         if request_type:
             qs = qs.filter(request_type__iexact=request_type)
 
@@ -1890,6 +1896,7 @@ class BaselineDetailView(APIView):
 
         company = request.query_params.get("company").strip()
         sub_company = request.query_params.get("sub_company").strip()
+        print(sub_company)
         vendor = request.query_params.get("vendor").strip()
         account_number = request.query_params.get("account_number").strip()
         wireless_number = request.query_params.get("wireless_number").strip()
@@ -2079,3 +2086,109 @@ class TrackingAnalyticsView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+from rest_framework.decorators import api_view, permission_classes
+
+
+from django.forms.models import model_to_dict
+
+@api_view(["GET"])
+# @permission_classes([IsAuthenticated])
+def get_unapproved_bills(request, org, *args, **kwargs):
+    unapproved_bills = BaseDataTable.objects.exclude(viewuploaded=None).filter(viewpapered=None).filter(sub_company=org,is_baseline_approved=False)
+    print(unapproved_bills)
+    response = [model_to_dict(item, fields=["id", "bill_date", "accountnumber", "invoicenumber", "sub_company", "net_amount", "vendor"]) for item in unapproved_bills]
+    return Response({"count":len(unapproved_bills), "data":response},status=status.HTTP_200_OK)
+
+from OnBoard.Ban.models import UploadBAN, OnboardBan, BaseDataTable, BaselineDataTable
+from OnBoard.Organization.models import Organizations
+@api_view(["GET"])
+# @permission_classes([IsAuthenticated])
+def get_ban_onboard_status(request, org, *args, **kwargs):
+    data = request.GET
+    upload_type = data.get("upload_type")
+    id = data.get("id")
+    if not upload_type or id:
+        return Response({"message":"Insufficient data!"},status=status.HTTP_400_BAD_REQUEST)
+    
+    if upload_type == "direct":
+        obj = OnboardBan.objects.filter(id=id).first()
+    elif upload_type == "manual":
+        obj = UploadBAN.objects.filter(id=id).first()
+    else:
+        obj = None
+    if not obj:
+        return Response({"message":"data not found!"},status=status.HTTP_400_BAD_REQUEST)
+    
+from OnBoard.Ban.models import UploadBAN, OnboardBan, BaseDataTable, BaselineDataTable, UniquePdfDataTable
+
+@api_view(["GET"])
+# @permission_classes([IsAuthenticated])
+def get_ban_onboard_status(request, org, *args, **kwargs):
+    # Get organization
+    organization = Organizations.objects.filter(
+        Organization_name=org
+    ).first()
+
+    if not organization:
+        return Response(
+            {"message": "Organization not found."},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    # Get all BANs (manual + direct)
+    all_manual = UploadBAN.objects.filter(organization=organization)
+    all_direct = OnboardBan.objects.filter(organization=organization)
+    all_bans = list(
+        set(
+            list(all_manual.values_list("account_number", flat=True))
+            + list(all_direct.values_list("account_number", flat=True))
+        )
+    )
+
+    if not all_bans:
+        return Response(
+            {"message": "No BANs found for this organization.", "data": []},
+            status=status.HTTP_200_OK
+        )
+
+    # Fetch onboarded (BaseDataTable) and baseline (UniquePdfDataTable) data
+    base_objs = BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(accountnumber__in=all_bans)
+    baseline_objs = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(account_number__in=all_bans)
+
+    # Map account_number → vendor
+    vendor_map = {
+        obj.accountnumber: obj.vendor for obj in base_objs
+    }
+
+    print(vendor_map)
+
+    # Create lookup sets
+    onboarded_accounts = set(base_objs.values_list("accountnumber", flat=True))
+
+    # Baseline validation per BAN
+    baseline_status = {}
+    for ban in all_bans:
+        ban_records = baseline_objs.filter(account_number=ban)
+        if not ban_records.exists():
+            baseline_status[ban] = False
+            continue
+
+        # Check if all category_objects are filled
+        all_valid = all(
+            record.category_object not in [None, "", {}, []]
+            for record in ban_records
+        )
+        baseline_status[ban] = all_valid
+
+    # Build result
+    result = []
+    for ban in all_bans:
+        result.append({
+            "account_number": ban,
+            "vendor": vendor_map.get(ban, None),  # ✅ Added vendor info
+            "is_onboarded": ban in onboarded_accounts,
+            "is_baseline_created": baseline_status.get(ban, False),
+        })
+
+    return Response(result, status=status.HTTP_200_OK)

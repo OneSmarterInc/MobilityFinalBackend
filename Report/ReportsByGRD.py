@@ -332,10 +332,6 @@ def get_baseline_billing_report(request):
         grouped_sums[group_key] += charge
         total_sum_of_all_bill_dates += charge
 
-    response.append({
-        "grouped_summary": dict(grouped_sums),
-        "total_sum_of_all_bill_dates": round(total_sum_of_all_bill_dates, 2)
-    })
 
 
     if is_download:
@@ -348,6 +344,10 @@ def get_baseline_billing_report(request):
         Fileresponse['Content-Disposition'] = f'attachment; filename="{report_name}"'
         return Fileresponse
     else:
+        response.append({
+            "grouped_summary": dict(grouped_sums),
+            "total_sum_of_all_bill_dates": round(total_sum_of_all_bill_dates, 2)
+        })
         return Response({"data":response}, status=status.HTTP_200_OK)
     
 @api_view(['GET'])
@@ -507,10 +507,6 @@ def get_invoice_tracking_report(request):
         grouped_sums[group_key] += charge
         total_sum_of_all_bill_dates += charge
 
-    response.append({
-        "grouped_summary": dict(grouped_sums),
-        "total_sum_of_all_bill_dates": round(total_sum_of_all_bill_dates, 2)
-    })
 
     print(response)
 
@@ -524,6 +520,10 @@ def get_invoice_tracking_report(request):
         Fileresponse['Content-Disposition'] = f'attachment; filename="{report_name}"'
         return Fileresponse
     else:
+        response.append({
+            "grouped_summary": dict(grouped_sums),
+            "total_sum_of_all_bill_dates": round(total_sum_of_all_bill_dates, 2)
+        })
         return Response({"data":response}, status=status.HTTP_200_OK)
     
 @api_view(['GET'])
@@ -997,10 +997,7 @@ def get_payment_detail_report(request):
         grouped_sums[group_key] += charge
         total_sum_of_all_bill_dates += charge
 
-    response.append({
-        "grouped_summary": dict(grouped_sums),
-        "total_sum_of_all_bill_dates": round(total_sum_of_all_bill_dates, 2)
-    })
+    
     print(response)
     if is_download:
         reportObj = GenerateExcelReport(report_name="Payment Detail Report", data=response)
@@ -1012,6 +1009,10 @@ def get_payment_detail_report(request):
         Fileresponse['Content-Disposition'] = f'attachment; filename="{report_name}"'
         return Fileresponse
     else:
+        response.append({
+            "grouped_summary": dict(grouped_sums),
+            "total_sum_of_all_bill_dates": round(total_sum_of_all_bill_dates, 2)
+        })
         return Response({"data":response}, status=status.HTTP_200_OK)
     
 
@@ -1076,10 +1077,7 @@ def get_mobile_bills_report(request):
         grouped_sums[group_key] += charge
         total_sum_of_all_bill_dates += charge
 
-    response.append({
-        "grouped_summary": dict(grouped_sums),
-        "total_sum_of_all_bill_dates": round(total_sum_of_all_bill_dates, 2)
-    })
+    
     print(response)
     if is_download:
         reportObj = GenerateExcelReport(report_name="Mobile Bills Report", data=response)
@@ -1091,6 +1089,10 @@ def get_mobile_bills_report(request):
         Fileresponse['Content-Disposition'] = f'attachment; filename="{report_name}"'
         return Fileresponse
     else:
+        response.append({
+            "grouped_summary": dict(grouped_sums),
+            "total_sum_of_all_bill_dates": round(total_sum_of_all_bill_dates, 2)
+        })
         return Response({"data":response}, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
@@ -1159,10 +1161,7 @@ def get_entered_bills_report(request):
         grouped_sums[group_key] += charge
         total_sum_of_all_bill_dates += charge
 
-    response.append({
-        "grouped_summary": dict(grouped_sums),
-        "total_sum_of_all_bill_dates": round(total_sum_of_all_bill_dates, 2)
-    })
+    
     if is_download:
         reportObj = GenerateExcelReport(report_name="Entered Bills Report", data=response)
         report, report_name = reportObj._generate()
@@ -1173,6 +1172,10 @@ def get_entered_bills_report(request):
         Fileresponse['Content-Disposition'] = f'attachment; filename="{report_name}"'
         return Fileresponse
     else:
+        response.append({
+            "grouped_summary": dict(grouped_sums),
+            "total_sum_of_all_bill_dates": round(total_sum_of_all_bill_dates, 2)
+        })
         return Response({"data":response}, status=status.HTTP_200_OK)
     
 @api_view(['GET'])

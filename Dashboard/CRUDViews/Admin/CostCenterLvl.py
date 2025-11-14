@@ -24,7 +24,6 @@ class CostCenterLevelView(APIView):
     def post(self, request):
         if CostCenterLevel.objects.filter(name=request.data["name"]).exists():
             return Response({"message": "Cost center level with this name already exists!"}, status=status.HTTP_400_BAD_REQUEST)
-        serializer = BanStatusOperationSerializer(data=request.data)
         ser = CostCenterLevelOperationSerializer(data=request.data)
         if ser.is_valid():
             ser.save()

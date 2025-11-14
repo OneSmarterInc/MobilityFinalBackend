@@ -12,14 +12,15 @@ def prove_bill_ID(bill_path,vendor_name):
                 Lines.extend(lines)
             else:
                 break
-    
+    vendor_name = vendor_name.lower().strip()
     for line in Lines:
-        if (vendor_name == "AT&T") and ('AT&T' in line):
+        
+        if "mobile" in vendor_name and ('T-MOBILE'.lower() in line.lower()):
+            return True
+        elif "verizon" in vendor_name and 'verizon' in line.lower():
             print(line, vendor_name)
             return True
-        elif (vendor_name == "T_mobile") and ('T-MOBILE'.lower() in line.lower()):
-            return True
-        elif (vendor_name == "Verizon") and 'verizon' in line.lower():
+        elif (vendor_name.startswith("at")) and ('AT&T' in line):
             print(line, vendor_name)
             return True
     return False

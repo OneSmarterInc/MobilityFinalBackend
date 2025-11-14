@@ -130,6 +130,8 @@ class Requests(models.Model):
 
     transfer_type = models.CharField(max_length=255, null=True, blank=True)
     cost_center_add = models.CharField(max_length=255, null=True, blank=True)
+
+    authority_status = models.CharField(max_length=255, default="Pending")
     created = models.DateTimeField(auto_now_add=True, null=True)
     updated= models.DateTimeField(auto_now=True,null=True)
 
@@ -337,7 +339,10 @@ class upgrade_device_request(models.Model):
     device_type = models.CharField(max_length=255, null=True, blank=True)
     new_upgrade_date = models.CharField(max_length=255, null=True, blank=True)
     amount = models.CharField(max_length=255, null=True, blank=True)
-    status = models.BooleanField(default=False)
+    status = models.CharField(default="Pending", max_length=255)
+    authority_status = models.CharField(max_length=255, default="Pending")
+    date_completed = models.DateTimeField(null=True, blank=True)
+
 
     created = models.DateTimeField(auto_now_add=True, null=True)
     updated= models.DateTimeField(auto_now=True,null=True)

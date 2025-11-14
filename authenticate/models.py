@@ -54,8 +54,9 @@ class PortalUser(AbstractUser):
     
 
 class UserLogs(models.Model):
+    organization = models.ForeignKey(Organizations, on_delete=models.CASCADE, null=True, blank=True)
     user = models.ForeignKey(PortalUser, on_delete=models.CASCADE)
-    description = models.CharField(max_length=1024, db_index=True)
+    description = models.TextField(db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)    
 

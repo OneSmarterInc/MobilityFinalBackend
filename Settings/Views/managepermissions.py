@@ -27,9 +27,9 @@ class ManagePermissionsView(APIView):
         role = UserRoles.objects.filter(name=role_name).first()
         if not role:
             return Response({"message": "User role not found!"}, status=status.HTTP_400_BAD_REQUEST)
-
+        org = data.get('organization')
         # Try to get existing permission record
-        instance = PermissionsbyCompany.objects.filter(company=company, role=role).first()
+        instance = PermissionsbyCompany.objects.filter(company=company, organization__id=org, role=role).first()
         print(instance)
 
         if instance:

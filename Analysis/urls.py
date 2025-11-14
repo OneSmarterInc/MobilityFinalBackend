@@ -1,6 +1,8 @@
 from django.urls import path
-from .views import   BaselineDetailView,TrackingAnalyticsView,RequestsAnalyticsView,BaselineAnalyticsView,BASavingsTimeSeriesView, BATopSavingsView,BAOptimizationSummaryView,BAUsageSummaryView,RequestSummaryView,BillSummaryView,BillExtremesView,BillTotalsView,BillStatusBreakdownView,BillTimeSeriesView,AnalysisDashboardView,AnalysisLinesView,AnalysisView, download_analysis_xlsx_file, MultipleUploadView, AnalysisBotView, GetChatPdfView, GetSavingsPdfView
+from .views import   BaselineDetailView,TrackingAnalyticsView,RequestsAnalyticsView,BaselineAnalyticsView,BASavingsTimeSeriesView, BATopSavingsView,BAOptimizationSummaryView,BAUsageSummaryView,RequestSummaryView,BillSummaryView,BillExtremesView,BillTotalsView,BillStatusBreakdownView,BillTimeSeriesView,AnalysisDashboardView,AnalysisLinesView,AnalysisView, download_analysis_xlsx_file, MultipleUploadView, AnalysisBotView, GetChatPdfView, GetSavingsPdfView, get_unapproved_bills, get_ban_onboard_status
 urlpatterns = [
+
+    #AK urls
     
     # User Dashboard
      path('baseline-detail/', BaselineDetailView.as_view(), name='baseline-detail'),
@@ -21,13 +23,16 @@ urlpatterns = [
     path('bill-status-breakdown/', BillStatusBreakdownView.as_view(), name='bill-status-breakdown'),
     path('bill-timeseries/', BillTimeSeriesView.as_view(), name='bill-timeseries'),
     path("request-summary/", RequestSummaryView.as_view(), name="request-summary"),
-    #Common dashboard (client admin & portal admin)
-
-    
-    path('', AnalysisView.as_view(), name='analysis-list-create'),
-    path('multiple/', MultipleUploadView.as_view(), name='multiple-analysis-list-create'),
     path('analysis-dashboard/', AnalysisDashboardView.as_view(), name='analysis-dashboard'),
     path('analysis-lines/', AnalysisLinesView.as_view(), name='analysis-lines'),
+    path('get-approved-bills/<org>/', get_unapproved_bills, name='unapproved-bills'),
+    path('get-onboard-status/<org>/', get_ban_onboard_status, name='onboard-status'),
+    #Common dashboard (client admin & portal admin)
+
+    # GRD urls
+
+    path('', AnalysisView.as_view(), name='analysis-list-create'),
+    path('multiple/', MultipleUploadView.as_view(), name='multiple-analysis-list-create'),
     path('bot/<str:ChatType>/<int:pk>/', AnalysisBotView.as_view(), name='analysis-bot'),
     path('<str:pk>/', AnalysisView.as_view(), name='analysis-detail'),
     path('multiple/<str:pk>/', MultipleUploadView.as_view(), name='multiple-analysis-detail'),
@@ -35,8 +40,6 @@ urlpatterns = [
     path('get-chat-pdf/<str:pk>/', GetChatPdfView.as_view(), name='get-chat-pdf'),
     path('get-savings-pdf/<str:pk>/', GetSavingsPdfView.as_view(), name='get-savings-pdf'),
     
-    path('analysis-dashboard/', AnalysisDashboardView.as_view(), name='analysis-dashboard'),
-    path('analysis-lines/', AnalysisLinesView.as_view(), name='analysis-lines'),
 ]
 
 
@@ -44,8 +47,6 @@ urlpatterns = [
 # urlpatterns = [
 #     path('', AnalysisView.as_view(), name='analysis-list-create'),
 #     path('multiple/', MultipleUploadView.as_view(), name='multiple-analysis-list-create'),
-    
-
 #     path('bot/<str:ChatType>/<int:pk>/', AnalysisBotView.as_view(), name='analysis-bot'),
 #     path('<str:pk>/', AnalysisView.as_view(), name='analysis-detail'),
 #     path('multiple/<str:pk>/', MultipleUploadView.as_view(), name='multiple-analysis-detail'),

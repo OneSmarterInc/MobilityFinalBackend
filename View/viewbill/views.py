@@ -6,7 +6,7 @@ from authenticate.views import saveuserlog
 from rest_framework.permissions import IsAuthenticated
 from OnBoard.Organization.models import Organizations
 from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, BaselineDataTable, OnboardBan
-from .ser import showOrganizationSerializer, showBanSerializer, vendorshowSerializer, basedatahowSerializer, paytypehowSerializer, uniquepdftableSerializer, BaselinedataSerializer, BaselineDataTableShowSerializer, showaccountbasetable, BaselineWithOnboardedCategorySerializer,showbaselinenotesSerializer
+from .ser import showOrganizationSerializer, showBanSerializer, vendorshowSerializer, basedatahowSerializer, paytypehowSerializer, uniquepdftableSerializer, BaselinedataSerializer, BaselineDataTableShowSerializer, showaccountbasetable, BaselineWithOnboardedCategorySerializer,showbaselinenotesSerializer, viewbillsSerializer
 from Dashboard.ModelsByPage.DashAdmin import Vendors, PaymentType
 from ..models import ViewUploadBill, PaperBill
 from Batch.views import create_notification
@@ -14,30 +14,28 @@ class ViewBill(APIView):
     permission_classes = [IsAuthenticated]
 
     def __init__(self, **kwargs):
+        self.billMainObjs = None
         self.basedata = None
         self.uniquedata = None
         self.baseaccounts = None
 
-    def get(self, request, *args, **kwargs):
-        objs = Organizations.objects.all()
-        ser = showOrganizationSerializer(objs, many=True)
-        vendors = vendorshowSerializer(Vendors.objects.all(), many=True)
+    def get(self, request, org, *args, **kwargs):
+        objs = Organizations.objects.filter(company=request.user.company)
+        orgObj = request.user.organization
+        orgObj = objs.filter(Organization_name=org).first() if not orgObj else orgObj
+        if not orgObj:
+            return Response({"message":"organizatio not found!"},status=status.HTTP_400_BAD_REQUEST)
         paytypes = paytypehowSerializer(PaymentType.objects.all(), many=True)
-        
-        
-        org = request.GET.get("sub_company",None)
-        if org:
-            self.uniquedata = uniquepdftableSerializer(UniquePdfDataTable.objects.filter(sub_company=org).filter(banOnboarded=None,banUploaded=None), many=True)
-            self.baseaccounts = showaccountbasetable(BaseDataTable.objects.filter(sub_company=org).filter(viewuploaded=None, viewpapered=None), many=True)
-            self.basedata = basedatahowSerializer(BaseDataTable.objects.filter(sub_company=org).filter(banOnboarded=None,banUploaded=None), many=True)
+        uniquedata = uniquepdftableSerializer(UniquePdfDataTable.objects.filter(sub_company=org).filter(banOnboarded=None,banUploaded=None), many=True)
+        baseaccounts = showaccountbasetable(BaseDataTable.objects.filter(sub_company=org).filter(viewuploaded=None, viewpapered=None), many=True)
+        billMainObjs = viewbillsSerializer(ViewUploadBill.objects.filter(organization=orgObj), many=True)
+        basedata = basedatahowSerializer(BaseDataTable.objects.filter(sub_company=org).filter(banOnboarded=None,banUploaded=None), many=True)
         return Response({
-            "data" : ser.data,
-            "vendors" : vendors.data,
-            "basedata" : self.basedata.data if self.basedata else None,
+            "basedata" : basedata.data if basedata else None,
             "paytypes" : paytypes.data,
-            "uniquedata" : self.uniquedata.data if self.uniquedata else None,
-            "baseaccounts": self.baseaccounts.data if self.baseaccounts else None
-
+            "uniquedata" : uniquedata.data if uniquedata else None,
+            "baseaccounts": baseaccounts.data if baseaccounts else None,
+            "uploaded_bills_objects": billMainObjs.data if billMainObjs else None
         }, status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
         pass
