@@ -271,3 +271,12 @@ chatboturls = [
 ]
 urlpatterns.extend(chatboturls)
 
+
+from .CRUDViews.AccessoriesRequest import AccessoryRequestView, update_status, upload_bulk_accessories_request
+accrequesturls = [
+    path("accessories-request/", view=AccessoryRequestView.as_view(), name='accessories_get_create'),
+    path("accessories-request/<int:pk>/", view=AccessoryRequestView.as_view(), name='accessories_update_delete'),
+    path("accessories-request-update-status/<int:pk>/", view=update_status, name='status_update'),
+    path("accessories-bulk-upload/<str:org>/", view=upload_bulk_accessories_request, name='bulk-upload'),
+]
+urlpatterns.extend(accrequesturls)

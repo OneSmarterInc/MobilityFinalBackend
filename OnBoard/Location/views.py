@@ -21,11 +21,9 @@ class LocationView(APIView):
             serializer = LocationShowSerializer(locations, many=True)
         divisions = showDivisions(Division.objects.all(), many=True)
         orgs = showOrgs(Organizations.objects.filter(company=request.user.company), many=True)
-        print(divisions.data, orgs.data)
         return Response({"data" : serializer.data, "organizations":orgs.data, "divisions":divisions.data}, status=status.HTTP_200_OK)
         
     def post(self, request, org=None, *args, **kwargs):
-        print(request.data)
         if org==None:
             data = request.data
             org = data['organization']
@@ -40,7 +38,6 @@ class LocationView(APIView):
             except Organizations.DoesNotExist:
                 return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
         try:
-            print("organ=", organization)
             if 'division' in request.data and request.data['division']:
                 print(request.data['division'])
                 division = Division.objects.get(name=request.data['division'], organization=organization)
@@ -49,13 +46,11 @@ class LocationView(APIView):
             if Location.objects.filter(organization=organization, site_name=request.data["site_name"]).exists():
                 print("already exists")
                 return Response({"message": "Location with this site_name already exists!"}, status=status.HTTP_400_BAD_REQUEST)
-            print("div=",division)
             data = request.data.copy()
             data.pop('division', None)
             data.pop('organization', None)
             data = {"organization": organization, 'company' : organization.company, 'division': division, **data}
             cleaned_data = {key: value[0] if isinstance(value, list) else value for key, value in data.items()}
-            print(cleaned_data)
             loc = Location.objects.create(
                 **cleaned_data,
             )
@@ -69,11 +64,14 @@ class LocationView(APIView):
         
     def put(self, request, org, pk, *args, **kwargs):
         print(pk)
-        if isinstance(org, str):
-            org = Organizations.objects.filter(Organization_name=org).first()
-        else:
+        try:
+            org = int(org)
             org = Organizations.objects.get(id=org)
-
+        except:
+            org = Organizations.objects.filter(Organization_name=org).first()
+            
+        if not org:
+            return Response({"message":"oraganization not found!"},status=status.HTTP_400_BAD_REQUEST)
         try:
             location = Location.objects.get(id=pk)
         except Location.DoesNotExist:

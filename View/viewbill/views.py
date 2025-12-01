@@ -105,6 +105,7 @@ class ViewBillBaseline(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, *args, **kwargs):
         sub_company = request.GET.get('sub_company')
+        print(sub_company)
         vendor = request.GET.get('vendor')
         account_number = request.GET.get('account_number')
         date = request.GET.get('bill_date')

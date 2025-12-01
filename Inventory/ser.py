@@ -44,10 +44,14 @@ from OnBoard.Ban.PortalInfo.ser import showPortalInfoser
 class OrganizationGetAllDataSerializer(serializers.ModelSerializer):
     vendors = VendorNameSerializer(many=True)
     company = CompanygetNameSerializer()
-    divisions = serializers.StringRelatedField(many=True)
+    # divisions = serializers.StringRelatedField(many=True)
+    divisions = serializers.SerializerMethodField()
     class Meta:
         model = Organizations
         fields = '__all__'
+    def get_divisions(self,obj):
+        divs = obj.divisions.all()
+        return [{"id":div.id, "name":div.name} for div in divs]
 
     
 

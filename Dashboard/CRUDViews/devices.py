@@ -28,6 +28,7 @@ class DevicesView(APIView):
         print(data)
         if Device.objects.filter(model=data.get("model"), sub_company=data.get("sub_company"), device_type=data.get('device_type')).exists():
             return Response({"message":"Device already exists!"},status=status.HTTP_400_BAD_REQUEST)
+        print(data)
         ser = devicesSerializer(data=data)
         if ser.is_valid():
             ser.save()
@@ -37,6 +38,7 @@ class DevicesView(APIView):
             # create_notification(request.user, f"{data['device_type']} device type  created for organization {obj.sub_company.Organization_name}.",request.user.company)
             return Response({"message":"Device added succesfully!"},status=status.HTTP_200_OK)
         else:
+            print(ser.errors)
             return Response({"message":"unable to add device."},status=status.HTTP_400_BAD_REQUEST)
     def put(self, request, pk, *args, **kwargs):
         obj = Device.objects.filter(id=pk).first()

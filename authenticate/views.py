@@ -4,7 +4,7 @@ from django.contrib.auth import login, logout
 from Dashboard.ModelsByPage.DashAdmin import UserRoles
 from OnBoard.Company.models import Company
 from rest_framework import status
-from .serializers import RegisterSerializer, showUsersSerializer, UserLogSaveSerializer, UserLogShowSerializer, allDesignationsSerializer, CompanyShowSerializer
+from .serializers import RegisterSerializer, showUsersSerializer, UserLogSaveSerializer, UserLogShowSerializer, allDesignationsSerializer, CompanyShowSerializer, userSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 from .models import PortalUser, UserLogs
@@ -91,7 +91,7 @@ class LoginView(APIView):
         }, status=status.HTTP_400_BAD_REQUEST)
     
 class ProfileView(APIView):
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
     def get(self, request, id=None):
         if id is None:
             user = request.user
@@ -99,9 +99,13 @@ class ProfileView(APIView):
             serializer = showUsersSerializer(allusers, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
         else:
-            user = PortalUser.objects.filter(username=id).first()
-            if not user:
-                user = PortalUser.objects.filter(email=id).first()
+            try:
+                id=int(id)
+                user = PortalUser.objects.filter(id=id).first()
+            except:
+                user = PortalUser.objects.filter(username=id).first()
+                if not user:
+                    user = PortalUser.objects.filter(email=id).first()
             if not user:
                 return Response({"message": "User not found."}, status=status.HTTP_404_NOT_FOUND)
             serializer = showUsersSerializer(user)
@@ -121,13 +125,13 @@ class ProfileView(APIView):
     def put(self, request, id):
         try:
             user = PortalUser.objects.get(id=id)
-            serializer = RegisterSerializer(user, data=request.data)
+            serializer = userSerializer(user, data=request.data,partial=True)
             if serializer.is_valid():
                 serializer.save()
                 saveuserlog(request.user, description=f'{user.email} updated successfully!')
                 # create_notification(request.user, msg=f'{user.email} updated successfully!', company=request.user.company)
                 return Response({"message": "User updated successfully."}, status=status.HTTP_200_OK)
-            
+            print(serializer.errors)
             return Response({"message": "Unable to update user."}, status=status.HTTP_400_BAD_REQUEST)
         except PortalUser.DoesNotExist or Exception as e:
             return Response({"message": "Internal Server Error!"}, status=status.HTTP_404_NOT_FOUND)
@@ -170,6 +174,8 @@ class Logoutview(APIView):
         
         
 def saveuserlog(user, description):
+    if not user.is_authenticated:
+        return
     data = {
         "user": user.id,
         "organization":user.organization.id if user.organization else None,
@@ -266,7 +272,6 @@ class SendOTPView(APIView):
                 user=user, defaults={"otp": otp, "is_verified": False}
             )
 
-            # send email
             send_generic_mail(
             
                 subject="Your OTP Code",
@@ -274,8 +279,9 @@ class SendOTPView(APIView):
                 receiver_mail=email
                 
             )
-            saveuserlog(request.user, f"OTP for password update request mailed to {email}")
-
+            print(request.user)
+            if request.user.is_authenticated :saveuserlog(request.user, f"OTP for password update request mailed to {email}")
+            
             return Response({"message": "OTP sent successfully"}, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -294,7 +300,7 @@ class VerifyOTPView(APIView):
                 if email_otp.otp == otp:
                     email_otp.is_verified = True
                     email_otp.save()
-                    saveuserlog(request.user, f"OTP for password update request verified by {email}")
+                    if request.user.is_authenticated:saveuserlog(request.user, f"OTP for password update request verified by {email}")
                     return Response({"message": "OTP verified successfully"}, status=status.HTTP_200_OK)
                 else:
                     return Response({"message": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST)
@@ -323,7 +329,7 @@ class ForgotPassswordView(APIView):
         try:
             user.password = make_password(new)
             user.save()
-            saveuserlog(request.user, f"password updated for account {user.email}")
+            if request.user.is_authenticated: saveuserlog(request.user, f"password updated for account {user.email}")
             # create_notification(request.user, f"password updated for account {user.email}")
             return Response({"message":"password updated successfully!"}, status=status.HTTP_200_OK)
         except Exception as e:

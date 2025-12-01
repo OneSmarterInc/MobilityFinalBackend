@@ -23,6 +23,7 @@ class MakeModelView(APIView):
             return Response({"orgs":org_ser.data},status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
         data = request.data.copy()
+        print(data)
         ser = MakeModelSerializer(data=data)
         if ser.is_valid():
             ser.save()

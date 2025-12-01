@@ -184,6 +184,7 @@ class Device(models.Model):
     DEVICE_CHOICES = [
         ("Tablet", "Tablet"),
         ("Smartphone", "Smartphone"),
+        ("Accessories", "Accessories")
     ]
     device_type = models.CharField(max_length=255,choices=DEVICE_CHOICES)
     model = models.ForeignKey('MakeModel', on_delete=models.CASCADE, null=False, related_name='models')
@@ -225,11 +226,13 @@ class Device(models.Model):
 class MakeModel(models.Model):
     sub_company = models.ForeignKey(Organizations, on_delete=models.CASCADE,null=False,related_name="sub_company_models")
     device_type = models.CharField(max_length=255,null=False)
+    accessory = models.CharField(max_length=255, null=True,blank=True)
     name = models.CharField(max_length=255, null=False)
     os = models.CharField(max_length=255, null=True,blank=True)
     storage = models.CharField(max_length=10, null=True, blank=True)
     color = models.CharField(max_length=10, null=True, blank=True)
     manufacturer = models.CharField(max_length=10, null=True, blank=True)
+    other_specifications = models.JSONField(default=dict)
     created = models.DateTimeField(auto_now_add=True, null=True)
     updated= models.DateTimeField(auto_now=True,null=True)
 
@@ -352,3 +355,86 @@ class upgrade_device_request(models.Model):
 
 
     
+class AccessoriesRequest(models.Model):
+    organization = models.ForeignKey(Organizations, related_name="acc_reuqest_organizations", null=False,on_delete=models.CASCADE)
+    requester = models.ForeignKey(PortalUser, related_name="acc_reuqest_users", null=False,on_delete=models.CASCADE)
+
+    REQUEST_CHOICES = [
+        ("Order", "Order"),
+        ("Replace", "Replace"),
+        ("Return", "Return")
+    ]
+    request_type = models.CharField(max_length=255,choices=REQUEST_CHOICES)
+    shipping_method = models.CharField(max_length=200, default="", null=True, blank=True)
+    request_date = models.DateTimeField(default=timezone.now, null=True, blank=True)
+    vendor = models.ForeignKey(Vendors, related_name="acc_reuqest_vendors", null=False,on_delete=models.CASCADE)
+    ban = models.CharField(max_length=255, null=False,default="")
+    line_of_service = models.CharField(max_length=15, null=False, default="123-456-7890")
+    accessory_type = models.CharField(max_length=255, null=False,default="")
+    manufacturer = models.CharField(max_length=255, null=False,default="")
+    name = models.CharField(max_length=255, null=False,default="")
+    other_specifications = models.JSONField(default=dict)
+
+
+    ## requester information
+
+    first_name = models.CharField(max_length=255, null=True, blank=True)
+    last_name = models.CharField(max_length=255, null=True, blank=True)
+    user_email = models.CharField(max_length=255, null=True, blank=True)
+    area_code = models.CharField(max_length=255, null=True, blank=True)
+    cost_center = models.CharField(max_length=255, null=True, blank=True)
+
+    ## pickup address
+
+    o_address1 = models.CharField(max_length=255, null=True, blank=True)
+    o_address2 = models.CharField(max_length=255, null=True, blank=True)
+    o_city = models.CharField(max_length=255, null=True, blank=True)
+    o_state = models.CharField(max_length=255, null=True, blank=True)
+    o_zipcode = models.CharField(max_length=255, null=True, blank=True)
+
+    ## office info
+
+    is_remote = models.BooleanField(default=False)
+    location_name = models.CharField(max_length=255, null=True, blank=True)
+    location_code = models.CharField(max_length=255, null=True, blank=True)
+    location_type = models.CharField(max_length=255, null=True, blank=True)
+    p_address1 = models.CharField(max_length=255, null=True, blank=True)
+    p_address2 = models.CharField(max_length=255, null=True, blank=True)
+    p_city = models.CharField(max_length=255, null=True, blank=True)
+    p_state = models.CharField(max_length=255, null=True, blank=True)
+    p_zipcode = models.CharField(max_length=255, null=True, blank=True)
+
+    rl_address1 = models.CharField(max_length=255, null=True, blank=True)
+    rl_address2 = models.CharField(max_length=255, null=True, blank=True)
+    rl_city = models.CharField(max_length=255, null=True, blank=True)
+    rl_state = models.CharField(max_length=255, null=True, blank=True)
+    rl_zipcode = models.CharField(max_length=255, null=True, blank=True)
+
+    shipping_vendor = models.CharField(max_length=255, null=True, blank=True)
+    tracking_id = models.CharField(max_length=255, null=True, blank=True)
+    shipping_date = models.CharField(max_length=255, null=True, blank=True)
+    estimated_delivery_date = models.CharField(max_length=255, null=True, blank=True)
+    delivery_date = models.CharField(max_length=255, null=True, blank=True)
+    receipt_id = models.CharField(max_length=255, null=True, blank=True)
+
+    replacement_tracking_id = models.CharField(max_length=255, null=True, blank=True)
+    replacement_delivery_date = models.CharField(max_length=255, null=True, blank=True)
+    replacement_reason = models.CharField(max_length=255, null=True, blank=True)
+
+    return_tracking_id = models.CharField(max_length=255, null=True, blank=True)
+    return_shipped_date = models.CharField(max_length=255, null=True, blank=True)
+    return_received_date = models.CharField(max_length=255, null=True, blank=True)
+    return_reason = models.CharField(max_length=255, null=True, blank=True)
+    notes = models.TextField(null=True, blank=True)
+
+
+
+    date_completed = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=255, null=True, blank=True, default="Pending")
+    authority_status = models.CharField(max_length=255, default="Pending")
+
+    created = models.DateTimeField(auto_now_add=True, null=True)
+    updated= models.DateTimeField(auto_now=True,null=True)
+
+    class Meta:
+        db_table = 'AccessoriesRequest'

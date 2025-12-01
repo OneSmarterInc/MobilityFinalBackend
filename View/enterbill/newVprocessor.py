@@ -14,7 +14,7 @@ from ..models import ProcessedWorkbook
 from django.core.files import File
 logging.basicConfig(level=logging.INFO)
 from baselineTag import object_tagging
-from addon import get_cat_obj_total
+from addon import get_cat_obj_total, auto_width_excel
 from OnBoard.Company.models import Company
 from authenticate.models import PortalUser
 from django.utils import timezone
@@ -626,7 +626,7 @@ class ProcessPdf2:
             try:
                 with open(output_file_path, "wb") as f:
                     f.write(workbook.getvalue())
-
+                output_file_path = auto_width_excel(output_file_path)
                 # Create ProcessedWorkbook instance (WITHOUT setting the FileField yet)
                 processed_workbook = ProcessedWorkbook(
                     uploadbill=self.instance,

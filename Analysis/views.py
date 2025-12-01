@@ -94,7 +94,6 @@ class AnalysisView(APIView):
                 elif filename.endswith('.zip'):
                     zip_instance = ZipAnalysis(buffer_data, instance=obj)
                     check,msg = zip_instance.process()
-                    print(msg)
                     if not check:
                         return Response({"message":"Unable to process rdd file may be due to unsupported file format."},status=status.HTTP_400_BAD_REQUEST)
                     else:
@@ -179,7 +178,6 @@ class MultipleUploadView(APIView):
                 return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     def post(self, request, *args, **kwargs):
         data = request.data
-        print(data)
         vendor = data.get('vendor')
 
         # Collect uploaded files (1–3 allowed)
@@ -192,7 +190,6 @@ class MultipleUploadView(APIView):
 
         # Validate extensions (allow only PDF/ZIP)
         for f in files:
-            print(f)
             if f.name.lower().endswith(".pdf"):
                 self.is_pdf = True
                 self.pdf_files.append(f)
@@ -850,7 +847,6 @@ class ZipAnalysis:
         second_largest_df = second_largest_df.copy()
 
         second_largest_df = second_largest_df[second_largest_df["Wireless Number"].str.match(r'^\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$', na=False)]
-        print(second_largest_df)
         second_largest_df["Your Calling Plan"] = second_largest_df["Your Calling Plan"].apply(
             lambda x: str(x).split('$')[0].strip() if pd.notna(x) and '$' in str(x) else x
         )
@@ -862,7 +858,6 @@ class ZipAnalysis:
         second_largest_df = second_largest_df.rename(columns={"Your Calling Plan": "Plan", "Data Usage (GB)": "Data Usage", "User Name": "Username", "Bill Cycle Date":"Bill Date"}, errors='ignore')
         bill_date = second_largest_df["Bill Date"].iloc[0]
         formatted_bill_date = self.parse_bill_date(bill_date)
-        print("bill date", formatted_bill_date)
         second_largest_df["bill_day"] = formatted_bill_date.day
         second_largest_df["bill_month"] = formatted_bill_date.month
         second_largest_df["bill_year"] = formatted_bill_date.year
@@ -947,7 +942,6 @@ class ZipAnalysis:
             "Monthly Charges": "monthly_charges",
         })
 
-        print(df.columns)
 
         cols_to_clean = [
             "data_usage",
@@ -1019,8 +1013,6 @@ class ZipAnalysis:
             )
 
             output_file = f"{self.account_number}_{dates}.xlsx"
-
-            print(output_file)
             
 
             # Export + DB save
@@ -1083,7 +1075,6 @@ class AnalysisBotView(APIView):
 
             is_generated, sql_query = botObj.get_analysis_sql_from_gemini(question, self.schema, special_id=pk, chat_history=df)
 
-            print(is_generated, sql_query)
             if not is_generated:
                 instance.is_query_generated = False
                 instance.response = "I need a bit more info to answer.\nCould you please elaborate more on your question."
@@ -1096,7 +1087,6 @@ class AnalysisBotView(APIView):
             allLines = response_text.split("\n")
             questions = [line.strip() for line in allLines if line.strip().endswith("?")]
             other_lines = "\n".join([line.strip() for line in allLines if line.strip() and not line.strip().endswith("?")])
-            print(is_ran, result_df)
             if is_ran:
                 instance.is_query_generated = True
                 instance.is_query_ran = True
@@ -1141,7 +1131,6 @@ class GetChatPdfView(APIView):
     def get(self,request,pk,*args,**kwargs):
         if not pk:
             return Response({"message":"Key required!"},status=status.HTTP_400_BAD_REQUEST)
-        print(pk)
         try:
             chatHis=BotChats.objects.filter(M_analysisChat=pk).exclude(response="I couldn't find any information matching your request.").values("question", "response")
             df = pd.DataFrame(list(chatHis))
@@ -1497,9 +1486,11 @@ class BillExtremesView(APIView):
         """
         # 1) Base queryset: uploaded bills only + common filters
         qs = apply_common_filters(
-            BaseDataTable.objects.filter(banOnboarded__isnull=False),
+            BaseDataTable.objects.filter(banOnboarded__isnull=True, banUploaded__isnull=True),
             request
         )
+
+        print("filtered queries==", qs)
 
         # 2) Optional date window passed via apply_common_filters
         date_from = getattr(request, "_analytics_date_from", None)
@@ -1644,7 +1635,6 @@ class BillTimeSeriesView(APIView):
 class RequestSummaryView(APIView):
     def get(self, request):
         qs = Requests.objects.select_related("vendor", "organization").all()
-        print(request.query_params)
         vendor = request.query_params.get("vendor")
         org = request.query_params.get("organization")
         request_type = request.query_params.get("request_type")
@@ -1896,7 +1886,6 @@ class BaselineDetailView(APIView):
 
         company = request.query_params.get("company").strip()
         sub_company = request.query_params.get("sub_company").strip()
-        print(sub_company)
         vendor = request.query_params.get("vendor").strip()
         account_number = request.query_params.get("account_number").strip()
         wireless_number = request.query_params.get("wireless_number").strip()
@@ -2096,7 +2085,6 @@ from django.forms.models import model_to_dict
 # @permission_classes([IsAuthenticated])
 def get_unapproved_bills(request, org, *args, **kwargs):
     unapproved_bills = BaseDataTable.objects.exclude(viewuploaded=None).filter(viewpapered=None).filter(sub_company=org,is_baseline_approved=False)
-    print(unapproved_bills)
     response = [model_to_dict(item, fields=["id", "bill_date", "accountnumber", "invoicenumber", "sub_company", "net_amount", "vendor"]) for item in unapproved_bills]
     return Response({"count":len(unapproved_bills), "data":response},status=status.HTTP_200_OK)
 
@@ -2160,8 +2148,6 @@ def get_ban_onboard_status(request, org, *args, **kwargs):
     vendor_map = {
         obj.accountnumber: obj.vendor for obj in base_objs
     }
-
-    print(vendor_map)
 
     # Create lookup sets
     onboarded_accounts = set(base_objs.values_list("accountnumber", flat=True))

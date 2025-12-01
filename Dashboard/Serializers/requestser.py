@@ -14,6 +14,7 @@ class devicesSerializer(serializers.ModelSerializer):
 
 class showdevicesSerializer(serializers.ModelSerializer):
     model = serializers.SerializerMethodField()
+    accessory_type = serializers.SerializerMethodField()
     class Meta:
         model = Device
         exclude = ('created','updated','sub_company')
@@ -23,6 +24,8 @@ class showdevicesSerializer(serializers.ModelSerializer):
             'name': obj.model.name,
             'os': obj.model.os,
         }
+    def get_accessory_type(self,obj):
+        return obj.model.accessory if obj.model else None
 
 class MakeModelSerializer(serializers.ModelSerializer):
     class Meta:
@@ -328,7 +331,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         userObj = PortalUser.objects.filter(mobile_number=obj.wireless_number).first()
         return userObj.designation.name
     
-from ..ModelsByPage.Req import upgrade_device_request
+from ..ModelsByPage.Req import upgrade_device_request, AccessoriesRequest
 
 class SaveUpgradeDeviceRequestSerializer(serializers.ModelSerializer):
     class Meta:
@@ -346,3 +349,21 @@ class ShowUpgradeDeviceRequestSerializer(serializers.ModelSerializer):
     def get_raised_by(self, obj):
         return {"id":obj.raised_by.id, "first_name":obj.raised_by.first_name, "last_name":obj.raised_by.last_name, "email":obj.raised_by.email}
     
+class ShowaccessoriesRequestSer(serializers.ModelSerializer):
+    organization = serializers.SerializerMethodField()
+    vendor = serializers.SerializerMethodField()
+    requester = serializers.SerializerMethodField()
+    class Meta:
+        model = AccessoriesRequest
+        fields = "__all__"
+    def get_organization(self,obj):
+        return {"id":obj.organization.id, "name":obj.organization.Organization_name} if obj.organization else None
+    def get_vendor(self,obj):
+        return {"id":obj.vendor.id, "name":obj.vendor.name} if obj.vendor else None
+    def get_requester(self,obj):
+        return {"id":obj.requester.id, "first_name":obj.requester.first_name, "last_name":obj.requester.last_name} if obj.requester else None
+
+class SaveaccessoriesRequestSer(serializers.ModelSerializer):
+    class Meta:
+        model = AccessoriesRequest
+        fields = "__all__"

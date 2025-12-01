@@ -116,12 +116,17 @@ class ProcessCSVOnboard:
         self.account_number = file_account_number
         df_csv['wireless_number'] = df_csv['wireless_number'].apply(self.format_wireless_number)
         df_csv_dict = df_csv.to_dict(orient='records')
+        df_csv_dict = [item for item in df_csv_dict if item.get("wireless_number")]
+
         for item in df_csv_dict:
             item['company'] = self.company
             item['vendor'] = self.vendor
             item['sub_company'] = self.sub_company
             item['account_number'] = self.account_number
             item['entry_type'] = self.entry_type
+            plan = item.get("Plan_name")
+            monthly_charges = item.get("monthly_charges")
+            item["category_object"] = self.create_category_object(plan, monthly_charges)
         # Bulk insert into UniquePDFDataTable
         UniquePdfDataTable.objects.bulk_create([UniquePdfDataTable(banOnboarded=self.instance,**item) for item in df_csv_dict])
         print("Data added to UniquePdfDataTable")
@@ -129,6 +134,7 @@ class ProcessCSVOnboard:
         df_csv = pd.DataFrame(df_csv_dict)
         df_csv = df_csv.rename(columns={'wireless_number': 'Wireless_number'})
 
+        print(df_csv.head())
         df_csv_dict = df_csv.to_dict(orient='records')
         
         model_fields = [field.name for field in BaselineDataTable._meta.get_fields() if field.concrete and not field.auto_created]
@@ -139,6 +145,7 @@ class ProcessCSVOnboard:
             for item in df_csv_dict
         ]
 
+        print(df_csv_dict[0])
         BaselineDataTable.objects.bulk_create(clean_items)
         self.save_to_portal_info({'Website':None})
         self.instance.account_number = self.account_number
@@ -147,6 +154,30 @@ class ProcessCSVOnboard:
         create_notification(self.user_obj, f"New BAN {self.account_number} of vendor {self.vendor} created successfully!",company=self.company_obj)
         save_ban_history(onboardID=self.instance.id, action=f"BAN Onboarded with excel file", user=self.email, ban=self.account_number)
         return {'code' : 0, 'message':f"Excel file with account number {file_account_number} onboarded successfully!"}
+
+    def create_category_object(self, plan, monthly_charges):
+        res = {}
+        matches = list(re.finditer(r'\$(\d*\.?\d+)', plan))
+
+        if matches:
+            for i, match in enumerate(matches):
+                amount = float(match.group(1))
+
+                # Determine description boundaries
+                start = matches[i-1].end() if i > 0 else 0
+                end = match.start()
+
+                desc = plan[start:end].strip().upper()
+
+                # Remove leading/trailing garbage words
+                desc = re.sub(r'^\d[\d\.]*\s*', '', desc).strip()
+
+                res[desc] = amount
+        else:
+            res[plan] = monthly_charges
+
+        # Wrap inside Monthly Charges
+        return json.dumps({"Monthly Charges": res})
 
 
     def save_to_portal_info(self, data):

@@ -7,7 +7,7 @@ from django.dispatch import receiver
 from Dashboard.ModelsByPage.DashAdmin import UserRoles
 from authenticate.models import PortalUser
 import json
-from Dashboard.ModelsByPage.Req import Requests, upgrade_device_request
+from Dashboard.ModelsByPage.Req import Requests, upgrade_device_request, AccessoriesRequest
 from sendmail import send_custom_email
 
 @receiver(post_save, sender=upgrade_device_request)
@@ -157,11 +157,79 @@ def send_mail(sender, instance, created, **kwargs):
         print(e)
         
 
+@receiver(post_save, sender=AccessoriesRequest)
+def Accessories_mail_sender(sender, instance, created, **kwargs):
 
-# @receiver(post_save, sender=UserRoles)
-# def send_mail_on_update(sender, instance, created, **kwargs):
+    try:
+        requester = instance.requester
+        requester_mail = requester.email
+        requester_name = f"{requester.first_name} {requester.last_name}" or requester.username
+        admins = PortalUser.objects.filter(
+            organization=requester.organization,
+            designation__name__in=["Client Admin"]
+        )
+        print(admins.values_list("email", flat=True))
+        requester_org = instance.organization.Organization_name
 
-    
+        if created:
+            sub = f"Request Created: {instance.request_type}"
+            msg = (
+                f"Dear {requester.first_name},\n\n"
+                f"Your {instance.request_type} request for {instance.accessory_type} has been successfully created and submitted to {requester_org} for review.\n\n"
+                f"Our team will notify you once it has been reviewed by your organization or approved by the authority.\n\n"
+                f"Best regards,\n"
+                f"The {requester_org} Support Team"
+            )
+
+        else:
+            if instance.status == "Rejected":
+                sub = f"Request Rejected: {instance.request_type}"
+                msg = (
+                    f"Dear {requester.first_name},\n\n"
+                    f"Your {instance.request_type} request for {instance.accessory_type} has been rejected by your organization ({requester_org}).\n\n"
+                    f"If you believe this was in error, please contact your organization administrator for clarification.\n\n"
+                    f"Regards,\n"
+                    f"The {requester_org} Support Team"
+                )
+
+            elif instance.status == "Approved":
+                sub = f"Request Approved by Organization: {instance.request_type}"
+                msg = (
+                    f"Dear {requester.first_name},\n\n"
+                    f"Good news! Your {instance.request_type} request for {instance.accessory_type} has been approved by your organization ({requester_org}).\n\n"
+                    f"It will now be processed and verified by the company authority for final completion.\n\n"
+                    f"Regards,\n"
+                    f"The {requester_org} Support Team"
+                )
+
+            elif instance.authority_status == "Completed":
+                sub = f"Request Completed by Authority: {instance.request_type}"
+                msg = (
+                    f"Dear {instance.requester.first_name},\n\n"
+                    f"We are pleased to inform you that your {instance.request_type} request for {instance.accessory_type} has been completed and verified by the company authority.\n\n"
+                    f"Thank you for your patience and cooperation.\n\n"
+                    f"Regards,\n"
+                    f"The {requester_org} Support Team"
+                )
+                if admins:
+                    msg = (
+                        f"Dear {requester_org} Team,\n\n"
+                        f"This is to inform you that the request submitted by **{requester_name}** "
+                        f"for **{instance.request_type}** has been successfully **completed and verified by the company authority**.\n\n"
+                        f"Please review the request details in your dashboard if any further action or acknowledgment is required.\n\n"
+                        f"Best regards,\n"
+                        f"The Company Authority\n"
+                        f"(Automated Notification)"
+                    )
+                    send_custom_email(to=list(admins.values_list("email", flat=True)), subject=sub, body_text=msg, company=instance.organization.company.Company_name)
+
+            else:
+                sub = None
+                msg = None
+
+        if sub and msg: send_custom_email(to=requester_mail, subject=sub, body_text=msg, company=instance.organization.company.Company_name)
+    except Exception as e:
+        print(e)
 
 @receiver(post_save, sender=Vendors)
 def print_vendor_created(sender, instance, created, **kwargs):

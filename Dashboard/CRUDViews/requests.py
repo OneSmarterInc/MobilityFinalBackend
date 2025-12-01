@@ -16,6 +16,8 @@ from Dashboard.ModelsByPage.ProfileManage import Profile
 from authenticate.views import saveuserlog
 from django.forms.models import model_to_dict
 from Batch.views import create_notification
+from django.db.models import Q
+
 
 class RequestsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -26,7 +28,9 @@ class RequestsView(APIView):
                 all_objs = Requests.objects.filter(requester=request.user)
             else:
                 if request.user.company and not request.user.organization:
-                    all_objs = Requests.objects.filter(status="Approved")
+                    all_objs = Requests.objects.filter(
+                        Q(status="Approved") | Q(requester=request.user)
+                    )
                 elif request.user.company and request.user.organization:
                     all_objs = Requests.objects.filter(organization=request.user.organization)
                 else:

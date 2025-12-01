@@ -91,3 +91,30 @@ def object_tagging(baseline_data, bill_data, variance):
 # bill = "{\"MONTHLY CHARGES\": {\"ADDL SMARTPHN DATA ACCESS\": 25.0, \"BUSINESS UNLIMITED SMARTPHONE\": 45.0}, \"OTHER CHARGES AND CREDITS\": {\"ECONOMIC ADJUSTMENT CHARGE\": 3.97}, \"SURCHARGES\": {\"ADMINISTRATIVE CHARGE\": 1.95, \"FED UNIVERSAL SERVICE CHARGE\": 0.48, \"REGULATORY CHARGE\": 0.16}, \"TAXES GOVERNMENTAL SURCHARGES AND FEES\": {\"KITSAP CNTY 911 SURCHG\": 0.7, \"KITSAP CNTY SALES TAX-TELECOM\": 0.16, \"WA STATE 911 FEE\": 0.25, \"WA STATE 988 TAX\": 0.4, \"WA STATE SALES TAX-TELECOM\": 0.37}}"
 
 # print(tagging(baseline, bill, 5))
+import re
+def create_category_object(self, plan, monthly_charges):
+    res = {}
+    matches = list(re.finditer(r'\$(\d*\.?\d+)', plan))
+
+    if matches:
+        for i, match in enumerate(matches):
+            amount = float(match.group(1))
+
+            # Determine description boundaries
+            start = matches[i-1].end() if i > 0 else 0
+            end = match.start()
+
+            desc = plan[start:end].strip().upper()
+
+            # Remove leading/trailing garbage words
+            desc = re.sub(r'^\d[\d\.]*\s*', '', desc).strip()
+
+            res[desc] = amount
+    else:
+        res[plan] = monthly_charges
+
+    # Wrap inside Monthly Charges
+    return json.dumps({"Monthly Charges": res})
+
+
+

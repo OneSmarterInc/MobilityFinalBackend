@@ -39,6 +39,7 @@ class basedatahowSerializer(serializers.ModelSerializer):
     banOnboarded = serializers.CharField(max_length=255)
     inventory = serializers.CharField(max_length=255)
     paymentType = serializers.CharField(max_length=255)
+    uploaded_bill = serializers.SerializerMethodField()
     is_bill_in_batch = serializers.SerializerMethodField()
     is_bill_approved = serializers.SerializerMethodField()
     is_bill_payment_done = serializers.SerializerMethodField()
@@ -54,7 +55,8 @@ class basedatahowSerializer(serializers.ModelSerializer):
         return obj.Check.lower() not in ("", None, "null", "false") if obj.Check else False
     def get_is_paper_bill(self,obj):
         return obj.viewpapered is not None
-    
+    def get_uploaded_bill(self,obj):
+        return obj.viewuploaded.file.url if obj.viewuploaded else None
     
 
 class uniquepdftableSerializer(serializers.ModelSerializer):

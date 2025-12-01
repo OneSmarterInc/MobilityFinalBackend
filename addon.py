@@ -100,3 +100,40 @@ def get_cat_obj_total(obj):
         for c,v in value.items(): 
             total += float(v['amount']) if isinstance(v, dict) else float(v)
     return round(total,2)
+
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
+
+def auto_width_excel(file_path, output_path=None):
+    """
+    Adjust column width automatically for all sheets in an Excel file.
+    """
+
+    # If no output_path given, overwrite the same file
+    if output_path is None:
+        output_path = file_path
+
+    wb = load_workbook(file_path)
+
+    for sheet in wb.worksheets:
+        for col in sheet.columns:
+            max_length = 0
+            col_letter = get_column_letter(col[0].column)
+
+            for cell in col:
+                try:
+                    value = str(cell.value) if cell.value is not None else ""
+                    if len(value) > max_length:
+                        max_length = len(value)
+                except:
+                    pass
+
+            sheet.column_dimensions[col_letter].width = max_length + 2
+
+    wb.save(output_path)
+    return output_path
+
+
+# cleaned = auto_width_excel(
+#     "Bills/media/ViewUploadedBills/836086478_January_2024_mArYUpU.xlsx",
+# )

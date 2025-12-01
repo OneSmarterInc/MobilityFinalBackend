@@ -241,6 +241,7 @@ class MappingObjectBan(models.Model):
     account_number = models.CharField(max_length=255, null=False, blank=True)
     vendor = models.CharField(max_length=255, null=False, blank=True)
     wireless_number = models.CharField(max_length=255, null=False, blank=True)
+    monthly_charges = models.CharField(max_length=255, null=False, blank=True)
     user_name = models.CharField(max_length=255, null=True, blank=True)
     site_name = models.CharField(max_length=255, null=True, blank=True)
     mobile_device = models.CharField(max_length=255, null=True, blank=True)
@@ -336,6 +337,9 @@ class PdfDataTable(models.Model):
     
 from View.models import ViewUploadBill,PaperBill
 from django.utils import timezone
+from dateutil.relativedelta import relativedelta  # pip install python-dateutil
+from dateutil import parser
+from datetime import timedelta
 
 class BaseDataTable(models.Model):
     banUploaded = models.ForeignKey(UploadBAN, related_name='banUploadedBase', on_delete=models.CASCADE, null=True, blank=True)
@@ -457,6 +461,23 @@ class BaseDataTable(models.Model):
         db_table = 'BaseDataTable'
     def __str__(self):
         return self.accountnumber
+
+    def save(self, *args, **kwargs):
+        if self.bill_date and not self.date_due:
+            try:
+                # Parse ANY date format automatically
+                bill_dt = parser.parse(self.bill_date)
+
+                # Add 1 month
+                due_dt = bill_dt + relativedelta(months=1)- timedelta(days=1)
+
+                # Save back in same style (keep it readable)
+                self.date_due = due_dt.strftime("%b %d %Y")  # e.g. "Feb 15 2024"
+
+            except Exception as e:
+                print("Invalid bill_date format:", e)
+
+        super().save(*args, **kwargs)
     
 class UniquePdfDataTable(models.Model):
     banOnboarded = models.ForeignKey(OnboardBan, related_name='onboardedlines', on_delete=models.CASCADE, null=True, blank=True)
@@ -536,6 +557,7 @@ class UniquePdfDataTable(models.Model):
     cost_centers = models.CharField(max_length=255, blank=True, null=True, default="")
     deviceAmount = models.CharField(max_length=255, null=True, blank=True)
     deviceCredit = models.CharField(max_length=255, null=True, blank=True)
+    accessories = models.JSONField(default=list)
     cost_center = models.CharField(max_length=255, null=True, blank=True)
     cost_center_status = models.CharField(max_length=255, null=True, blank=True)
     cost_center_notes = models.CharField(max_length=255, null=True, blank=True)

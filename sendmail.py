@@ -10,6 +10,8 @@ from django.db.models.fields.files import FieldFile
 
 from Batch.models import EmailConfiguration  # your model
 
+common_footer = "\n\n---\nThis is a system-generated email. Please do not reply to this message.\n"
+
 
 # ======================================================
 # Threaded Email Executor (core for async email sending)
@@ -42,7 +44,7 @@ def send_ticket(assign_email, sub_company, vendor, account_no, title, descriptio
         def _send():
             email = EmailMessage(
                 subject=subject,
-                body=body,
+                body=f"{body}{common_footer}",
                 from_email=from_email,
                 to=assign_email,
             )
@@ -244,7 +246,7 @@ def send_generic_mail(receiver_mail, subject, body, attachment=None, *args, **kw
     def _send():
         email = EmailMessage(
             subject=subject,
-            body=body,
+            body=f"{body}{common_footer}",
             from_email=from_email,
             to=[receiver_mail],
         )

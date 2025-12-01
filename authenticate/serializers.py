@@ -8,6 +8,10 @@ from Dashboard.ModelsByPage.ProfileManage import Profile
 
 from Dashboard.Serializers.AdminPage import UserRoleShowSerializer
 
+class userSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PortalUser
+        fields = "__all__"
 
 class RegisterSerializer(serializers.ModelSerializer):
     password2 = serializers.CharField(write_only=True)

@@ -538,7 +538,7 @@ def parse_until_dict(data):
         except json.JSONDecodeError:
             break
     return data
-from addon import get_close_match_key
+from addon import auto_width_excel
 
 def compare_values(base_val, bill_val,variance):
         """
@@ -879,7 +879,8 @@ class ProcessZip:
                 for entry in category_data:
                     entry['company'] = self.company
                     entry['vendor'] = self.vendor
-                self.save_to_baseline_data_table(category_data, self.vendor,date=" ".join(bill_date) if isinstance(bill_date,list) else bill_date, types=self.types,baseobj=obj)
+                bill_date = " ".join(bill_date) if isinstance(bill_date,list) else bill_date
+                self.save_to_baseline_data_table(category_data, self.vendor,date=bill_date, types=self.types,baseobj=obj)
                 print("saved to baseline data table")
                 cusdf = self.get_cust_data_from_db(self.account_number, bill_main_id)
                 workbook = self.generate_excel(s1=required_df,s2=data_pdf,s3=detailed_df,s4=cusdf)
@@ -891,7 +892,7 @@ class ProcessZip:
                 try:
                     with open(output_file_path, "wb") as f:
                         f.write(workbook.getvalue())
-
+                    output_file_path = auto_width_excel(output_file_path)
                     # Create ProcessedWorkbook instance (WITHOUT setting the FileField yet)
                     processed_workbook = ProcessedWorkbook(
                         uploadbill=self.instance,
@@ -906,7 +907,6 @@ class ProcessZip:
                     # Open the saved file and keep it open for Django
                     f = open(output_file_path, "rb")  # DO NOT USE `with open(...)`
                     django_file = File(f, name=workbook_name)
-
                     processed_workbook.output_file = django_file
                     self.instance.output_file = django_file
                     

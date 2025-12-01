@@ -35,8 +35,9 @@ class InventoryView(APIView):
             if str(v).lower() not in ('nan', 'null','na') and v is not None
         }
     def put(self, request,org,pk=None, *args, **kwargs):
-        data = request.data
-        
+        data = request.data.copy()
+        accessories = data.get("accessories")
+        data["accessories"] = parse_until_dict(accessories)
         if not pk:
             try:
                 for inv in data:
@@ -175,6 +176,7 @@ class AddNewInventoryView(APIView):
         return Response({"accounts":all_accnts.data, "vendors":vendors.data}, status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
         data = request.data.copy()
+        sub_company=data.get('sub_company')
         base = BaseDataTable.objects.filter(accountnumber=data.get('account_number'), vendor=data.get('vendor'), company=data.get('company'), sub_company=data.get('sub_company'))
         if not base:
             return Response({"message":"Account number not found!"},status=status.HTTP_400_BAD_REQUEST)
@@ -185,7 +187,7 @@ class AddNewInventoryView(APIView):
 
         if not base:
             return Response({"message":"Account number not found!"},status=status.HTTP_400_BAD_REQUEST)
-        check_presence = UniquePdfDataTable.objects.filter(account_number=data.get('account_number'), vendor=data.get('vendor'), company=data.get('company'), sub_company=data.get('sub_company'), wireless_number=data.get('wireless_number'))
+        check_presence = UniquePdfDataTable.objects.filter(account_number=data.get('account_number'), vendor=data.get('vendor'), company=data.get('company'), sub_company=sub_company, wireless_number=data.get('wireless_number'))
         if check_presence:
             return Response({"message":f"Wirelss number {data.get('wireless_number')} with account number {data.get('account_number')} already present!"},status=status.HTTP_400_BAD_REQUEST)
         uniqueser = UniqueTableSaveSerializer(data=data)
