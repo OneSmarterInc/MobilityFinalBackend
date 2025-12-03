@@ -18,7 +18,7 @@ class RegisterView(APIView):
     def get(self, request, *args, **kwargs):
         allCompanies = Company.objects.all()
         Comser = CompanyShowSerializer(allCompanies, many=True)
-        allDesignations = UserRoles.objects.exclude(id=request.user.designation.id).filter(company=request.user.company, organization=request.user.organization)
+        allDesignations = UserRoles.objects.exclude(id=request.user.designation.id).filter(company=request.user.company)
         ser = allDesignationsSerializer(allDesignations, many=True)
         return Response({"designations": ser.data, "companies" : Comser.data}, status=status.HTTP_200_OK)
     

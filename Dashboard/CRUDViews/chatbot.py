@@ -4,13 +4,12 @@ from rest_framework import status
 from authenticate.models import PortalUser
 from authenticate.views import saveuserlog
 # from bot import get_database, get_sql_from_gemini, execute_sql_query, get_response_from_gemini
-from bot import init_database, get_sql_from_gemini, run_query, make_human_response
 
 from ..ModelsByPage.aimodels import BotChats
 from rest_framework.permissions import IsAuthenticated
 from ..Serializers.chatser import ChatSerializer
 import pandas as pd
-from bot1 import BotClass
+from bot import BotClass
 
 class ChatBotView(APIView):
     permission_classes = [IsAuthenticated]
@@ -45,7 +44,6 @@ class ChatBotView(APIView):
                 user=request.user,
                 question=question,
             )
-            sql_query = get_sql_from_gemini(question, self.schema, chat_history=df)
             is_generated, sql_query = botObj.get_general_sql_from_gemini(question, self.schema, chat_history=df)
             if not is_generated:
                 instance.is_query_generated = False

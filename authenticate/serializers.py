@@ -4,6 +4,7 @@ from .models import PortalUser, UserLogs
 from django.db.utils import IntegrityError
 from django.contrib.auth.password_validation import validate_password
 from Dashboard.ModelsByPage.DashAdmin import UserRoles, Permission
+from Settings.models import PermissionsbyCompany
 from Dashboard.ModelsByPage.ProfileManage import Profile
 
 from Dashboard.Serializers.AdminPage import UserRoleShowSerializer
@@ -74,13 +75,18 @@ class showUsersSerializer(serializers.ModelSerializer):
     def get_is_admin(self, user):
         return "admin" in user.designation.name.lower() if user.designation else True
     def get_permissions(self,user):
-        return list(
+        print(user.company, user.organization, user.designation)
+        xyz = PermissionsbyCompany.objects.filter(company=user.company, organization=user.organization, role=user.designation)
+        print(xyz)
+        permissions = list(
             Permission.objects.filter(
                 permissions_by_company__company=user.company,
                 permissions_by_company__organization=user.organization,
                 permissions_by_company__role=user.designation
             ).values_list('name', flat=True).distinct()
         )
+        print(permissions)
+        return permissions
 
 
 class UserLogSaveSerializer(serializers.ModelSerializer):
@@ -95,9 +101,15 @@ class UserLogShowSerializer(serializers.ModelSerializer):
         fields = ['id', 'description', 'created_at', 'updated_at', 'user']
 
 class allDesignationsSerializer(serializers.ModelSerializer):
+    company = serializers.SerializerMethodField()
+    organization = serializers.SerializerMethodField()
     class Meta:
         model = UserRoles
-        fields = ['name',]
+        fields = ['name','company','organization']
+    def get_company(self,obj):
+        return {"id":obj.company.id, "name":obj.company.Company_name}
+    def get_organization(self,obj):
+        return {"id":obj.organization.id, "name":obj.organization.Organization_name}
 
 from OnBoard.Company.models import Company
 

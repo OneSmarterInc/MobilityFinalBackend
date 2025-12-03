@@ -1035,8 +1035,7 @@ class ZipAnalysis:
         except Exception as e:
             return False, str(e), 0
 
-from .bot import init_database, get_sql_from_gemini, run_query, make_human_response
-from bot1 import BotClass
+from bot import BotClass
 class AnalysisBotView(APIView):
     permission_classes = [IsAuthenticated]
 

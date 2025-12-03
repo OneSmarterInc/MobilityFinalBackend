@@ -170,11 +170,10 @@ def reflect(id):
         base.bill_date = bill_date
         base.save()
 # from ..bot import get_database, get_response_from_gemini, get_sql_from_gemini, execute_sql_query
-from ..bot import init_database, get_sql_from_gemini, run_query, make_human_response
 
 from Dashboard.ModelsByPage.aimodels import BotChats
 from Dashboard.Serializers.chatser import ChatSerializer
-from bot1 import BotClass
+from bot import BotClass
 import pandas as pd
 class ViewBillBotView(APIView):
     permission_classes = [IsAuthenticated]

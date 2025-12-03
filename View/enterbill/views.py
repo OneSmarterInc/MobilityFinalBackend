@@ -2103,6 +2103,9 @@ class PaperBillView(APIView):
             month = formatted_billdate.split(" ")[0]
             year = formatted_billdate.split(" ")[2]
             formatted_duedate = format_date(duedate)
+            orgObj = Organizations.objects.filter(Organization_name=org).first()
+            if not orgObj:
+                return Response({"message":f"Organization not found!"},status=status.HTTP_400_BAD_REQUEST)
             print(org, vendor, ban, invoice_number,month, year)
             
             base = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban)
@@ -2117,6 +2120,7 @@ class PaperBillView(APIView):
                 return Response({"message":f"Bill with month {month} and year {year} already exists!"},status=status.HTTP_400_BAD_REQUEST)
 
             new_paper_obj = PaperBill.objects.create(
+                organization=orgObj,
                 sub_company=org,
                 vendor=vendor,
                 account_number=ban,

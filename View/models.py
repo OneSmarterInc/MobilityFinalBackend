@@ -5,6 +5,9 @@ from Dashboard.ModelsByPage.DashAdmin import Vendors
 
 
 class PaperBill(models.Model):
+    organization = models.ForeignKey(
+        Organizations, related_name='organization_view_onboard_bills', on_delete=models.CASCADE, null=True, blank=True
+    )
     sub_company = models.CharField(max_length=255, null=False)
     vendor = models.CharField(max_length=255, null=False)
     account_number = models.CharField(max_length=255, null=False)
