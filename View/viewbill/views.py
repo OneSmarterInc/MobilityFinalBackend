@@ -208,7 +208,7 @@ class ViewBillBotView(APIView):
                 billChat=BaseDataTable.objects.filter(id=baseId).first()
             )
             is_generated, sql_query = botObj.get_view_sql_from_gemini(question, self.schema, bill_type=billType, special_id=pk, chathistory=df)
-            print(is_generated, sql_query)
+            print("is generated==",is_generated, sql_query)
             if not is_generated:
                 instance.is_query_generated = False
                 instance.response = "I need a bit more info to answer.\nCould you please elaborate more on your question."

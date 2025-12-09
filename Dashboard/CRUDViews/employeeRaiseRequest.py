@@ -48,10 +48,17 @@ class DeviceUpgradeView(APIView):
         ser = ShowUpgradeDeviceRequestSerializer(all_objs.order_by('-created'), many=True)
         return Response({"data":ser.data}, status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
+        user = request.user
         data = request.data
-        email = request.user.email
+        email = user.email
+        org = user.organization
+        ven = user.vendor
+        if not (org and ven):
+            return Response({"message":f"User credentials error!"},status=status.HTTP_400_BAD_REQUEST)
         get_user = PortalUser.objects.filter(email=email).first()
         print(data)
+        data["organization"] = org.id
+        data["vendor"] = ven.id
         if not get_user:
             return Response({"message":f"Employee with email {email} not found."},status=status.HTTP_400_BAD_REQUEST)
         

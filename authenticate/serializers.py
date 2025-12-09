@@ -3,7 +3,7 @@ from django.contrib.auth.models import AbstractUser
 from .models import PortalUser, UserLogs
 from django.db.utils import IntegrityError
 from django.contrib.auth.password_validation import validate_password
-from Dashboard.ModelsByPage.DashAdmin import UserRoles, Permission
+from Dashboard.ModelsByPage.DashAdmin import UserRoles, Permission, Vendors
 from Settings.models import PermissionsbyCompany
 from Dashboard.ModelsByPage.ProfileManage import Profile
 
@@ -21,7 +21,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PortalUser
-        fields = ['username', 'email', 'password', 'password2', 'designation', 'company', 'first_name','last_name','phone_number','mobile_number','string_password','temp_password', 'organization']
+        fields = ['username', 'email', 'password', 'password2', 'designation', 'company', 'first_name','last_name','phone_number','mobile_number','string_password','temp_password', 'organization', 'vendor','account_number']
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
@@ -35,6 +35,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         # Extract designation as string if provided
         designation_name = validated_data.pop('designation', None)
         company_name = validated_data.pop('company', None)
+        vendor_name = validated_data.pop('vendor',None)
 
         # Create the user
         user = PortalUser.objects.create_user(**validated_data)
@@ -55,6 +56,13 @@ class RegisterSerializer(serializers.ModelSerializer):
                 user.save()
             except Company.DoesNotExist:
                 raise serializers.ValidationError(f"Company '{company_name}' does not exist.")
+        if vendor_name:
+            try:
+                ven = Vendors.objects.get(name=vendor_name)
+                user.vendor = ven
+                user.save()
+            except Vendors.DoesNotExist:
+                raise serializers.ValidationError(f"Vendor '{vendor_name}' does not exist.")
 
         return user
 

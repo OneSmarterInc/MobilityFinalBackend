@@ -241,7 +241,7 @@ class MappingObjectBan(models.Model):
     account_number = models.CharField(max_length=255, null=False, blank=True)
     vendor = models.CharField(max_length=255, null=False, blank=True)
     wireless_number = models.CharField(max_length=255, null=False, blank=True)
-    monthly_charges = models.CharField(max_length=255, null=False, blank=True)
+    monthly_charges = models.CharField(max_length=255, null=True, blank=True)
     user_name = models.CharField(max_length=255, null=True, blank=True)
     site_name = models.CharField(max_length=255, null=True, blank=True)
     mobile_device = models.CharField(max_length=255, null=True, blank=True)

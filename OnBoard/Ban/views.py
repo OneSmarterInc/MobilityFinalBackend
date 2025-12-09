@@ -384,6 +384,7 @@ class OnboardBanView(APIView):
     def __init__(self, **kwargs):
         self.account_created = []
         self.account_exists = []
+        self.instance = None
         super().__init__(**kwargs)
     def get(self, request, pk=None):
         if pk:
@@ -419,8 +420,11 @@ class OnboardBanView(APIView):
                 rdd_Data = ast.literal_eval(rdd_Data_str)
             except (ValueError, SyntaxError) as e:
                 print(f"Error in literal_eval: {e}")
+
             try:
                 for i, rd in enumerate(rdd_Data):
+                    ven = rd.pop('vendor', None)
+                    if not ven: continue
                     if not rd['organization']:
                         continue
                     # org=get_object_or_404(Organizations, Organization_name=rd.pop('organization', None)),
@@ -450,9 +454,9 @@ class OnboardBanView(APIView):
                     else:
                         masteraccount = get_object_or_404(UploadBAN, account_number=master_account_value)
                     print("master account= ", masteraccount)
-                    obj = OnboardBan.objects.create(
+                    self.instance = OnboardBan.objects.create(
                         organization=org,
-                        vendor=get_object_or_404(Vendors, name=rd.pop('vendor', None)),
+                        vendor=get_object_or_404(Vendors, name=ven),
                         entryType=etype,
                         location=loc,
                         masteraccount=masteraccount,
@@ -463,31 +467,30 @@ class OnboardBanView(APIView):
                         contract_name=rd.get('contract_name'),
                         contract_file=contract
                     )
-                    obj.save()
-                    if obj.uploadBill.name.endswith('.zip'):
+                    self.instance.save()
+                    if  self.instance.uploadBill.name.endswith('.zip'):
                         
                         try:
-                            addon = ProcessZip(obj,request.user.email)
+                            addon = ProcessZip(self.instance,request.user.email)
                             check = addon.startprocess()
                             print(check)
                             if check['error'] != 0:
-                                if obj and obj.pk:obj.delete()      
-                                   
+                                if self.instance and self.instance.pk:self.instance.delete()      
                         except:
-                            if obj and obj.pk:obj.delete()
-                                    
+                            if self.instance and self.instance.pk:self.instance.delete()
+                print(len(excel_data))
                 for i, ed in enumerate(excel_data):
+                    ven = ed.pop('vendor', None)
+                    if not ven: continue
                     if not ed['organization']:
                         continue
                     # org=get_object_or_404(Organizations, Organization_name=ed.pop('organization', None)),
                     org = Organizations.objects.filter(Organization_name=ed.pop('organization', None))[0]
-                    print(ed)
                     boolean_fields = ["is_it_consolidatedBan", "addDataToBaseline"]
                     for field in boolean_fields:
                         ed[field] = self.str_to_bool(ed.get(field, False))
                     ed['uploadBill'] = request.data.get(f'Excelfile_{i}')
                     contract = request.data.get(f'contract_file_{i}')
-                    print(ed)
                     for k, v in ed.items():
                         if v == '' or v == "":
                             ed[k] = None
@@ -495,7 +498,7 @@ class OnboardBanView(APIView):
                             for key, value in v.items():
                                 if value == '' or value == "":
                                     v[key] = None
-                    print("ed=", ed)
+                    
                     loc_value = ed.pop('location', None)
                     if loc_value is None:
                         loc = None
@@ -512,10 +515,11 @@ class OnboardBanView(APIView):
                         etype = None
                     else:
                         etype = get_object_or_404(EntryType, name=etype)
+                    print("ed=", ed)
                     print("master account= ", masteraccount)
-                    obj = OnboardBan.objects.create(
+                    self.instance = OnboardBan.objects.create(
                         organization=org,
-                        vendor=get_object_or_404(Vendors, name=ed.pop('vendor', None)),
+                        vendor=get_object_or_404(Vendors, name=ven),
                         entryType=etype,
                         location=loc,
                         masteraccount=masteraccount,
@@ -526,12 +530,13 @@ class OnboardBanView(APIView):
                         contract_name=ed.get('contract_name'),
                         contract_file=contract
                     )
-                    obj.save()
-                    map = ed.pop('mapping_object', None)
-                    mobj = MappingObjectBan.objects.create(onboard=obj, **map)
+                    self.instance.save()
+                    map = ed.pop('mapping_object', None) or ed.pop('mapping_obj', None)
+                    
+                    mobj = MappingObjectBan.objects.create(onboard=self.instance, **parse_until_dict(map))
                     mobj.save()
-                    print("model to dict====", model_to_dict(obj))
-                    mapping_obj = model_to_dict(MappingObjectBan.objects.get(onboard=obj)) or {}
+                    print("model to dict====", model_to_dict(self.instance))
+                    mapping_obj = model_to_dict(MappingObjectBan.objects.get(onboard=self.instance)) or {}
                     if mapping_obj:
                         try:
                             mapping_json = mapping_obj
@@ -540,33 +545,34 @@ class OnboardBanView(APIView):
                             continue
 
                         ma = None
-                        if obj.masteraccount:
-                            ma = obj.masteraccount.account_number
+                        if self.instance.masteraccount:
+                            ma = self.instance.masteraccount.account_number
                         site = None
-                        if obj.location:
-                            site = obj.location.site_name
+                        if self.instance.location:
+                            site = self.instance.location.site_name
 
-                        buffer_data = json.dumps({'excel_csv_path': obj.uploadBill.path,'company':obj.organization.company.Company_name,'sub_company':obj.organization.Organization_name,'vendor':obj.vendor.name,'entry_type':obj.entryType.name,"mapping_json":mapping_json,'location':site,'master_account':ma,'email':request.user.email, "variance":obj.variance
+                        buffer_data = json.dumps({'excel_csv_path': self.instance.uploadBill.path,'company':self.instance.organization.company.Company_name,'sub_company':self.instance.organization.Organization_name,'vendor':self.instance.vendor.name,'entry_type':self.instance.entryType.name,"mapping_json":mapping_json,'location':site,'master_account':ma,'email':request.user.email, "variance":self.instance.variance
                         })
 
                         print("process_csv")
                         # process_csv.delay(instance_id=obj.id, buffer_data=buffer_data)
                         try:
-                            classobject = ProcessCSVOnboard(instance=obj, buffer_data=buffer_data)
+                            classobject = ProcessCSVOnboard(instance=self.instance, buffer_data=buffer_data)
                             process = classobject.process_excel_csv_data()
                             print(process)
                             if process['code'] != 0:
                                 print(f"Account number {process['account_number']} not processed!")
-                                if obj and obj.pk: obj.delete()
+                                if self.instance and self.instance.pk: self.instance.delete()
                             
                         except:
-                            if obj and obj.pk: obj.delete()
+                            if self.instance and self.instance.pk: self.instance.delete()
                 saveuserlog(
                     request.user, f"Multiple RDD and Excel uploaded."
                 )
                 return Response({"message" :'multiple files onboarded successfully!'}, status=status.HTTP_200_OK)
 
             except Exception as e:
+                if self.instance and self.instance.pk: self.instance.delete()
                 print(f"Error in onboarding ban: {e}")
                 return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -810,23 +816,19 @@ class InventoryUploadView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, pk=None):
+        com = request.user.company
         if pk:
             inventory = InventoryUpload.objects.get(account_number=pk)
             serializer = InventoryUploadSerializer(inventory)
             return Response({"data" : serializer.data}, status=status.HTTP_200_OK)
         else:
-            orgs = Organizations.objects.all()
+            orgs = Organizations.objects.all() if not com else Organizations.objects.filter(company=com)
             orgserializer = OrganizationShowSerializer(orgs, many=True)
             inventories = InventoryUpload.objects.all()
             serializer = InventoryUploadSerializer(inventories, many=True)
             base_data = BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).exclude(Entry_type="Master Account")
             vendors = Vendors.objects.all()
 
-            if request.user.designation.name == "Admin":
-                com = request.user.company
-                objs = Organizations.objects.filter(company=com)
-            else:
-                objs = Organizations.objects.all()
             return Response({"data" : serializer.data,
                              "orgs" : orgserializer.data,
                              "base_data" : showBaseDataSerializer(base_data, many=True).data,

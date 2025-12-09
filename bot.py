@@ -24,7 +24,7 @@ class BotClass:
         elif self.bot_type == "bill":
             allowed_tables = ["BaselineDataTable"]
         else:
-            allowed_tables = ["Company", "Organizations", "Vendors", "BaseDataTable", "UniquePdfDataTable"]
+            allowed_tables = ["Company", "Organizations", "Vendors", "BaseDataTable", "UniquePdfDataTable", "Requests", "AccessoriesRequest", "upgrade_device_request"]
         cursor = conn.cursor()
         schema_description = {}
         type_choices = [
@@ -139,7 +139,8 @@ class BotClass:
             if match:
                 sql = match.group(0).strip()
             return True, sql
-        except Exception:
+        except Exception as e:
+            print(e)
             return False, ""
         
     def get_general_sql_from_gemini(self,user_prompt, schema, chat_history):

@@ -137,3 +137,6 @@ def auto_width_excel(file_path, output_path=None):
 # cleaned = auto_width_excel(
 #     "Bills/media/ViewUploadedBills/836086478_January_2024_mArYUpU.xlsx",
 # )
+
+def has_field(model, field_name):
+    return field_name in [f.name for f in model._meta.get_fields()]

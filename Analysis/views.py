@@ -31,7 +31,7 @@ import zipfile
 import numpy as np
 from datetime import datetime
 import pandas as pd
-from addon import extract_data_from_zip
+from addon import extract_data_from_zip, has_field
 import json, os, zipfile
 import traceback
 
@@ -1632,11 +1632,12 @@ class BillTimeSeriesView(APIView):
 
 
 class RequestSummaryView(APIView):
-    def get(self, request):
-        qs = Requests.objects.select_related("vendor", "organization").all()
-        vendor = request.query_params.get("vendor")
-        org = request.query_params.get("organization")
-        request_type = request.query_params.get("request_type")
+    def _get_model_vise(self, request, query_table):
+        params = request.query_params
+        qs = query_table.objects.select_related("vendor", "organization").all()
+        vendor = params.get("vendor")
+        org = params.get("organization")
+        request_type = params.get("request_type")
 
 
         userOrg = request.user.organization
@@ -1663,10 +1664,10 @@ class RequestSummaryView(APIView):
         raw = (
             qs.exclude(status__isnull=True)
               .exclude(status__exact="")
-              .values("status")
+              .values("authority_status")
               .annotate(count=Count("id"))
         )
-        by_status = {row["status"].strip(): row["count"] for row in raw if row["status"]}
+        by_status = {row["authority_status"].strip(): row["count"] for row in raw if row["authority_status"]}
 
         request_status = [
             {"status": s, "count": by_status.get(s, 0)}
@@ -1680,8 +1681,7 @@ class RequestSummaryView(APIView):
         vendor_breakdown = (
             qs.values("vendor__name").annotate(count=Count("id")).order_by("-count")[:8]
         )
-
-        data = {
+        return {
             "total_requests": total,
             "pending_requests": pending,
             "approved_requests": approved,
@@ -1699,7 +1699,8 @@ class RequestSummaryView(APIView):
             # 👇 this is what your chart should bind to
             "request_status": request_status,
         }
-        return Response(data)
+    def get(self, request):
+        return Response({"request_management":self._get_model_vise(request, Requests), "accessories_requests":self._get_model_vise(request, AccessoriesRequest), "device_upgrade_requests":self._get_model_vise(request, upgrade_device_request)})
 
 
 
@@ -1826,7 +1827,7 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from OnBoard.Ban.models import BaselineDataTable
-from Dashboard.ModelsByPage.Req import Requests, TrackingInfo
+from Dashboard.ModelsByPage.Req import Requests, TrackingInfo, upgrade_device_request, AccessoriesRequest
 
 
 def _parse_category_object(value):
@@ -2001,35 +2002,36 @@ class BaselineAnalyticsView(APIView):
 
 
 class RequestsAnalyticsView(APIView):
-    def get(self, request):
-        requester_id = request.query_params.get("requester_id")
-
-        qs = Requests.objects.all()
+    def _request_management(self, params, query_table):
+        requester_id = params.get("requester_id")
+        qs = query_table.objects.all()
         if requester_id:
-            qs = qs.filter(requester_id=requester_id)
-
+            if has_field(query_table, "raised_by"):
+                qs = qs.filter(raised_by_id=requester_id)
+            elif has_field(query_table, "requester"):
+                qs = qs.filter(requester_id=requester_id)
+            else:qs=qs
         total_requests = qs.count()
-        pending = qs.filter(status__iexact="Pending").count()
-        completed = qs.filter(status__iexact="Completed").count()
+        pending = qs.filter(authority_status__iexact="Pending").count()
+        completed = qs.filter(authority_status__iexact="Completed").count()
 
         by_type = (
             qs.values(label=Lower("request_type"))
             .annotate(count=Count("id"))
             .order_by("-count")
         )
+
         by_status = (
-            qs.values(label=Lower("status"))
+            qs.values(label=Lower("authority_status"))
             .annotate(count=Count("id"))
             .order_by("-count")
         )
 
         recent = (
             qs.order_by("-request_date")
-            .values("id", "request_type", "status", "user_name", "request_date")[:10]
+            .values("id", "request_type", "authority_status", "user_name", "request_date")[:10]
         )
-
-        return Response(
-            {
+        return {
                 "totals": {
                     "requests": total_requests,
                     "pending": pending,
@@ -2039,8 +2041,8 @@ class RequestsAnalyticsView(APIView):
                 "byStatus": list(by_status),
                 "recent": list(recent),
             },
-            status=status.HTTP_200_OK,
-        )
+    def get(self, request):
+        return Response({"request_management":self._request_management(request.query_params,query_table=Requests),"accessories_management": self._request_management(request.query_params,AccessoriesRequest), "upgrade_device":self._request_management(request.query_params,upgrade_device_request)},status=status.HTTP_200_OK)
 
 
 class TrackingAnalyticsView(APIView):

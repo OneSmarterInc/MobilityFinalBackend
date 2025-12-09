@@ -96,6 +96,8 @@ def get_vendor_summary_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Vendor Summary Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -146,6 +148,8 @@ def get_division_summary_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Division Summary Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -191,6 +195,8 @@ def get_base_bills_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Base Bills Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -227,6 +233,8 @@ def get_consolidated_bills_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Consolidated Bills Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -263,6 +271,8 @@ def get_highest_expense_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Highest Expense Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -335,6 +345,8 @@ def get_baseline_billing_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Baseline Billing Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -384,6 +396,8 @@ def get_location_level_bill_summary_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Location Level Bill Summary Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -426,6 +440,8 @@ def get_location_level_service_summary_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Location Level Summary Service Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -511,6 +527,8 @@ def get_invoice_tracking_report(request):
     print(response)
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Invoice Tracking Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -550,6 +568,8 @@ def get_cost_center_summary_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Cost Center Summary Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -587,6 +607,8 @@ def get_cost_center_detailed_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Cost Center Detailed Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -632,6 +654,8 @@ def get_out_of_variance_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Out of Service Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -703,6 +727,8 @@ def get_missing_bills_base_tem_report(request):
     print(response)
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Missing Bills Base T.E.M Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -770,6 +796,8 @@ def get_missing_bills_consolidated_tem_report(request):
     print(response)
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Missing Bills Consolidated T.E.M Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -804,6 +832,8 @@ def get_location_summary_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Location Summary Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -875,6 +905,8 @@ def get_duplicate_bills_base_tem_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Duplicate Bills Base T.E.M Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -916,6 +948,8 @@ def get_service_by_type_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Service by type Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1000,6 +1034,8 @@ def get_payment_detail_report(request):
     
     print(response)
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Payment Detail Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1080,6 +1116,8 @@ def get_mobile_bills_report(request):
     
     print(response)
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Mobile Bills Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1163,6 +1201,8 @@ def get_entered_bills_report(request):
 
     
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Entered Bills Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1199,6 +1239,8 @@ def get_organization_location_listing_report(request):
     response = [model_to_dict(item, exclude=["location_picture_1","location_picture_2","location_picture_3","location_picture_4"]) for item in filtered_data]
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Organization Location Listing", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1232,6 +1274,8 @@ def get_organization_location_report(request):
     # response = [model_to_dict(item, exclude=["location_picture_1","location_picture_2","location_picture_3","location_picture_4"]) for item in filtered_data]
     response = OrganizationLocationSerializer(filtered_data, many=True).data
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Organization Location Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1266,6 +1310,8 @@ def get_Inactive_location_report(request):
     response = [model_to_dict(item, exclude=["location_picture_1","location_picture_2","location_picture_3","location_picture_4", "created", "updated"]) for item in filtered_data]
     print(response)
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Inactive Location Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1299,6 +1345,8 @@ def get_filter_location_report(request):
     response = [model_to_dict(item, exclude=["location_picture_1","location_picture_2","location_picture_3","location_picture_4"]) for item in filtered_data]
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Filtered Location Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1338,6 +1386,8 @@ def get_ban_by_location_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Ban by Location Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1375,10 +1425,10 @@ def get_ban_by_vendor_report(request):
 
 
     response = [model_to_dict(item, fields=["id", "vendor", "ban", "location", "BillingName","BillingAdd", "BillingState", "BillingZip", "BillingCity", "BillingCountry", ]) for item in filtered_data]
-    print(response)
-
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Ban by vendor Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1412,6 +1462,8 @@ def get_Inactive_bans_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Inactive bans Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1446,6 +1498,8 @@ def get_asset_tracking_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Asset tracking Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1482,6 +1536,8 @@ def get_asset_transactions_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Asset transactions Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1516,6 +1572,8 @@ def get_outstanding_loaners_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Outstanding loaners Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1550,6 +1608,8 @@ def get_order_tracking_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Order tracking Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1584,6 +1644,8 @@ def get_contact_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Contact Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1615,6 +1677,8 @@ def get_ban_autopay_listing_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Ban autopay listing Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1649,6 +1713,8 @@ def get_phone_list_byOrg_report(request):
 
 
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Phone list by organization Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(
@@ -1688,6 +1754,8 @@ def get_inventory_report(request):
 
     if response:print(response[0])
     if is_download:
+        if len(response) == 0:
+            return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
         reportObj = GenerateExcelReport(report_name="Inventory Report", data=response)
         report, report_name = reportObj._generate()
         Fileresponse = HttpResponse(

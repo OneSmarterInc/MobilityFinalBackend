@@ -322,11 +322,16 @@ class VendorInformation(models.Model):
         ]
 
 class upgrade_device_request(models.Model):
+    organization = models.ForeignKey(Organizations, related_name="upgrade_reuqest_organizations", null=True,on_delete=models.CASCADE)
+    vendor = models.ForeignKey(Vendors, related_name="upgrade_reuqest_vendors", null=True,on_delete=models.CASCADE)
     raised_by = models.ForeignKey(PortalUser, on_delete=models.CASCADE, related_name="upgrade_device_by_user")
     sub_company = models.ForeignKey(Organizations, on_delete=models.CASCADE,null=False,related_name="sub_company_upgrade_request")
     wireless_number = models.CharField(max_length=15, null=False)
     device_type = models.CharField(max_length=255, null=True, blank=True)
     manufacturer = models.CharField(max_length=255, null=True, blank=True)
+    user_name = models.CharField(max_length=255, null=True, blank=True)
+    request_type = models.CharField(max_length=255,default="upgrade_device_request")
+    request_date = models.DateTimeField(default=timezone.now, null=True, blank=True)
     model = models.CharField(max_length=255, null=True, blank=True)
     os = models.CharField(max_length=255, null=True, blank=True)
     color = models.CharField(max_length=255, null=True, blank=True)
@@ -352,13 +357,17 @@ class upgrade_device_request(models.Model):
 
     class Meta:
         db_table = 'upgrade_device_request'
+    def save(self, *args, **kwargs):
+        if self.raised_by:
+            self.user_name = self.raised_by.username  # auto-set
+        super().save(*args, **kwargs)
 
 
     
 class AccessoriesRequest(models.Model):
     organization = models.ForeignKey(Organizations, related_name="acc_reuqest_organizations", null=False,on_delete=models.CASCADE)
     requester = models.ForeignKey(PortalUser, related_name="acc_reuqest_users", null=False,on_delete=models.CASCADE)
-
+    user_name = models.CharField(max_length=255, null=True, blank=True)
     REQUEST_CHOICES = [
         ("Order", "Order"),
         ("Replace", "Replace"),
@@ -438,3 +447,7 @@ class AccessoriesRequest(models.Model):
 
     class Meta:
         db_table = 'AccessoriesRequest'
+    def save(self, *args, **kwargs):
+        if self.requester:
+            self.user_name = self.requester.username 
+        super().save(*args, **kwargs)
