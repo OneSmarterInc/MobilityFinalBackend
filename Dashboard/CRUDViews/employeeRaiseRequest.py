@@ -81,7 +81,7 @@ class DeviceUpgradeView(APIView):
         if not obj:
             return Response({"message": "Request not found!"},status=status.HTTP_400_BAD_REQUEST)
         obj.update(**data)
-        return Response({"message":"Request approved successfully!"},status=status.HTTP_200_OK)
+        return Response({"message":"Request status updated successfully!"},status=status.HTTP_200_OK)
     
     def delete(self, request, pk, *args, **kwargs):
         obj = upgrade_device_request.objects.filter(id=pk).first()

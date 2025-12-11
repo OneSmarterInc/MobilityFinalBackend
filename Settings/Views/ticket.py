@@ -12,8 +12,10 @@ class TicketView(APIView):
     def get(self, request):
         # Placeholder for getting tickets
         tickets = Ticket.objects.all()  
+        user = request.user
         if request.GET.get('action') == "get-user-emails":
-            user_emails = PortalUser.objects.all().exclude(is_staff=True)
+            user_emails = PortalUser.objects.filter(organization=user.organization) if user.organization else PortalUser.objects.filter(company=user.company)
+            user_emails = user_emails.exclude(is_staff=True)
             user_emails = PortalUserSerializer(user_emails, many=True).data
             return Response({"emails": user_emails}, status=status.HTTP_200_OK)
 

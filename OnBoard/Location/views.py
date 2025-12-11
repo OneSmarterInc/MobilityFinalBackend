@@ -169,7 +169,7 @@ class LocationBulkUpload(APIView):
             data = request.data
             print(data)
             division = data.get('division')
-            div_obj = Division.objects.filter(name=division).first()
+            div_obj = Division.objects.filter(id=division).first()
             mapping = parse_until_dict(data.get('mapping'))
             mapping_inverted = {v: k for k, v in mapping.items()}
 
