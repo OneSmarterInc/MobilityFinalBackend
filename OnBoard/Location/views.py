@@ -79,8 +79,13 @@ class LocationView(APIView):
 
         try:
             request_data = request.data.copy()
-            division_name = request_data.pop('division', None)
-            division = Division.objects.filter(name=division_name, organization=location.organization)
+
+            division_id_name = request_data.get('division', None)
+            request_data.pop('division')
+            print(division_id_name)
+            divisionObj = Division.objects.filter(organization=location.organization)
+            division = divisionObj.filter(id=division_id_name)
+            if not division: division = divisionObj.filter(name=division_id_name)
 
             # --- Capture Original Data ---
             original_data = {
@@ -93,8 +98,7 @@ class LocationView(APIView):
             for key, value in request_data.items():
                 setattr(location, key, value[0] if isinstance(value, list) else value)
 
-            if division.exists():
-                location.division = division[0]
+            if division.exists(): location.division = division.first()
 
             location.save()
 

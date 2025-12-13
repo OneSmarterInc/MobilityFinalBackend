@@ -96,8 +96,7 @@ class BotClass:
             response = self.query_model.generate_content(prompt)
             raw_sql = response.text or ""
             return True, raw_sql
-        except Exception as e:
-            print(e)
+        except Exception:
             return False, ""
         
     def get_view_sql_from_gemini(self,user_prompt, schema,bill_type=None, special_id=None, chathistory=None):

@@ -201,5 +201,5 @@ class DivisionNameSerializer(serializers.ModelSerializer):
     name = serializers.CharField(max_length=255)
     class Meta:
         model = Division
-        fields = ('name',)
+        fields = ('name','id')
     

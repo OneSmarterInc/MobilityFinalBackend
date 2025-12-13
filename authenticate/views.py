@@ -9,6 +9,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 from .models import PortalUser, UserLogs
 from OnBoard.Organization.models import Organizations
+from OnBoard.Ban.models import UniquePdfDataTable
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 from rest_framework.decorators import api_view, permission_classes
 class RegisterView(APIView):
@@ -70,10 +71,13 @@ class LoginView(APIView):
 
         # print(password,check_password(password, user.temp_password))
         temp_check = check_password(password, user.temp_password) if user and user.temp_password else False
-
+        inventory = UniquePdfDataTable.objects.filter()
         if user and user.check_password(password):
-            # if user.last_login and temp_check:
-            #     return Response({"message": "You must change your password using the 'Forgot Password' option before logging in."}, status=status.HTTP_400_BAD_REQUEST)
+            inventory = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(wireless_number=user.mobile_number).first()
+            if inventory and not inventory.User_status.lower() == "active":
+                return Response({"message": "Authentication error: You are no longer an active user."},status=status.HTTP_400_BAD_REQUEST)
+            if user.last_login and temp_check:
+                return Response({"message": "You must change your password using the 'Forgot Password' option before logging in."}, status=status.HTTP_400_BAD_REQUEST)
 
             login(request, user)
             refresh = RefreshToken.for_user(user)
