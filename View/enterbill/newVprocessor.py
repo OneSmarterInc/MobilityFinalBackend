@@ -589,7 +589,6 @@ class ProcessPdf2:
             onboarded = BaseDataTable.objects.filter(viewuploaded=None,viewpapered=None).filter(sub_company=self.sub_company, vendor=self.vendor_name, accountnumber=self.account_number).first()
             onboarded_id = onboarded.banOnboarded
             baseinstance = self.base_data_table(basic_data)
-            print(onboarded.variance)
             baseinstance.variance = onboarded.variance
             baseinstance.save()
             bill_main_id = baseinstance.viewuploaded.id
@@ -602,8 +601,8 @@ class ProcessPdf2:
             self.reflect_baselinetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id)
             self.reflect_uniquetable_non_bill_data(bill_main_id=bill_main_id, onboarded_id=onboarded_id)
             
-            self.add_tag_to_dict(bill_main_id, onboarded.variance)
-            self.check_total_under_variance(bill_main_id=bill_main_id, variance=onboarded.variance)
+            self.add_tag_to_dict(bill_main_id, baseinstance.variance)
+            self.check_total_under_variance(bill_main_id=bill_main_id, variance=baseinstance.variance)
             self.check_baseline_approved(UniquePdfDataTable, bill_main_id)
             self.check_baseline_approved(BaselineDataTable, bill_main_id)
 

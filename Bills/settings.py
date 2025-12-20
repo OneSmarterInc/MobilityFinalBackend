@@ -51,7 +51,7 @@ OTHER_DEPENDIES = [
 MY_APPS = [
     'background_task',
     "authenticate.apps.AuthenticateConfig",
-    'Dashboard',
+    'Dashboard.apps.DashboardConfig',
     'Inventory',
     'Analysis',
     'View.apps.ViewConfig',

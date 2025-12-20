@@ -6,7 +6,7 @@ from authenticate.views import saveuserlog
 from rest_framework.permissions import IsAuthenticated
 from OnBoard.Organization.models import Organizations
 from OnBoard.Ban.models import UploadBAN, BaseDataTable, UniquePdfDataTable, BaselineDataTable, OnboardBan
-from .ser import showOrganizationSerializer, showBanSerializer, vendorshowSerializer, basedatahowSerializer, paytypehowSerializer, uniquepdftableSerializer, BaselinedataSerializer, BaselineDataTableShowSerializer, showaccountbasetable, BaselineWithOnboardedCategorySerializer,showbaselinenotesSerializer, viewbillsSerializer
+from .ser import showOrganizationSerializer, showBanSerializer, vendorshowSerializer, basedatahowSerializer, paytypehowSerializer, uniquepdftableSerializer, BaselinedataSerializer, BaselineDataTableShowSerializer, showaccountbasetable, BaselineWithOnboardedCategorySerializer,showbaselinenotesSerializer, viewbillsSerializer, rawdataserializer
 from Dashboard.ModelsByPage.DashAdmin import Vendors, PaymentType
 from ..models import ViewUploadBill, PaperBill
 from Batch.views import create_notification
@@ -30,11 +30,15 @@ class ViewBill(APIView):
         baseaccounts = showaccountbasetable(BaseDataTable.objects.filter(sub_company=org).filter(viewuploaded=None, viewpapered=None), many=True)
         billMainObjs = viewbillsSerializer(ViewUploadBill.objects.filter(organization=orgObj), many=True)
         basedata = basedatahowSerializer(BaseDataTable.objects.filter(sub_company=org).filter(banOnboarded=None,banUploaded=None), many=True)
+
+        raw_data = rawdataserializer(ViewUploadBill.objects.filter(organization=orgObj), many=True)
+
         return Response({
             "basedata" : basedata.data if basedata else None,
             "paytypes" : paytypes.data,
             "uniquedata" : uniquedata.data if uniquedata else None,
             "baseaccounts": baseaccounts.data if baseaccounts else None,
+            "raw_data":raw_data.data,
             "uploaded_bills_objects": billMainObjs.data if billMainObjs else None
         }, status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
@@ -128,10 +132,9 @@ class ViewBillBaseline(APIView):
     def put(self, request, pk, *args, **kwargs):
         
         try:
-            obj = BaselineDataTable.objects.filter(id=pk)
+            obj = BaselineDataTable.objects.filter(id=pk).first()
         except BaselineDataTable.DoesNotExist:
             return Response({"message": "Baseline Data not found"}, status=status.HTTP_404_NOT_FOUND)
-        obj = obj[0]
         action = request.GET.get('action') or request.data.get('action')
         if action == "update-category":
             cat = request.data.get('category')

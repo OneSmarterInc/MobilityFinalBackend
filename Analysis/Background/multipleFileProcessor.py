@@ -24,6 +24,8 @@ from addon import extract_data_from_zip
 from .savingspdf import create_savings_pdf
 from datetime import datetime
 from authenticate.views import create_notification
+from django.db.models import Q
+
 from authenticate.models import PortalUser
 from OnBoard.Company.models import Company
 class MultipleFileProcessor:
@@ -691,9 +693,30 @@ class MultipleFileProcessor:
                 recommended_plan_charges=row["recommended_plan_charges"] if pd.notna(row["recommended_plan_charges"]) else None,
                 recommended_plan_savings=row["recommended_plan_savings"] if pd.notna(row["recommended_plan_savings"]) else None,
             )
-        savings=AnalysisData.objects.filter(multiple_analysis=self.instance).exclude(recommended_plan="").values("user_name", "wireless_number", "current_plan", "current_plan_charges", "current_plan_usage", "recommended_plan", "recommended_plan_charges", "recommended_plan_savings")
-        df = pd.DataFrame(list(savings))
-        return df
+        print("loop end")
+        COLUMNS = [
+            "user_name",
+            "wireless_number",
+            "current_plan",
+            "current_plan_charges",
+            "current_plan_usage",
+            "recommended_plan",
+            "recommended_plan_charges",
+            "recommended_plan_savings",
+        ]
+
+        savings_qs = (
+            AnalysisData.objects
+            .filter(multiple_analysis=self.instance)
+            .exclude(Q(recommended_plan__isnull=True) | Q(recommended_plan=""))
+            .values(*COLUMNS)
+        )
+
+        if not savings_qs.exists():
+            # Return empty DF WITH headers — intentional, explicit
+            return pd.DataFrame(columns=COLUMNS)
+
+        return pd.DataFrame.from_records(savings_qs, columns=COLUMNS)
             
 
         
@@ -838,7 +861,7 @@ class MultipleFileProcessor:
 
             merged_df = merged_df.drop(columns=['Bill Date', 'Wireless Number'])
             savings_df=self.add_data_to_db(merged_df)
-
+            print("added to db")
             # generate savings pdf
 
             pdf = create_savings_pdf(savings_df, self.account_number, formatted_dates)

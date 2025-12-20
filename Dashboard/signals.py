@@ -11,7 +11,7 @@ from Dashboard.ModelsByPage.Req import Requests, upgrade_device_request, Accesso
 from sendmail import send_custom_email
 
 @receiver(post_save, sender=upgrade_device_request)
-def send_upgrade_device_status(sender, instance, created, **kwargs):
+def send_upgrade_device_status(instance, created, **kwargs):
     try:
         requester = instance.raised_by
         requester_mail = requester.email
@@ -20,8 +20,8 @@ def send_upgrade_device_status(sender, instance, created, **kwargs):
             organization=requester.organization,
             designation__name__in=["Client Admin"]
         )
-        print(admins.values_list("email", flat=True))
         requester_org = instance.sub_company.Organization_name
+        
         if created:
             sub = f"Request to upgrade device created"
             msg = (
@@ -32,6 +32,7 @@ def send_upgrade_device_status(sender, instance, created, **kwargs):
                 f"The {requester_org} Support Team"
             )
         else:
+           
             if instance.status == "Rejected":
                 sub = f"Request Rejected"
                 msg = (
@@ -52,11 +53,18 @@ def send_upgrade_device_status(sender, instance, created, **kwargs):
                     f"The {requester_org} Support Team"
                 )
 
-            elif instance.authority_status == "Completed":
-                sub = f"Request Completed by Authority"
+            if instance.authority_status == "Completed":
+                employee = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(sub_company=requester_org, wireless_number=requester.mobile_number).first()
+                new_date = instance.new_upgrade_date
+                employee.upgrade_eligible_date = new_date
+                employee.save()
+                sub = "Request Completed by Authority"
                 msg = (
-                    f"Dear {instance.requester.first_name},\n\n"
-                    f"We are pleased to inform you that your request to upgrade your device has been completed and verified by the company authority.\n\n"
+                    f"Dear {requester.first_name},\n\n"
+                    f"We are pleased to inform you that your request to upgrade your device "
+                    f"has been completed and verified by the company authority.\n\n"
+                    f"Please note that the upgraded device is valid until {new_date.strftime("%d %B %Y")}. "
+                    f"You will not be able to raise a new upgrade request before this date.\n\n"
                     f"Thank you for your patience and cooperation.\n\n"
                     f"Regards,\n"
                     f"The {requester_org} Support Team"
@@ -84,7 +92,6 @@ def send_upgrade_device_status(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=Requests)
 def send_mail(sender, instance, created, **kwargs):
-
     try:
         requester = instance.requester
         requester_mail = requester.email
@@ -93,17 +100,18 @@ def send_mail(sender, instance, created, **kwargs):
             organization=requester.organization,
             designation__name__in=["Client Admin"]
         )
-        print(admins.values_list("email", flat=True))
         requester_org = instance.organization.Organization_name
 
         if created:
             sub = f"Request Created: {instance.request_type}"
             msg = (
                 f"Dear {requester.first_name},\n\n"
-                f"Your request for {instance.request_type} has been successfully created and submitted to {requester_org} for review.\n\n"
-                f"Our team will notify you once it has been reviewed by your organization or approved by the authority.\n\n"
-                f"Best regards,\n"
-                f"The {requester_org} Support Team"
+                f"This is to confirm that your request for **{instance.request_type}** "
+                f"has been successfully created and submitted to **{requester_org}** for review.\n\n"
+                f"You will be notified once the request has been reviewed and further action is taken.\n\n"
+                f"Regards,\n"
+                f"{requester_org} Support Team\n\n"
+                f"Note: This is an automated system-generated email. Please do not reply."
             )
 
         else:
@@ -111,41 +119,51 @@ def send_mail(sender, instance, created, **kwargs):
                 sub = f"Request Rejected: {instance.request_type}"
                 msg = (
                     f"Dear {requester.first_name},\n\n"
-                    f"Your request for {instance.request_type} has been rejected by your organization ({requester_org}).\n\n"
-                    f"If you believe this was in error, please contact your organization administrator for clarification.\n\n"
+                    f"We regret to inform you that your request for **{instance.request_type}** "
+                    f"has been rejected by **{requester_org}**.\n\n"
+                    f"For further clarification or corrective action, please contact your organization administrator.\n\n"
                     f"Regards,\n"
-                    f"The {requester_org} Support Team"
+                    f"{requester_org} Support Team\n\n"
+                    f"Note: This is an automated system-generated email. Please do not reply."
                 )
 
             elif instance.status == "Approved":
-                sub = f"Request Approved by Organization: {instance.request_type}"
+                sub = f"Request Approved: {instance.request_type}"
                 msg = (
                     f"Dear {requester.first_name},\n\n"
-                    f"Good news! Your request for {instance.request_type} has been approved by your organization ({requester_org}).\n\n"
-                    f"It will now be processed and verified by the company authority for final completion.\n\n"
+                    f"We are pleased to inform you that your request for **{instance.request_type}** "
+                    f"has been approved by **{requester_org}**.\n\n"
+                    f"The request has now been forwarded to the company authority for final processing "
+                    f"and verification.\n\n"
                     f"Regards,\n"
-                    f"The {requester_org} Support Team"
+                    f"{requester_org} Support Team\n\n"
+                    f"Note: This is an automated system-generated email. Please do not reply."
                 )
 
             elif instance.authority_status == "Completed":
-                sub = f"Request Completed by Authority: {instance.request_type}"
+                sub = f"Request Completed: {instance.request_type}"
                 msg = (
-                    f"Dear {instance.requester.first_name},\n\n"
-                    f"We are pleased to inform you that your request for {instance.request_type} has been completed and verified by the company authority.\n\n"
-                    f"Thank you for your patience and cooperation.\n\n"
+                    f"Dear {requester.first_name},\n\n"
+                    f"We are pleased to inform you that your request for **{instance.request_type}** "
+                    f"has been successfully completed and verified by the company authority.\n\n"
+                    f"No further action is required at this time.\n\n"
                     f"Regards,\n"
-                    f"The {requester_org} Support Team"
+                    f"{requester_org} Support Team\n\n"
+                    f"Note: This is an automated system-generated email. Please do not reply."
                 )
                 if admins:
                     msg = (
                         f"Dear {requester_org} Team,\n\n"
                         f"This is to inform you that the request submitted by **{requester_name}** "
-                        f"for **{instance.request_type}** has been successfully **completed and verified by the company authority**.\n\n"
-                        f"Please review the request details in your dashboard if any further action or acknowledgment is required.\n\n"
-                        f"Best regards,\n"
-                        f"The Company Authority\n"
-                        f"(Automated Notification)"
+                        f"for **{instance.request_type}** has been successfully completed and "
+                        f"verified by the company authority.\n\n"
+                        f"Please review the request details in the administrative dashboard "
+                        f"if any follow-up or acknowledgment is required.\n\n"
+                        f"Regards,\n"
+                        f"Company Authority\n\n"
+                        f"Note: This is an automated system-generated email."
                     )
+
                     send_custom_email(to=list(admins.values_list("email", flat=True)), subject=sub, body_text=msg, company=instance.organization.company.Company_name)
 
             else:
@@ -159,7 +177,6 @@ def send_mail(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=AccessoriesRequest)
 def Accessories_mail_sender(sender, instance, created, **kwargs):
-
     try:
         requester = instance.requester
         requester_mail = requester.email
@@ -168,8 +185,8 @@ def Accessories_mail_sender(sender, instance, created, **kwargs):
             organization=requester.organization,
             designation__name__in=["Client Admin"]
         )
-        print(admins.values_list("email", flat=True))
         requester_org = instance.organization.Organization_name
+        
 
         if created:
             sub = f"Request Created: {instance.request_type}"
@@ -231,12 +248,6 @@ def Accessories_mail_sender(sender, instance, created, **kwargs):
     except Exception as e:
         print(e)
 
-@receiver(post_save, sender=Vendors)
-def print_vendor_created(sender, instance, created, **kwargs):
-    if created:
-        print("Vendor created successfully:", instance.name, instance.created)
-        print(type(instance))
-
 
 from .ModelsByPage.Req import Requests, TrackingInfo
 
@@ -244,7 +255,6 @@ from .ModelsByPage.Req import Requests, TrackingInfo
 def make_tracking_info(sender, instance,created,**kwargs):
     if created and ("cancel" in instance.request_type.lower()) or ("upgrade" in instance.request_type.lower()) :
         TrackingInfo.objects.create(request=instance)
-        print("tracking created!!")
 
 @receiver(post_save,sender=BaselineDataTable)
 def add_to_baselinemodel(sender, instance, created, **kwargs):

@@ -133,6 +133,11 @@ class Requests(models.Model):
 
     authority_status = models.CharField(max_length=255, default="Pending")
     created = models.DateTimeField(auto_now_add=True, null=True)
+
+    employee_remark = models.TextField(null=True, blank=True)
+    client_admin_remark = models.TextField(null=True, blank=True)
+    portal_admin_remark = models.TextField(null=True, blank=True)
+
     updated= models.DateTimeField(auto_now=True,null=True)
 
 
@@ -345,12 +350,15 @@ class upgrade_device_request(models.Model):
     tablet = models.CharField(max_length=255, null=True, blank=True)
     wearables = models.CharField(max_length=255, null=True, blank=True)
     device_type = models.CharField(max_length=255, null=True, blank=True)
-    new_upgrade_date = models.CharField(max_length=255, null=True, blank=True)
+    new_upgrade_date = models.DateField(null=True, blank=True)
     amount = models.CharField(max_length=255, null=True, blank=True)
     status = models.CharField(default="Pending", max_length=255)
     authority_status = models.CharField(max_length=255, default="Pending")
     date_completed = models.DateTimeField(null=True, blank=True)
 
+    employee_remark = models.TextField(null=True, blank=True)
+    client_admin_remark = models.TextField(null=True, blank=True)
+    portal_admin_remark = models.TextField(null=True, blank=True)
 
     created = models.DateTimeField(auto_now_add=True, null=True)
     updated= models.DateTimeField(auto_now=True,null=True)
@@ -441,6 +449,10 @@ class AccessoriesRequest(models.Model):
     date_completed = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=255, null=True, blank=True, default="Pending")
     authority_status = models.CharField(max_length=255, default="Pending")
+
+    employee_remark = models.TextField(null=True, blank=True)
+    client_admin_remark = models.TextField(null=True, blank=True)
+    portal_admin_remark = models.TextField(null=True, blank=True)
 
     created = models.DateTimeField(auto_now_add=True, null=True)
     updated= models.DateTimeField(auto_now=True,null=True)

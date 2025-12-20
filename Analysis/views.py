@@ -1437,7 +1437,7 @@ def try_parse_due_date(raw):
 
 class BillSummaryView(APIView):
     def get(self, request):
-        qs = apply_common_filters(BaseDataTable.objects.all(), request)
+        qs = apply_common_filters(BaseDataTable.objects.exclude(viewuploaded=None, viewpapered=None), request)
         today = date.today()
 
         total_bills = 0
@@ -1595,7 +1595,7 @@ class BillTotalsView(APIView):
 
 class BillStatusBreakdownView(APIView):
     def get(self, request):
-        qs = apply_common_filters(BaseDataTable.objects.all(), request)
+        qs = apply_common_filters(BaseDataTable.objects.exclude(viewuploaded=None, viewpapered=None), request)
         batch = defaultdict(int)
         ban = defaultdict(int)
 
@@ -1653,8 +1653,8 @@ class RequestSummaryView(APIView):
         total = qs.count()
         pending = qs.filter(status__iexact="Pending").count()
         approved = qs.filter(status__iexact="Approved").count()
-        completed = qs.filter(status__iexact="Completed").count()
-        cancelled = qs.filter(status__iexact="Cancelled").count()
+        completed = qs.filter(authority_status__iexact="Completed").count()
+        cancelled = qs.filter(status__iexact="Rejected").count()
 
         last_7_days = qs.filter(created__gte=timezone.now() - timedelta(days=7)).count()
         last_30_days = qs.filter(created__gte=timezone.now() - timedelta(days=30)).count()
@@ -2014,6 +2014,7 @@ class RequestsAnalyticsView(APIView):
         total_requests = qs.count()
         pending = qs.filter(authority_status__iexact="Pending").count()
         completed = qs.filter(authority_status__iexact="Completed").count()
+        rejected = qs.filter(status__iexact="Rejected").count()
 
         by_type = (
             qs.values(label=Lower("request_type"))
@@ -2036,6 +2037,7 @@ class RequestsAnalyticsView(APIView):
                     "requests": total_requests,
                     "pending": pending,
                     "completed": completed,
+                    "rejected":rejected
                 },
                 "byType": list(by_type),
                 "byStatus": list(by_status),
@@ -2085,7 +2087,7 @@ from django.forms.models import model_to_dict
 @api_view(["GET"])
 # @permission_classes([IsAuthenticated])
 def get_unapproved_bills(request, org, *args, **kwargs):
-    unapproved_bills = BaseDataTable.objects.exclude(viewuploaded=None).filter(viewpapered=None).filter(sub_company=org,is_baseline_approved=False)
+    unapproved_bills = BaseDataTable.objects.exclude(viewuploaded=None).filter(viewpapered=None).filter(sub_company=org).exclude(batch_approved="Approved")
     response = [model_to_dict(item, fields=["id", "bill_date", "accountnumber", "invoicenumber", "sub_company", "net_amount", "vendor"]) for item in unapproved_bills]
     return Response({"count":len(unapproved_bills), "data":response},status=status.HTTP_200_OK)
 

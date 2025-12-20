@@ -39,6 +39,7 @@ class AccessoryRequestView(APIView):
                     all_objs = AccessoriesRequest.objects.filter(organization=request.user.organization)
                 else:
                     all_objs = AccessoriesRequest.objects.filter(requester=request.user)
+            
             ser = ShowaccessoriesRequestSer(all_objs, many=True)
         return Response({"data":ser.data},status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
@@ -83,8 +84,9 @@ class AccessoryRequestView(APIView):
         ser = SaveaccessoriesRequestSer(obj, data=data,partial=True)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, f"{data["request_type"]} Request for wireless number {data["line_of_service"]} updated.")
-            create_notification(request.user, f"{data["request_type"]} Request for wireless number {data["line_of_service"]} updated.",request.user.company)
+            data = ser.data
+            saveuserlog(request.user, f"following fields of {data["request_type"]} Request for wireless number {data["line_of_service"]} updated.")
+            # create_notification(request.user, f"{data["request_type"]} Request for wireless number {data["line_of_service"]} updated.",request.user.company)
             return Response({"message":"Request updated successfully!"},status=status.HTTP_200_OK)
         
         else:
@@ -99,7 +101,7 @@ class AccessoryRequestView(APIView):
             line = re.line_of_service
             re.delete()
             saveuserlog(request.user, f"{R_type} Request for wireless number {line} deleted.")
-            create_notification(request.user, f"{R_type} Request for wireless number {line} deleted.",request.user.company)
+            # create_notification(request.user, f"{R_type} Request for wireless number {line} deleted.",request.user.company)
             return Response({"message": "Request deleted successfully!"}, status=status.HTTP_200_OK)
         except AccessoriesRequest.DoesNotExist:
             return Response({"message": "request does not exist"}, status=status.HTTP_400_BAD_REQUEST)

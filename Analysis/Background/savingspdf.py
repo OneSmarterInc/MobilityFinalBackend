@@ -35,8 +35,9 @@ def add_header_footer(canvas_obj, doc):
 
 
 def create_savings_pdf(df, acc, bill_dates):
+    print("creating savings pdf")
     buffer = io.BytesIO()
-
+    print(df.columns)
     # Replace None with 0 for numeric columns to prevent errors
     df["recommended_plan_savings"] = df["recommended_plan_savings"].fillna(0)
     df["recommended_plan_charges"] = df["recommended_plan_charges"].fillna(0)
@@ -54,9 +55,15 @@ def create_savings_pdf(df, acc, bill_dates):
     styles = getSampleStyleSheet()
 
     # ---- Metadata summary ----
-    max_savings = df["recommended_plan_savings"].max()
-    avg_savings = df["recommended_plan_savings"].mean()
-    avg_current_charges = df.get("current_plan_charges", pd.Series([0])).mean()
+    if df.empty:
+        max_savings = 0
+        avg_savings = 0
+        avg_current_charges = 0
+    else:
+        max_savings = df["recommended_plan_savings"].max()
+        avg_savings = df["recommended_plan_savings"].mean()
+        avg_current_charges = df.get("current_plan_charges", pd.Series([0])).mean()
+        
 
     avg_savings_percent = 0 if avg_current_charges is 0 else (avg_savings / avg_current_charges) * 100
     

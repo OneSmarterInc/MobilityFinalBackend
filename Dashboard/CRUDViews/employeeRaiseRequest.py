@@ -77,11 +77,16 @@ class DeviceUpgradeView(APIView):
 
     def put(self, request, pk, *args, **kwargs):
         data = request.data
-        obj = upgrade_device_request.objects.filter(id=pk)
+        obj = upgrade_device_request.objects.filter(id=pk).first()
         if not obj:
             return Response({"message": "Request not found!"},status=status.HTTP_400_BAD_REQUEST)
-        obj.update(**data)
-        return Response({"message":"Request status updated successfully!"},status=status.HTTP_200_OK)
+        ser = SaveUpgradeDeviceRequestSerializer(obj, data=data, partial=True)
+        if ser.is_valid():
+            ser.save()
+            return Response({"message":"Request updated successfully!"},status=status.HTTP_200_OK)
+        else:
+            return Response({"message": "Unable to update request!"},status=status.HTTP_400_BAD_REQUEST)
+        
     
     def delete(self, request, pk, *args, **kwargs):
         obj = upgrade_device_request.objects.filter(id=pk).first()
