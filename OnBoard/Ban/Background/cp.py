@@ -2,7 +2,7 @@ import pandas as pd
 import json
 import time
 from ..models import PdfDataTable, BaseDataTable, UniquePdfDataTable, BaselineDataTable, PortalInformation
-import re
+import re, math
 from Batch.views import create_notification
 from OnBoard.Company.models import Company
 from authenticate.models import PortalUser
@@ -127,6 +127,7 @@ class ProcessCSVOnboard:
             plan = item.get("Plan_name")
             monthly_charges = item.get("monthly_charges")
             item["category_object"] = self.create_category_object(plan, monthly_charges)
+            print("object created")
         # Bulk insert into UniquePDFDataTable
         UniquePdfDataTable.objects.bulk_create([UniquePdfDataTable(banOnboarded=self.instance,**item) for item in df_csv_dict])
         print("Data added to UniquePdfDataTable")
@@ -157,26 +158,36 @@ class ProcessCSVOnboard:
 
     def create_category_object(self, plan, monthly_charges):
         res = {}
+
+        # HARD GUARD — no regex on non-strings
+        if (
+            plan is None
+            or isinstance(plan, float) and math.isnan(plan)
+            or not isinstance(plan, str)
+            or not plan.strip()
+        ):
+            return json.dumps(res)
+
         matches = list(re.finditer(r'\$(\d*\.?\d+)', plan))
 
         if matches:
             for i, match in enumerate(matches):
                 amount = float(match.group(1))
 
-                # Determine description boundaries
-                start = matches[i-1].end() if i > 0 else 0
+                start = matches[i - 1].end() if i > 0 else 0
                 end = match.start()
 
                 desc = plan[start:end].strip().upper()
-
-                # Remove leading/trailing garbage words
                 desc = re.sub(r'^\d[\d\.]*\s*', '', desc).strip()
+
+                # Don’t allow empty keys
+                if not desc:
+                    desc = "BASE PLAN"
 
                 res[desc] = amount
         else:
-            res[plan] = monthly_charges
+            res[plan.upper()] = monthly_charges
 
-        # Wrap inside Monthly Charges
         return json.dumps({"Monthly Charges": res})
 
 

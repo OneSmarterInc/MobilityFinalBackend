@@ -365,7 +365,7 @@ class BaseDataTable(models.Model):
     
     plans = models.CharField(max_length=255, blank=True, null=True, default="")
 
-    BillingCurrency = models.CharField(max_length=255, null=True, blank=True)
+    BillingCurrency = models.CharField(max_length=255, default="USD")
     
     charges = models.CharField(max_length=255, blank=True, null=True, default="")
     RemittanceAdd = models.CharField(max_length=255, blank=True, null=True, default="")

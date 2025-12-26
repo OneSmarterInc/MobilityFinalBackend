@@ -97,7 +97,7 @@ class UploadBANView(APIView):
         
         return mutable_data, lines
     def post(self, request):
-        ban = UploadBAN.objects.filter(account_number=request.data.get('account_number')).first()
+        ban = BaseDataTable.objects.filter(accountnumber=request.data.get('account_number')).first()
         if ban:
             return Response({"message": "Account number already exists!"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -192,6 +192,7 @@ class UploadBANView(APIView):
                 RemittanceCountry = upload_ban.RemittanceCountry,
                 RemittanceAtn = upload_ban.RemittanceAtn,
                 RemittanceNotes = upload_ban.RemittanceNotes,
+
                 account_password = upload_ban.account_password,
                 payor = upload_ban.payor,
                 GlCode = upload_ban.GlCode,
@@ -199,11 +200,13 @@ class UploadBANView(APIView):
                 ContractNumber = upload_ban.ContractNumber,
                 Services = upload_ban.Services,
                 Billing_cycle = upload_ban.Billing_cycle,
+                BillingCurrency=upload_ban.BillingCurrency,
                 BillingDay = upload_ban.BillingDay,
                 PayTerm = upload_ban.PayTerm,
                 AccCharge = upload_ban.AccCharge,
                 CustomerOfRecord = upload_ban.CustomerOfRecord,
-
+                vendor_alias = upload_ban.vendor_alias,
+                vendorCS = upload_ban.vendorCS,
                 costcenterlevel = upload_ban.costcenterlevel.name if upload_ban.costcenterlevel else "",
                 costcentertype = upload_ban.costcentertype.name if upload_ban.costcentertype else "",
                 costcenterstatus = upload_ban.costcenterstatus,
@@ -217,8 +220,6 @@ class UploadBANView(APIView):
                 invoicemethod = upload_ban.invoicemethod.name if upload_ban.invoicemethod else "",
                 variance=upload_ban.variance,
                 uploaded_by=request.user
-
-
             )
             obj.save()
             create_notification(request.user, f"New BAN {upload_ban.account_number} of vendor {upload_ban.Vendor.name} created successfully!", company=upload_ban.company)

@@ -13,8 +13,11 @@ def remittance_format_after_save(sender, instance, created, **kwargs):
         billingAdd = instance.BillingAdd
         if billingAdd:
             print("billing")
+            print(billingAdd)
             addlst = billingAdd.strip().replace(',',' ').split(" ")
             addlst = [item for item in addlst if item]
+            if len(addlst) <= 1:
+                return
             instance.BillingZip = addlst[-1]
             instance.BillingState = addlst[-2]
             instance.BillingAdd = " ".join(addlst[0:3])

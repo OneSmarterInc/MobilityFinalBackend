@@ -19,7 +19,7 @@ class Company(models.Model):
     updated = models.DateTimeField(auto_now=True, null=True)
     Bill_payment_type = models.CharField(max_length=255, null=False)
     Bill_payment_day = models.CharField(max_length=255, null=True, blank=True)
-    logo = models.FileField(upload_to="Company_logos", null=True, blank=True)
+    logo = models.FileField(upload_to="Company_logos/", null=True, blank=True)
     # vendors = models.ManyToManyField(Vendors, related_name='companies', null=True, blank=True)
 
     class Meta:
