@@ -40,6 +40,9 @@ import traceback
 
 class AnalysisView(APIView):
     permission_classes = [IsAuthenticated]
+    # from django.utils import timezone
+    # today = timezone.now().date()
+    # print("weekday==",today.strftime("%A"))
 
     def get(self, request, pk=None):
         if pk is None:

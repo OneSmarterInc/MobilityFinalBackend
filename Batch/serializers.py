@@ -22,6 +22,7 @@ class BatchAutomationSerializer(serializers.ModelSerializer):
             "company_name",
             "frequency",
             "days",
+            "dates",
             "emails",
             "created_by_id",
             "created_by_email",
@@ -31,23 +32,83 @@ class BatchAutomationSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
     def validate(self, attrs):
-        frequency = attrs.get("frequency", getattr(self.instance, "frequency", None))
-        days = attrs.get("days", getattr(self.instance, "days", []))
-        valid_days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-        names = [d["day"] for d in days]
+        frequency = attrs.get(
+            "frequency",
+            getattr(self.instance, "frequency", None)
+        )
 
+        days = attrs.get(
+            "days",
+            getattr(self.instance, "days", [])
+        )
+
+        dates = attrs.get(
+            "dates",
+            getattr(self.instance, "dates", [])
+        )
+
+        valid_days = [
+            "Monday", "Tuesday", "Wednesday",
+            "Thursday", "Friday", "Saturday", "Sunday"
+        ]
+
+        # ---------- DAILY ----------
         if frequency == BatchAutomation.FREQ_DAILY:
+            names = [d.get("day") for d in days]
+
             if sorted(names) != sorted(valid_days):
-                raise serializers.ValidationError("Daily frequency requires all 7 days.")
+                raise serializers.ValidationError({
+                    "days": "Daily frequency requires all 7 days."
+                })
+
+            if dates:
+                raise serializers.ValidationError({
+                    "dates": "Dates are not allowed for daily frequency."
+                })
+
+        # ---------- WEEKLY ----------
         elif frequency == BatchAutomation.FREQ_WEEKLY:
-            if len(days) < 1:
-                raise serializers.ValidationError("Weekly frequency requires at least one day.")
+            if not days or len(days) < 1:
+                raise serializers.ValidationError({
+                    "days": "Weekly frequency requires at least one day."
+                })
+
+            for d in days:
+                if d.get("day") not in valid_days:
+                    raise serializers.ValidationError({
+                        "days": f"Invalid weekday: {d.get('day')}"
+                    })
+
+            if dates:
+                raise serializers.ValidationError({
+                    "dates": "Dates are not allowed for weekly frequency."
+                })
+
+        # ---------- SPECIFIC ----------
         elif frequency == BatchAutomation.FREQ_SPECIFIC:
-            if len(days) != 1:
-                raise serializers.ValidationError("Specific frequency requires exactly one day.")
+            if days:
+                raise serializers.ValidationError({
+                    "days": "Days must be empty for specific frequency."
+                })
+
+            if not dates or len(dates) != 1:
+                raise serializers.ValidationError({
+                    "dates": "Specific frequency requires exactly one date."
+                })
+
+            date_val = dates[0].get("date")
+            if not isinstance(date_val, int) or not (1 <= date_val <= 31):
+                raise serializers.ValidationError({
+                    "dates": "Date must be an integer between 1 and 31."
+                })
+
         else:
-            raise serializers.ValidationError("Invalid frequency.")
+            raise serializers.ValidationError({
+                "frequency": "Invalid frequency."
+            })
+
         return attrs
+
 
     def create(self, validated_data):
         sub_company_id = validated_data.pop("sub_company", None) or validated_data.get("company_id", None)

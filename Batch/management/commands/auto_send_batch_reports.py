@@ -1,166 +1,6 @@
-# from django.core.management.base import BaseCommand
-# from django.utils import timezone
-# from django.conf import settings
-# from django.core.files.base import ContentFile
-
-# from OnBoard.Ban.models import BaseDataTable
-# from Batch.models import BatchAutomation
-
-# from OnBoard.Organization.models import Organizations
-# from sendmail import send_custom_email
-# from openpyxl import Workbook
-# from openpyxl.utils.dataframe import dataframe_to_rows
-
-# import pandas as pd
-# from io import BytesIO
-
-# class Command(BaseCommand):
-#     help = "Automatically generate and email batch reports for scheduled automations"
-
-#     def handle(self, *args, **options):
-#         today = timezone.now().date()
-#         weekday = timezone.now().strftime('%A')
-
-#         self.stdout.write(f"[INFO] Running automation script for weekday: {weekday}")
-
-#         # Manually filter due to SQLite limitations on JSONField lookups
-#         all_automations = BatchAutomation.objects.all()
-#         automations = []
-
-#         for auto in all_automations:
-#             for entry in auto.days:
-#                 if entry.get("day") == weekday and entry.get("production", False):
-#                     automations.append(auto)
-#                     break
-
-#         if not automations:
-#             self.stdout.write(f"[INFO] No automations scheduled for {weekday}")
-#             return
-
-#         for automation in automations:
-#             company_id = automation.company_id
-#             emails = automation.emails or []
-
-#             try:
-#                 org = Organizations.objects.get(id=company_id)
-#                 organization_name = org.Organization_name
-#             except Organizations.DoesNotExist:
-#                 self.stdout.write(f"[ERROR] Organization with ID {company_id} not found. Skipping.")
-#                 continue
-
-#             if not emails:
-#                 self.stdout.write(f"[WARN] No emails configured for organization '{organization_name}'. Skipping.")
-#                 continue
-
-#             # Filter BaseDataTable records
-#             data_qs = BaseDataTable.objects.filter(
-#                 sub_company=organization_name,
-#                 is_baseline_approved=True
-#             ).exclude(viewuploaded=None, viewpapered=None)
-
-#             if not data_qs.exists():
-#                 self.stdout.write(f"[INFO] No data for organization '{organization_name}'. Skipping.")
-#                 continue
-
-#             self.stdout.write(f"[INFO] Found {data_qs.count()} entries for '{organization_name}'")
-
-#             df = pd.DataFrame.from_records(data_qs.values())
-#             if df.empty:
-#                 self.stdout.write(f"[INFO] DataFrame empty after filtering. Skipping.")
-#                 continue
-
-#             # Drop unnecessary columns
-#             drop_columns = [
-#                 'created', 'updated','auto_pay_enabled','Entry_type','master_account', 'website',
-#                 'Total_Current_Charges','plans','charges', 'location','duration','id', 'banUploaded_id',
-#                 'Total_Amount_Due', 'banOnboarded_id', 'viewuploaded_id','viewpapered_id', 'inventory_id',
-#                 'costcenterlevel', 'costcentertype','costcenterstatus', 'CostCenter', 'CostCenterNotes', 'PO',
-#                 'Displaynotesonbillprocessing', 'POamt', 'FoundAcc', 'bantype','invoicemethod', 'vendorCS',
-#                 'vendor_alias', 'month', 'year', 'pdf_filename', 'pdf_path', 'remarks', 'account_password',
-#                 'payor', 'GlCode', 'ContractTerms', 'ContractNumber', 'Services','Billing_cycle', 'BillingDay',
-#                 'PayTerm', 'AccCharge','CustomerOfRecord', 'contract_name', 'contract_file', 'paymentType',
-#                 'billstatus', 'banstatus', 'Check', 'summary_file','is_baseline_approved','workbook_path',
-#                 'batch_file','current_annual_review','previous_annual_review'
-#             ]
-#             df.drop(columns=[col for col in drop_columns if col in df.columns], inplace=True, errors='ignore')
-
-#             # Rename columns for email
-#             df.rename(columns={
-#                 'bill_date': 'Bill Date',
-#                 'date_due': 'Due Date',
-#                 'accountnumber': 'Account Number',
-#                 'invoicenumber': 'Invoice Number',
-#                 'total_charges': 'Total Charges',
-#                 'company': 'Company',
-#                 'vendor': 'Vendor',
-#                 'sub_company': 'Sub Company',
-#                 'RemittanceAdd': 'Remittance Address',
-#                 'BillingName': 'Billing Name',
-#                 'BillingAdd': 'Billing Address',
-#                 'BillingState': 'Billing State',
-#                 'BillingZip': 'Billing Zip',
-#                 'BillingCity': 'Billing City',
-#                 'BillingCountry': 'Billing Country',
-#                 'BillingAtn': 'Billing Attention',
-#                 'BillingDate': 'Billing Date',
-#                 'RemittanceName': 'Remittance Name',
-#                 'RemittanceState': 'Remittance State',
-#                 'RemittanceZip': 'Remittance Zip',
-#                 'RemittanceCity': 'Remittance City',
-#                 'RemittanceCountry': 'Remittance Country',
-#                 'RemittanceAtn': 'Remittance Attention',
-#                 'RemittanceNotes': 'Remittance Notes',
-#                 'vendor_id': 'Vendor ID',
-#                 'batch_approved': 'Batch Approved',
-#                 'batch_approved_changer': 'Batch Approved By',
-#                 'baseline_notes': 'Baseline Notes',
-#                 'net_amount': 'Net Amount'
-#             }, inplace=True)
-
-#             # Generate Excel
-#             excel_buffer = BytesIO()
-#             wb = Workbook()
-#             ws = wb.active
-
-#             for r in dataframe_to_rows(df, index=False, header=True):
-#                 ws.append(r)
-
-#             for col in ws.columns:
-#                 max_length = 0
-#                 column = col[0].column_letter
-#                 for cell in col:
-#                     try:
-#                         if len(str(cell.value)) > max_length:
-#                             max_length = len(str(cell.value))
-#                     except:
-#                         pass
-#                 ws.column_dimensions[column].width = max_length + 2
-
-#             wb.save(excel_buffer)
-#             excel_buffer.seek(0)
-
-#             file_name = f"batch_report_{organization_name}_{today}.xlsx"
-
-#             # Send emails
-#             try:
-#                 for receiver in emails:
-#                     send_custom_email(
-#                         receiver_mail=receiver,
-#                         subject=f"Batch Report - {organization_name}",
-#                         body="Please find the attached batch report for today.",
-#                         attachment=ContentFile(excel_buffer.getvalue(), name=file_name)
-#                     )
-#                 self.stdout.write(f"[SUCCESS] Email sent to {emails} for organization '{organization_name}'")
-#             except Exception as e:
-#                 self.stdout.write(self.style.ERROR(
-#                     f"[ERROR] Sending email failed for '{organization_name}': {e}"
-#                 ))
-
-
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.core.files.base import ContentFile
-from django.db import transaction
 
 from OnBoard.Ban.models import BaseDataTable
 from Batch.models import BatchAutomation
@@ -172,175 +12,172 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 
 import pandas as pd
 from io import BytesIO
+import calendar
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    
-    help = "Automatically generate and email batch reports for scheduled automations"
+    help = "Generate and email batch reports based on automation frequency"
 
     def handle(self, *args, **options):
-        print("running command...")
         today = timezone.now().date()
-        weekday = timezone.now().strftime('%A')
+        weekday = today.strftime("%A")
+        day_of_month = today.day
 
-        self.stdout.write(f"[INFO] Running automation script for weekday: {weekday}")
+        self.stdout.write(f"[INFO] Running batch automation for {today} ({weekday})")
+        self.org = None
+        automations_to_run = []
 
-        # Collect automations for this weekday (both preview and production)
-        autos_today = []
         for auto in BatchAutomation.objects.all():
-            for entry in (auto.days or []):
-                if entry.get("day") == weekday:
-                    prod_raw = entry.get("production", False)
+            freq = auto.frequency
 
-                    # STRICT: only True (boolean) counts as production day
-                    is_prod_day = (prod_raw is True)
+            # ---------------- DAILY ----------------
+            if freq == "daily":
+                automations_to_run.append((auto, True))
+                continue
 
-                    # Debug line (safe to leave in or remove later)
-                    self.stdout.write(f"[DBG] {auto.company_id} day={weekday} production_raw={prod_raw} type={type(prod_raw).__name__} -> is_prod_day={is_prod_day}")
+            # ---------------- WEEKLY ----------------
+            if freq == "weekly":
+                for entry in (auto.days or []):
+                    if entry.get("day") == weekday:
+                        prod = entry.get("production", False)
+                        if not isinstance(prod, bool):
+                            raise ValueError(
+                                f"Invalid production flag for weekly automation {auto.id}"
+                            )
+                        automations_to_run.append((auto, prod))
+                        break
 
-                    autos_today.append((auto, is_prod_day))
-                    break
+            # ---------------- SPECIFIC ----------------
+            elif freq == "specific":
+                last_day = calendar.monthrange(today.year, today.month)[1]
 
-        if not autos_today:
-            self.stdout.write(f"[INFO] No automations scheduled for {weekday}")
+                for entry in (auto.dates or []):
+                    date_value = entry.get("date")
+
+                    if not isinstance(date_value, int):
+                        raise ValueError(
+                            f"Invalid date value for automation {auto.id}"
+                        )
+
+                    # Skip invalid dates like 31 in Feb
+                    if date_value > last_day:
+                        continue
+
+                    if date_value == day_of_month:
+                        prod = entry.get("production", False)
+                        if not isinstance(prod, bool):
+                            raise ValueError(
+                                f"Invalid production flag for specific automation {auto.id}"
+                            )
+                        automations_to_run.append((auto, prod))
+                        break
+
+        if not automations_to_run:
+            self.stdout.write("[INFO] No automations scheduled today.")
             return
 
-        for automation, is_prod_day in autos_today:
-            company_id = automation.company_id
-            emails = automation.emails or []
-
+        # ---------------- PROCESS AUTOMATIONS ----------------
+        for automation, is_prod_day in automations_to_run:
             try:
-                org = Organizations.objects.get(id=company_id)
-                organization_name = org.Organization_name
+                self.org = Organizations.objects.get(id=automation.company_id)
             except Organizations.DoesNotExist:
-                self.stdout.write(f"[ERROR] Organization with ID {company_id} not found. Skipping.")
+                self.stdout.write(
+                    f"[ERROR] Organization {automation.company_id} not found."
+                )
                 continue
 
-            if not emails:
-                self.stdout.write(f"[WARN] No emails configured for '{organization_name}'. Skipping.")
+            if not automation.emails:
+                self.stdout.write(
+                    f"[WARN] No emails configured for {self.org.Organization_name}"
+                )
                 continue
 
-            # Pending rows only
-            data_qs = (
-                BaseDataTable.objects
+            qs = (
+                BaseDataTable.objects.exclude(viewuploaded=None, viewpapered=None)
                 .filter(
-                    sub_company=organization_name,
+                    sub_company=self.org.Organization_name,
                     is_baseline_approved=True,
                     is_production=False
                 )
-                .exclude(viewuploaded=None, viewpapered=None)
             )
-
-            if not data_qs.exists():
+            if not qs.exists():
                 self.stdout.write(
-                    f"[INFO] No pending rows for '{organization_name}' "
-                    f"({'PRODUCTION' if is_prod_day else 'PREVIEW'}). Skipping."
+                    f"[INFO] No pending data for {self.org.Organization_name}"
                 )
                 continue
 
-            self.stdout.write(
-                f"[INFO] Found {data_qs.count()} pending rows for '{organization_name}' "
-                f"({'PRODUCTION' if is_prod_day else 'PREVIEW'})"
-            )
-
-            # Build dataframe
-            df = pd.DataFrame.from_records(data_qs.values())
+            df = pd.DataFrame.from_records(qs.values())
             if df.empty:
-                self.stdout.write("[INFO] DataFrame empty after filtering. Skipping.")
+                self.stdout.write("[INFO] DataFrame empty after queryset.")
                 continue
 
-            drop_columns = [
-                'created', 'updated','auto_pay_enabled','Entry_type','master_account', 'website',
-                'Total_Current_Charges','plans','charges', 'location','duration','id', 'banUploaded_id',
-                'Total_Amount_Due', 'banOnboarded_id', 'viewuploaded_id','viewpapered_id', 'inventory_id',
-                'costcenterlevel', 'costcentertype','costcenterstatus', 'CostCenter', 'CostCenterNotes', 'PO',
-                'Displaynotesonbillprocessing', 'POamt', 'FoundAcc', 'bantype','invoicemethod', 'vendorCS',
-                'vendor_alias', 'month', 'year', 'pdf_filename', 'pdf_path', 'remarks', 'account_password',
-                'payor', 'GlCode', 'ContractTerms', 'ContractNumber', 'Services','Billing_cycle', 'BillingDay',
-                'PayTerm', 'AccCharge','CustomerOfRecord', 'contract_name', 'contract_file', 'paymentType',
-                'billstatus', 'banstatus', 'Check', 'summary_file','is_baseline_approved','workbook_path',
-                'batch_file','current_annual_review','previous_annual_review'
+            # -------- WHITELIST COLUMNS (SAFE) --------
+            allowed_columns = [
+                "bill_date", "date_due", "accountnumber",
+                "invoicenumber", "total_charges", "vendor",
+                "sub_company", "net_amount"
             ]
-            df.drop(columns=[c for c in drop_columns if c in df.columns], inplace=True, errors='ignore')
+            df = df[[c for c in allowed_columns if c in df.columns]]
 
             df.rename(columns={
-                'bill_date': 'Bill Date',
-                'date_due': 'Due Date',
-                'accountnumber': 'Account Number',
-                'invoicenumber': 'Invoice Number',
-                'total_charges': 'Total Charges',
-                'company': 'Company',
-                'vendor': 'Vendor',
-                'sub_company': 'Sub Company',
-                'RemittanceAdd': 'Remittance Address',
-                'BillingName': 'Billing Name',
-                'BillingAdd': 'Billing Address',
-                'BillingState': 'Billing State',
-                'BillingZip': 'Billing Zip',
-                'BillingCity': 'Billing City',
-                'BillingCountry': 'Billing Country',
-                'BillingAtn': 'Billing Attention',
-                'BillingDate': 'Billing Date',
-                'RemittanceName': 'Remittance Name',
-                'RemittanceState': 'Remittance State',
-                'RemittanceZip': 'Remittance Zip',
-                'RemittanceCity': 'Remittance City',
-                'RemittanceCountry': 'Remittance Country',
-                'RemittanceAtn': 'Remittance Attention',
-                'RemittanceNotes': 'Remittance Notes',
-                'vendor_id': 'Vendor ID',
-                'batch_approved': 'Batch Approved',
-                'batch_approved_changer': 'Batch Approved By',
-                'baseline_notes': 'Baseline Notes',
-                'net_amount': 'Net Amount'
+                "bill_date": "Bill Date",
+                "date_due": "Due Date",
+                "accountnumber": "Account Number",
+                "invoicenumber": "Invoice Number",
+                "total_charges": "Total Charges",
+                "vendor": "Vendor",
+                "sub_company": "Sub Company",
+                "net_amount": "Net Amount"
             }, inplace=True)
 
-            # Excel build
+            # -------- EXCEL GENERATION --------
             excel_buffer = BytesIO()
             wb = Workbook()
             ws = wb.active
-            for r in dataframe_to_rows(df, index=False, header=True):
-                ws.append(r)
+
+            for row in dataframe_to_rows(df, index=False, header=True):
+                ws.append(row)
+
             for col in ws.columns:
-                max_length = 0
-                column = col[0].column_letter
-                for cell in col:
-                    try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except Exception:
-                        pass
-                ws.column_dimensions[column].width = max_length + 2
+                max_len = max(len(str(cell.value)) if cell.value else 0 for cell in col)
+                ws.column_dimensions[col[0].column_letter].width = max_len + 2
+
             wb.save(excel_buffer)
-            excel_buffer.seek(0)
 
-            file_name = f"batch_report_{organization_name}_{today}.xlsx"
+            filename = f"batch_report_{self.org.Organization_name}_{today}.xlsx"
+            attachment = ContentFile(excel_buffer.getvalue(), name=filename)
 
-            # Send and conditionally update
+            # -------- EMAIL --------
             try:
-                with transaction.atomic():
-                    for receiver in emails:
-                        send_custom_email(
-                            receiver_mail=receiver,
-                            subject=f"Batch Report - {organization_name}",
-                            body=f"Please find the attached batch report for {today} "
-                                 f"({'PRODUCTION' if is_prod_day else 'PREVIEW'}).",
-                            attachment=ContentFile(excel_buffer.getvalue(), name=file_name)
-                        )
+                send_custom_email(
+                    company=self.org.company.Company_name,
+                    to=automation.emails,
+                    subject=f"Batch Report - {self.org.Organization_name}",
+                    body_text=(
+                        f"Attached is the batch report for {today} "
+                        f"({'PRODUCTION' if is_prod_day else 'PREVIEW'})."
+                    ),
+                    attachments=[attachment]
+                )
 
-                    # Only flip on actual boolean True
-                    if is_prod_day is True:
-                        updated = data_qs.update(is_production=True)
-                        self.stdout.write(
-                            f"[SUCCESS] Sent {data_qs.count()} rows to {emails} "
-                            f"and flagged {updated} as is_production=True."
-                        )
-                    else:
-                        self.stdout.write(
-                            f"[SUCCESS] Preview sent to {emails} for '{organization_name}'. "
-                            f"Rows left with is_production=False."
-                        )
+                if is_prod_day:
+                    updated = qs.update(is_production=True)
+                    self.stdout.write(
+                        f"[SUCCESS] PRODUCTION sent for {self.org.Organization_name}. "
+                        f"{updated} rows marked as production."
+                    )
+                else:
+                    self.stdout.write(
+                        f"[SUCCESS] PREVIEW sent for {self.org.Organization_name}."
+                    )
+
             except Exception as e:
-                self.stdout.write(self.style.ERROR(
-                    f"[ERROR] Sending email failed for '{organization_name}': {e}"
-                ))
+                logger.exception(e)
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"[ERROR] Failed sending email for {self.org.Organization_name}: {e}"
+                    )
+                )

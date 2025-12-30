@@ -1,2 +1,3 @@
 class SummaryData:
     pass
+

@@ -165,6 +165,7 @@ def send_custom_email(
     config_override: Optional[Mapping[str, object]] = None,
     fail_silently: bool = False,
 ) -> bool:
+    print('sending mail')
     if not to:
         return False
 

@@ -26,7 +26,8 @@ class BatchAutomation(models.Model):
     frequency = models.CharField(max_length=16, choices=FREQ_CHOICES)
 
     # [{ "day": "Monday", "production": true }, ...]
-    days = models.JSONField(default=list)
+    days = models.JSONField(default=list,null=True,blank=True)
+    dates = models.JSONField(default=list,null=True,blank=True)
 
     # ["ops@example.com", "team@example.com"]
     emails = models.JSONField(blank=True, default=list)
@@ -71,7 +72,7 @@ class BatchAutomation(models.Model):
             if len(self.days) < 1:
                 raise ValidationError({"days": "Weekly frequency requires at least one day."})
         elif self.frequency == self.FREQ_SPECIFIC:
-            if len(self.days) != 1:
+            if len(self.dates) != 1:
                 raise ValidationError({"days": "Specific frequency requires exactly one day."})
         else:
             raise ValidationError({"frequency": "Invalid frequency."})

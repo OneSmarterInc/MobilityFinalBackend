@@ -36,6 +36,7 @@ from rest_framework import status
 from django.shortcuts import get_object_or_404
 from .models import EmailConfiguration
 from .serializers import EmailConfigurationSerializer
+from pandas.api.types import is_datetime64_any_dtype as is_datetime
 
 from authenticate.views import saveuserlog
 
@@ -48,6 +49,9 @@ class BatchView(APIView):
     
     def generate_excel_file(self, df):
         wb = Workbook()
+        for col in df.columns:
+            if is_datetime(df[col]):
+                df[col] = df[col].dt.tz_localize(None)
         ws = wb.active
 
         for r in dataframe_to_rows(df, index=False, header=True):
@@ -160,19 +164,14 @@ class BatchView(APIView):
                 rm = data.get('to_mail')
                 print("sending mail...")
                 try:
-                    # send_custom_email(
-                    #     receiver_mail=rm,
-                    #     subject='Batch Report',
-                    #     body='Please find the attached report.',
-                    #     attachment=obj.batch_file
-                    # )
+
                     send_custom_email(
-                        company=company,                     # or whatever key matches your DB row
-                        organization=org,                      # or e.g., "IN-West"
+                        company=company,                    
+                        organization=org,                   
                         subject="Batch Report",
-                        to=rm,                                  # string or list
+                        to=rm,                                 
                         body_text="Please find the attached report.",
-                        attachments=[obj.batch_file],           # list, supports FieldFile
+                        attachments=[obj.batch_file],     
                     )
                     saveuserlog(request.user, f"Batch Report of organization {obj.sub_company} emailed to {rm}.")
                     return Response({"message":f"Email sent successfully sent to {rm}"}, status=status.HTTP_200_OK)
