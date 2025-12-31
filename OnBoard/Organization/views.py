@@ -16,13 +16,7 @@ class OnboardOrganizationView(APIView):
 
     def post(self, request):
         company = Company.objects.get(Company_name=request.user.company.Company_name)
-        data = request.data.copy()
-        st = type(data.get('status'))
-        if st == 'false':
-            data['status'] = 0
-        else:
-            data['status'] = 1
-        
+        data = request.data.copy()        
         if Organizations.objects.filter(Organization_name=data["Organization_name"], company=company).exists():
             print("already exists")
             return Response({"message": "Organization with this name already exists!"}, status=status.HTTP_400_BAD_REQUEST)

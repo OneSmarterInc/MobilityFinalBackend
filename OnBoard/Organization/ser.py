@@ -34,7 +34,6 @@ class OrganizationSaveSerializer(serializers.ModelSerializer):
         vendors_data = validated_data.pop('vendors', [])
         validated_data.pop('favorite_vendors',[])
         vendors_data = str(vendors_data).removeprefix("['").removesuffix("']").split(",")
-        print(validated_data)
         organization = Organizations.objects.create(**validated_data, company=company)
 
         if vendors_data:
