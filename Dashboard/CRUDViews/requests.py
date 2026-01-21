@@ -52,7 +52,7 @@ class RequestsView(APIView):
         except Requests.DoesNotExist:
             return Response({"message":"Request not found!"},status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"message":"Internal Server Error!"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         data = request.data.copy() 
         data = json.loads(data) if not isinstance(data, dict) else data
         ser = RequestsSaveSerializer(obj, data=data,partial=True)
@@ -178,7 +178,7 @@ class RequestLogsView(APIView):
         except Requests.DoesNotExist:
             return Response({"message":"Request not found!"},status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"message":"Internal Server Error!"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         data = request.data.copy()
         org = obj.organization.Organization_name
         ser = RequestsSaveSerializer(obj, data=data,partial=True)
@@ -196,7 +196,6 @@ class RequestLogsView(APIView):
             re = Requests.objects.filter(id=pk).first()
             org = re.organization.Organization_name
             rt = re.request_type
-            mobile = re.mobile
             re.delete()
             saveuserlog(request.user, f"request of type {rt} of organization {org} deleted.")
             create_notification(request.user, f"request of type {rt} of organization {org} deleted.",request.user.company)

@@ -171,7 +171,7 @@
 #                     self.data = showUnbilledReport(top_data, many=True)
 #                 except Exception as e:
 #                     print(e)
-#                     return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+#                     return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 #             elif sub_type == "getZeroUsageReportUnbilledData":
 #                 try:
 #                     filtered_data = filtered_data.filter(Month=filter_kwargs['Month'])
@@ -188,7 +188,7 @@
 #                     self.data = showUnbilledReport(filtered_data, many=True)
 #                 except Exception as e:
 #                     print(e)
-#                     return Response({"message": "Internal Server Error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+#                     return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 #             saveuserlog(request.user, f"Unilled data report excel file of {month}-{year} downloaded.")
 #         return Response(
 #             {"orgs": orgs.data, "vendors": vendors.data, "bans":bans.data, "data":self.data.data if self.data else None, "unique_dates":self.unique_dates if self.report_type == "Unbilled_Data_Usage" else None},
@@ -373,7 +373,7 @@
 
 #             except Exception as e:
 #                 print(e)
-#                 return Response({"message": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+#                 return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 #         else:
 #             if sub_type == "getZeroUsageReportUnbilledExcel":
 #                 try:
@@ -597,7 +597,7 @@
 #                     # return response
                 
 #                 except Exception as e:
-#                     return Response({"message": "Internal Server Error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+#                     return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 from rest_framework.views import APIView
@@ -1097,7 +1097,7 @@ class ViewUnbilledReportView(APIView):
 
         filtered_data = Report_Unbilled_Data.objects.filter(company=filter_kwargs['company'])
         if not filtered_data.exists():
-            return Response({"message":f"no unbilled report found for {filter_kwargs['company'].Company_name}"},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":f"no unbilled report found for {filter_kwargs['organization'].Organization_name}"},status=status.HTTP_400_BAD_REQUEST)
         filtered_data = filtered_data.filter(organization=filter_kwargs['organization'])
         if not filtered_data.exists():
             return Response({"message":f"no unbilled report found for {filter_kwargs['organization'].Organization_name}"},status=status.HTTP_400_BAD_REQUEST)
@@ -1158,7 +1158,7 @@ class ViewUnbilledReportView(APIView):
                     )
                     self.data = showUnbilledReport(top10, many=True)
                 except Exception as e:
-                    return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             elif sub_type == "getZeroUsageReportUnbilledData":
                 try:
                     filtered_data = filtered_data.filter(Month=filter_kwargs['Month'])
@@ -1166,7 +1166,7 @@ class ViewUnbilledReportView(APIView):
                         return Response({"message":f"no unbilled report found for {filter_kwargs['Month']}"},status=status.HTTP_400_BAD_REQUEST)
                     self.data = showUnbilledReport(filtered_data, many=True)
                 except Exception:
-                    return Response({"message": "Internal Server Error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             saveuserlog(request.user, f"Unilled data report excel file of {month}-{year} downloaded.")
         return Response(
             {
@@ -1265,4 +1265,4 @@ class ViewUnbilledReportView(APIView):
         except Exception as e:
             # Log/print if you like
             print("Export error:", e)
-            return Response({"message": "Internal Server Error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)

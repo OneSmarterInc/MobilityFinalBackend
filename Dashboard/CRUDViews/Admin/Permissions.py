@@ -10,6 +10,9 @@ from django.db.models import Q
 from Batch.views import create_notification
 from authenticate.views import saveuserlog
 
+def is_superadmin(user):
+    return not user.company
+
 class PermissionView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, pk=None):
@@ -19,8 +22,13 @@ class PermissionView(APIView):
                 ser = PermissionShowSerializer(permission)
                 return Response({"data" : ser.data}, status=status.HTTP_200_OK)
             else:
-                permissions = Permission.objects.all()
+
+                print(is_superadmin(request.user))
+                
+                permissions = Permission.objects.all() if is_superadmin(request.user) else Permission.objects.exclude(Type__icontains="organization")
+
                 ser = PermissionShowSerializer(permissions, many=True)
+                print(ser.data)
                 return Response({"data" : ser.data}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)

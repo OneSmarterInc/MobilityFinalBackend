@@ -19,7 +19,7 @@ class RegisterView(APIView):
     def get(self, request, *args, **kwargs):
         allCompanies = Company.objects.all()
         Comser = CompanyShowSerializer(allCompanies, many=True)
-        allDesignations = UserRoles.objects.exclude(id=request.user.designation.id).filter(company=request.user.company)
+        allDesignations = UserRoles.objects.filter(company=request.user.company).exclude(id=request.user.designation.id)
         ser = allDesignationsSerializer(allDesignations, many=True)
         return Response({"designations": ser.data, "companies" : Comser.data}, status=status.HTTP_200_OK)
     
@@ -31,17 +31,14 @@ class RegisterView(APIView):
                 {"message": "Email address is already in use."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        print(data)
-        # orgName = data.get('organization')
-        # if orgName:
-        #     orgObj = Organizations.objects.filter(Organization_name=orgName).first()
-        # data['organization'] = orgObj.id if orgObj else None
+
         data['string_password'] = data.get('password')
         data['temp_password'] = data.get('password')
         try:
             serializer = RegisterSerializer(data=data)
             if serializer.is_valid():
                 user = serializer.save()
+                add_wireless_numbers({user.email : user.mobile_number.strip()})
                 saveuserlog(request.user, description=f'{user.email} registered successfully!')
                 create_notification(request.user, msg=f'{user.email} registered successfully!', company=request.user.company)
                 return Response({
@@ -50,10 +47,13 @@ class RegisterView(APIView):
                     "data":serializer.data
                 }, status=status.HTTP_201_CREATED)
             print(serializer.errors)
-            return Response({"message":"Unable to register user."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"message": "User registration failed."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         except Exception as e:
             print(e)
-            return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     
 class LoginView(APIView):
@@ -71,10 +71,8 @@ class LoginView(APIView):
 
         # print(password,check_password(password, user.temp_password))
         temp_check = check_password(password, user.temp_password) if user and user.temp_password else False
-        inventory = UniquePdfDataTable.objects.filter()
         if user and user.check_password(password):
-            inventory = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(wireless_number=user.mobile_number).first()
-            if inventory and not inventory.User_status.lower() == "active":
+            if not user.is_active:
                 return Response({"message": "Authentication error: You are no longer an active user."},status=status.HTTP_400_BAD_REQUEST)
             if user.last_login and temp_check:
                 return Response({"message": "You must change your password using the 'Forgot Password' option before logging in."}, status=status.HTTP_400_BAD_REQUEST)
@@ -125,7 +123,13 @@ class ProfileView(APIView):
             # create_notification(request.user, msg=f'{email} deleted successfully!', company=request.user.company)
             return Response({"message": "User deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
         except PortalUser.DoesNotExist or Exception as e:
-            return Response({"message": "Unable to delete user."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {
+                    "message": "User not found or could not be deleted."
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
     def put(self, request, id):
         try:
             user = PortalUser.objects.get(id=id)
@@ -138,23 +142,24 @@ class ProfileView(APIView):
             print(serializer.errors)
             return Response({"message": "Unable to update user."}, status=status.HTTP_400_BAD_REQUEST)
         except PortalUser.DoesNotExist or Exception as e:
-            return Response({"message": "Internal Server Error!"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
     def post(self, request):
         try:
             serializer = RegisterSerializer(data=request.data)
             if serializer.is_valid():
-                serializer.save()
-                em = serializer.data["email"]
+                user = serializer.save()
+                add_wireless_numbers({user.email : user.mobile_number.strip()})
+                em = user.email
                 saveuserlog(request.user, description=f'{em} registered successfully!')
                 create_notification(request.user, msg=f'{em} registered successfully!', company=request.user.company)
                 return Response({"message": "User created successfully."}, status=status.HTTP_201_CREATED)
             return Response({"message": "unable to register user."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
-# @permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated])
 def get_org_users(request, org):
     orgObj = Organizations.objects.filter(id=org).first()
     if not orgObj:
@@ -162,6 +167,27 @@ def get_org_users(request, org):
     users = PortalUser.objects.filter(organization=orgObj)
     ser = showUsersSerializer(users, many=True)
     return Response({"data":ser.data},status=status.HTTP_200_OK)
+
+from .signals import UserSignalThread
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def resend_notification(request,id):
+    try:instance = PortalUser.objects.get(pk=id)
+    except PortalUser.DoesNotExist: return Response({"message":"User not found!"},status=status.HTTP_404_NOT_FOUND)
+    try:
+        UserSignalThread(
+            instance=instance,
+            company=instance.company.Company_name if instance.company else None,
+            organization=instance.organization.Organization_name if instance.organization else None,
+            role=instance.designation.name if instance.designation else None,
+            username=instance.username,
+            email=instance.email,
+            pwd=instance.string_password
+        ).start()
+        return Response({"message":"Notification sent!"},status=status.HTTP_200_OK)
+    except Exception:
+        return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class Logoutview(APIView):
     permission_classes = [IsAuthenticated]
@@ -174,7 +200,7 @@ class Logoutview(APIView):
             return Response({"message": "Logged out successfully."}, status=status.HTTP_205_RESET_CONTENT)
         except Exception as e:
             print(e)
-            return Response({"message": "Error occurred: " + "unable to logout."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         
 def saveuserlog(user, description):
@@ -276,6 +302,8 @@ class SendOTPView(APIView):
                 user=user, defaults={"otp": otp, "is_verified": False}
             )
 
+            print("OTP==",otp)
+
             send_generic_mail(
             
                 subject="Your OTP Code",
@@ -344,6 +372,7 @@ import pandas as pd
 from addon import parse_until_dict
 from sendmail import send_custom_email
 class BulkUserUpload(APIView):
+
     permission_classes = [IsAuthenticated]
     def post(self,request,*args,**kwargs):
         existance = []
@@ -388,7 +417,9 @@ class BulkUserUpload(APIView):
         for record in records:
             ser = RegisterSerializer(data=record)
             if ser.is_valid():
-                ser.save()
+                user = ser.save()
+                add_wireless_numbers({user.email : user.mobile_number.strip()})
+
         sub = "Bulk User Upload"
         email = request.user.email
         existing_emails = "\n".join(existance)
@@ -420,4 +451,316 @@ class BulkUserUpload(APIView):
         send_custom_email(company=company, to=email, subject=sub, body_text=msg)
 
         saveuserlog(request.user, description=f'{request.user.email} uploaded bulk users!')
-        return Response({"message":"User added in bulk successfully!"},status=status.HTTP_201_CREATED)
+        return Response(
+            {
+                "message": "Users added successfully in bulk."
+            },
+            status=status.HTTP_201_CREATED
+        )
+
+    
+from .serializers import banUsersSerializer
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def portal_employees(request, org, *args, **kwargs):
+    org = Organizations.objects.filter(id=org).first()
+    if not org:
+        return Response(
+            {"message": "Organization not found"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    params = request.GET
+    vendor = params.get("vendor")
+    ban = params.get("ban")
+    role = params.get("role")
+
+    # -------- Portal users query --------
+    portal_filters = {"organization": org}
+
+    if vendor:
+        vendor_obj = org.vendors.filter(name=vendor).first()
+        if not vendor_obj:
+            return Response(
+                {"message": "Vendor not found"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        portal_filters["vendor"] = vendor_obj
+
+    if ban: portal_filters["account_number"] = ban
+
+    if role:
+        role_obj = UserRoles.objects.filter(
+            organization=org, name=role
+        ).first()
+        portal_filters["designation"] = role_obj
+
+    _portalusers = PortalUser.objects.filter(**portal_filters)
+
+    # -------- BAN users query --------
+    _ban_users = UniquePdfDataTable.objects.exclude(banUploaded=None,banOnboarded=None).filter(
+        sub_company=org.Organization_name
+    )
+
+    if vendor:_ban_users = _ban_users.filter(vendor=vendor)
+
+    if ban:_ban_users = _ban_users.filter(account_number=ban)
+
+    # Serialize
+    _ban_users_data = banUsersSerializer(_ban_users, many=True).data
+    _portalusers_data = showUsersSerializer(_portalusers, many=True).data
+
+    # Build portal lookup: email -> role
+    portal_lookup = {}
+
+    for u in _portalusers_data:
+        email = u.get("email")
+        if email:
+            portal_lookup[email.strip().lower()] = {
+                "role": u.get("role") or u.get("designation")
+            }
+
+    # Annotate BAN users
+    for user in _ban_users_data:
+        email = user.get("User_email")  # as per your serializer field
+
+        if email:
+            key = email.strip().lower()
+            portal_user = portal_lookup.get(key)
+
+            if portal_user:
+                user["is_onboarded"] = True
+                user["role"] = portal_user["role"]
+            else:
+                user["is_onboarded"] = False
+                user["role"] = None
+        else:
+            user["is_onboarded"] = False
+            user["role"] = None
+
+    return Response(
+        {"data": _ban_users_data},
+        status=status.HTTP_200_OK
+    )
+
+from collections import defaultdict
+
+
+from django.conf import settings
+
+@api_view(["GET"])
+def get_sample_file(request):
+    org = request.GET.get("organization", None)
+    request_type = request.GET.get("request_type", None)
+    print(org,request_type)
+    if request_type == "onboard":
+        pdf_path = "Excel_ban_onboard_sample.xlsx"
+    elif request_type == "upload_bill":
+        pdf_path = "Excel_bill_upload_sample.xlsx"
+    elif request_type == "location":
+        pdf_path = "Bulk_location_upload.xlsx"
+    elif request_type == "inventory":
+        pdf_path = "Bulk_inventory_update_sample.xlsx"
+    elif request_type == "user":
+        pdf_path = "Bulk_user_upload_sample.xlsx"
+    elif request_type == "requests":
+        pdf_path = "Bulk_request_upload_sample.xlsx"
+    elif request_type == "accessory_requests":
+        pdf_path = "Bulk_accessory_requests_sample.xlsx"
+    else:
+        return Response(
+            {"message": "Invalid file request!"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    absolute_url = request.build_absolute_uri(
+        settings.STATIC_URL + "SampleDocs/" + pdf_path
+    )
+
+    if org:
+        safe_org = str(org).replace(" ", "_")
+        file_name = f"{safe_org}_{pdf_path}"
+    else:
+        file_name = pdf_path
+    print(file_name)
+    return Response(
+        {
+            "pdf_url": absolute_url,
+            "file_name": file_name,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
+def update_wireless_status(request,id,*args,**kwargs):
+    try:
+        emp = EmployeeWirelessNumber.objects.get(id=id)
+    except EmployeeWirelessNumber.DoesNotExist:
+        return Response({"message":"Wireless number not found!"},status=status.HTTP_404_NOT_FOUND)
+    print(request.data)
+    emp.is_active = False if emp.is_active else True
+    emp.save()
+    return Response({"message":"Employee wireless status updated."},status=status.HTTP_200_OK)
+
+def partition_username(raw: str):
+    if not raw:
+        return "", "", ""
+
+    raw = raw.strip().lower()
+
+    if "@" in raw:
+        first, _, last = raw.partition("@")
+        return (
+            f"{first}_{last}" if last else first,
+            first,
+            last,
+        )
+
+    parts = raw.split()
+    first = parts[0]
+    last = parts[1] if len(parts) > 1 else ""
+    return "_".join(parts), first, last
+
+from django.db import transaction
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def onboard_ban_employees(request, org, *args, **kwargs):
+    org = Organizations.objects.filter(id=org).first()
+    if not org:
+        return Response({"message": "Organization not found"}, status=404)
+
+    ids = request.data.get("ids")
+    if not ids:
+        return Response({"message": "ids required"}, status=400)
+
+    vendor_name = request.GET.get("vendor")
+    ban = request.GET.get("ban")
+    role_name = request.GET.get("role")
+
+    vendor = (
+        org.vendors.filter(name=vendor_name).only("id").first()
+        if vendor_name else None
+    )
+    if vendor_name and not vendor:
+        return Response({"message": "Vendor not found"}, status=400)
+
+    role = (
+        UserRoles.objects
+        .filter(organization=org, name=role_name)
+        .only("id")
+        .first()
+        if role_name else None
+    )
+
+    users_qs = (
+        UniquePdfDataTable.objects
+        .filter(id__in=ids)
+        .values_list("User_email", "wireless_number", "user_name")
+    )
+
+    temp_pass = "1234"
+    encrypted = make_password(temp_pass)
+
+    wireless_map = defaultdict(set)
+
+    with transaction.atomic():
+        for email, mobile, name in users_qs:
+            if not email:
+                continue
+
+            email = email.strip().lower()
+            username, first, last = partition_username(name or email)
+
+            user, created = PortalUser.objects.get_or_create(
+                email=email,
+                defaults={
+                    "username": username,
+                    "company": org.company,
+                    "organization": org,
+                    "password": encrypted,
+                    "temp_password": encrypted,
+                    "string_password": temp_pass,
+                }
+            )
+
+            # Update fields even if user exists
+            user.mobile_number = mobile
+            user.vendor = vendor
+            user.account_number = ban
+            user.designation = role
+            user.first_name = first
+            user.last_name = last
+            user.save()
+
+            if mobile:
+                wireless_map[email].add(mobile.strip())
+
+        add_wireless_numbers(wireless_map)
+
+    return Response(
+        {"message": "Ban users onboarded successfully."},
+        status=status.HTTP_200_OK,
+    )
+
+
+from .models import EmployeeWirelessNumber
+def add_wireless_numbers(email_wireless_map):
+    if not email_wireless_map:
+        return
+
+    # 1. Normalise input: ensure list of numbers per email
+    normalized_map = {}
+    for email, nums in email_wireless_map.items():
+        if isinstance(nums, str):
+            normalized_map[email] = [nums]
+        elif isinstance(nums, (list, tuple, set)):
+            normalized_map[email] = list(nums)
+        else:
+            continue  # skip invalid formats safely
+
+    if not normalized_map:
+        return
+
+    # 2. Fetch users
+    users = PortalUser.objects.filter(
+        email__in=normalized_map.keys()
+    ).only("id", "email")
+
+    user_map = {u.email: u.id for u in users}
+
+    # 3. Collect all wireless numbers
+    numbers = {
+        num
+        for nums in normalized_map.values()
+        for num in nums
+    }
+
+    # 4. Find existing numbers
+    existing = set(
+        EmployeeWirelessNumber.objects
+        .filter(number__in=numbers)
+        .values_list("number", flat=True)
+    )
+
+    # 5. Prepare bulk create objects
+    objs = [
+        EmployeeWirelessNumber(
+            user_id=user_map[email],
+            number=num
+        )
+        for email, nums in normalized_map.items()
+        if email in user_map
+        for num in nums
+        if num not in existing
+    ]
+
+    # 6. Bulk insert
+    EmployeeWirelessNumber.objects.bulk_create(
+        objs,
+        ignore_conflicts=True
+    )
+

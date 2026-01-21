@@ -219,7 +219,7 @@ class ViewBillBotView(APIView):
                 return Response({"response":"Unable to answer the question!"},status=status.HTTP_200_OK)
             is_ran, result_df = botObj.run_query(conn=self.connection, sql=sql_query)
             print(result_df)
-            response_text = botObj.make_human_response(question, result_df, db_schema=self.schema)
+            _is_check, response_text = botObj.make_human_response(question, result_df, db_schema=self.schema)
             print()
             allLines = response_text.split("\n")
             questions = [line.strip() for line in allLines if line.strip().endswith("?")]
@@ -255,4 +255,4 @@ class ViewBillBotView(APIView):
             return Response({"message":"user chat deleted!"},status=status.HTTP_200_OK)
         except Exception as e:
             print(e)
-            return Response({"message":"Internal Server Error!"},status=status.HTTP_400_BAD_REQUEST)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)

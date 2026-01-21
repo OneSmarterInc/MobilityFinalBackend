@@ -60,7 +60,7 @@ class AnalysisView(APIView):
             except Analysis.DoesNotExist:
                 return Response({"message": "File not found"}, status=status.HTTP_404_NOT_FOUND)
             except Exception as e:
-                return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def post(self, request):
         try:
@@ -72,7 +72,10 @@ class AnalysisView(APIView):
             if filename.endswith('.pdf') and "mobile" in request.data['vendor'].lower():
                 type = check_tmobile_type(request.data['uploadBill'])
                 if type == 0:
-                    return Response({"message": "Unable to analyze pdf. Please upload valid T-Mobile bill."}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response(
+                        {"message": "PDF analysis failed. Please upload a valid T-Mobile billing statement."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
             else:
                 type = None
             ser = AnalysisSaveSerializer(data=request.data)
@@ -80,7 +83,11 @@ class AnalysisView(APIView):
                 ser.save()
             else:
                 print(ser.errors)
-                return Response({"message": "Unable to analyze pdf."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"message": "PDF analysis failed. The file may be corrupted or unsupported."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             try:
                 id = ser.data['id']
                 obj = Analysis.objects.filter(id=id).first()
@@ -93,30 +100,60 @@ class AnalysisView(APIView):
                         f"{request.user.email} uploaded {obj.vendor.name} file for client {obj.client} for analysis"
                     )
                     Process_Analysis_PDF.delay(buffer_data, obj.id)
-                    return Response({"message":f"File Analysis is in progress,It will take some time.\n Please check analysis page later."},status=status.HTTP_200_OK)
+                    return Response(
+                        {
+                            "message": "File analysis is in progress. This may take some time. "
+                                    "Please check the analysis page later."
+                        },
+                        status=status.HTTP_200_OK
+                    )
+
                 elif filename.endswith('.zip'):
                     zip_instance = ZipAnalysis(buffer_data, instance=obj)
                     check,msg = zip_instance.process()
                     if not check:
-                        return Response({"message":"Unable to process rdd file may be due to unsupported file format."},status=status.HTTP_400_BAD_REQUEST)
+                        return Response(
+                            {
+                                "message": "Unable to process the RDD file. The file format may be unsupported."
+                            },
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
                     else:
-                        return Response({"message": "RDD uploaded successfully."},status=status.HTTP_200_OK)
+                        return Response(
+                            {
+                                "message": "RDD file uploaded successfully."
+                            },
+                            status=status.HTTP_200_OK
+                        )
+
                 elif filename.endswith('.xlsx') or filename.endswith('.xls'):
                     excel_instance = ExcelAnalysis(instance=obj)
                     check,msg = excel_instance.process()
                     if not check:
-                        return Response({"message":"Unable to process excel file may be due to unsupported file format."},status=status.HTTP_400_BAD_REQUEST)
+                        return Response(
+                            {
+                                "message": "Unable to process the Excel file. The file format may be unsupported."
+                            },
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
                     else:
-                        return Response({"message": "Excel uploaded successfully."},status=status.HTTP_200_OK)
+                        return Response(
+                            {
+                                "message": "Excel file uploaded successfully."
+                            },
+                            status=status.HTTP_200_OK
+                        )
+
                 else:
                     return Response({"message": "Only PDF, ZIP, and Excel files are supported."}, status=status.HTTP_400_BAD_REQUEST)
                 
             except Exception as e:
                 print(e)
-                return Response({"message": f'Error processing file!{str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             print(e)
-            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def put(self, request, pk):
         try:
@@ -124,29 +161,40 @@ class AnalysisView(APIView):
             ser = AnalysisSaveSerializer(analysis, data=request.data)
             if ser.is_valid():
                 ser.save()
-                return Response({"message": "pdf analysis updated successfully!", "data": ser.data}, status=status.HTTP_200_OK)
+                return Response({"message": "PDF analysis updated successfully.", "data": ser.data}, status=status.HTTP_200_OK)
         except Analysis.DoesNotExist:
             return Response({"message": "pdf not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def delete(self, request, pk):
         try:
             analysis = Analysis.objects.get(id=pk)
             vendor = analysis.vendor.name
             client = analysis.client
-            file = analysis.uploadBill.name
+            file_name = analysis.uploadBill.name
+
             analysis.delete()
+
             saveuserlog(
                 request.user,
-                f"{request.user.email} deleted {vendor} file '{file}' for client {client if client else '-'} from Analysis"
+                f"{request.user.email} deleted {vendor} file '{file_name}' "
+                f"for client {client if client else '-'} from Analysis"
             )
 
-            return Response({"message": "Analysis file deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+            return Response(
+                {"message": "Analysis file deleted successfully."},
+                status=status.HTTP_200_OK
+            )
+
         except Analysis.DoesNotExist:
-            return Response({"message": "Analysis file not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"message": "Analysis file not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
         except Exception as e:
-            return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
     
 
@@ -178,7 +226,7 @@ class MultipleUploadView(APIView):
             except Analysis.DoesNotExist:
                 return Response({"message": "File not found"}, status=status.HTTP_404_NOT_FOUND)
             except Exception as e:
-                return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     def post(self, request, *args, **kwargs):
         data = request.data
         vendor = data.get('vendor')
@@ -258,13 +306,17 @@ class MultipleUploadView(APIView):
             )
             Process_multiple_pdfs.delay(buffer_data, obj.id)
             return Response(
-                {"message": "Analysis is in progress.\nIt will take some time. Please check analysis page later."},
+                {
+                    "message": "Analysis is in progress. This may take some time. "
+                            "Please check the analysis page later."
+                },
                 status=status.HTTP_200_OK
             )
+
         except Exception as e:
             print(e)
             if obj and obj.pk : obj.delete()
-            return Response({"message": f"Error processing files, may be due to internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         
     def delete(self, request, pk):
@@ -281,12 +333,16 @@ class MultipleUploadView(APIView):
                 request.user,
                 f"{request.user.email} deleted {vendor} analysis files of client {client if client else '-'}", request.user.company
             )
-            return Response({"message": "Analysis files deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+            return Response(
+                {"message": "Analysis files deleted successfully."},
+                status=status.HTTP_200_OK
+            )
+
         except Analysis.DoesNotExist:
             return Response({"message": "Analysis files not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             print(e)
-            return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 
         
@@ -1039,6 +1095,7 @@ class ZipAnalysis:
             return False, str(e), 0
 
 from bot import BotClass
+from OpenAIBot import OpenAIBotClass
 class AnalysisBotView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -1057,11 +1114,11 @@ class AnalysisBotView(APIView):
         
     def post(self,request,ChatType,pk,*args,**kwargs):
         botObj = BotClass(bot_type="analysis")
+        # botObj = OpenAIBotClass(bot_type="analysis")
         data = request.data
         query_type = data.get('file_type')
         if not pk:
             return Response({"message":"Key required!"},status=status.HTTP_400_BAD_REQUEST)
-        # self.connection, self.schema = init_database(query_type=query_type)
         self.connection, self.schema = botObj.init_database(query_type=query_type)
         data = request.data
         question = data.get("prompt")
@@ -1076,6 +1133,7 @@ class AnalysisBotView(APIView):
             )
 
             is_generated, sql_query = botObj.get_analysis_sql_from_gemini(question, self.schema, special_id=pk, chat_history=df)
+            print(is_generated, sql_query)
 
             if not is_generated:
                 instance.is_query_generated = False
@@ -1085,7 +1143,8 @@ class AnalysisBotView(APIView):
 
             is_ran, result_df = botObj.run_query(conn=self.connection, sql=sql_query)
             
-            response_text = botObj.make_human_response(question, result_df, db_schema=self.schema)
+            is_resp, response_text = botObj.make_human_response(question, result_df, db_schema=self.schema)
+            print("response_text==",response_text)
             allLines = response_text.split("\n")
             questions = [line.strip() for line in allLines if line.strip().endswith("?")]
             other_lines = "\n".join([line.strip() for line in allLines if line.strip() and not line.strip().endswith("?")])
@@ -1117,7 +1176,7 @@ class AnalysisBotView(APIView):
             return Response({"message":"user analysis chat deleted!"},status=status.HTTP_200_OK)
         except Exception as e:
             print(e)
-            return Response({"message":"Internal Server Error!"},status=status.HTTP_400_BAD_REQUEST)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ExcelAnalysis:
@@ -1157,7 +1216,7 @@ class GetChatPdfView(APIView):
             return response
         except Exception as e:
             print(e)
-            return Response({"message":"Internal Server Error!"},status=status.HTTP_400_BAD_REQUEST)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 import calendar
 class GetSavingsPdfView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1196,7 +1255,7 @@ class GetSavingsPdfView(APIView):
 
         except Exception as e:
             print(e)
-            return Response({"message":"Internal Server Error!"},status=status.HTTP_400_BAD_REQUEST)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         
         

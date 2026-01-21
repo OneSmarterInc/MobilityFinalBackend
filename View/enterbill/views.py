@@ -60,7 +60,7 @@ class UploadedBillView(APIView):
             if len(base) == 1:
                 baseline = BaselineDataTable.objects.filter(viewuploaded=base[0].viewuploaded,viewpapered=base[0].viewpapered).filter(is_draft=False, is_pending=False)
             else:
-                return Response({"message":"Internal Server Error"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             wireless_numbers = baseline.values_list('Wireless_number', flat=True)
             Onboardedobjects = BaselineDataTable.objects.filter(
                 viewuploaded=None,
@@ -348,12 +348,12 @@ class UploadfileView(APIView):
             return Response({"message":f"ban with account number {ban} not found!"},status=status.HTTP_400_BAD_REQUEST)
         if found.exists():
             print("Founded")
-            if 'master' in found[0].Entry_type.lower():
+            if 'master' in found.first().Entry_type.lower():
                 return Response({
                     "message": f"ban with Master Account is not acceptable!"
                 }, status=status.HTTP_400_BAD_REQUEST)
         
-        found = found[0]
+        found = found.first()
         obj = ViewUploadBill.objects.create(
             file_type = filetype,
             file = file,
@@ -413,22 +413,6 @@ class UploadfileView(APIView):
                     map[key] = None
             mobj = MappingObjectBan.objects.create(viewupload=obj, **map)
             mobj.save()
-            check = ProcessExcel(instance=obj, user_mail=request.user.email)
-            check = check.process()
-            if check['error']!= 0:
-                if obj and obj.pk: obj.delete()
-                return Response(
-                    {"message": f"Problem to process excel data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
-                )
-            # AllUserLogs.objects.create(
-            #     user_email=request.user.email,
-            #     description=(
-            #         f"User onboarded excel file for {company} - {sub_company} "
-            #         f"with account number {Ban} and vendor - {vendor}."
-            #     ),
-            #     previus_data=json.dumps(previous_data_log) if previous_data_log else "",
-            #     new_data=json.dumps(new_data_log) if new_data_log else ""
-            # )
 
             # Send the data to Celery for background processing
             buffer_data = json.dumps({
@@ -442,7 +426,6 @@ class UploadfileView(APIView):
                 'email':request.user.email,
                 'mapping_json': model_to_dict(MappingObjectBan.objects.get(viewupload=obj)) or {}
             })
-            print(buffer_data)
 
             try:
                 excelobj = EnterBillProcessExcel(buffer_data=buffer_data, instance=obj)
@@ -452,9 +435,8 @@ class UploadfileView(APIView):
                     if obj and obj.pk: obj.delete()
                     return Response({"message":f"{str(msgobject['message'])}"},status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:
-                print(e)
                 if obj and obj.pk: obj.delete()
-                return Response({"message":f"{str(e)}"},status=status.HTTP_400_BAD_REQUEST)
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         elif str(file.name).endswith('.zip'):
             try:
                 addon = ProcessZip(obj, request.user.email)
@@ -468,8 +450,7 @@ class UploadfileView(APIView):
                 bill_analysis_processor.delay(buffer_data, obj.id,btype=tp)
             except Exception:
                 if obj and obj.pk: obj.delete()
-                return Response({"message":"Unable to upload zip!"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
 
             return Response({"message": "Invalid file type"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1457,14 +1438,6 @@ class ProcessZip:
 
         from OnBoard.Ban.models import BatchReport
 
-
-        existing_record = BatchReport.objects.filter(
-            Customer_Vendor_Account_Number=renamed_data['Customer_Vendor_Account_Number'],
-            company=renamed_data['company'],
-            Vendor_Name_1=renamed_data['Vendor_Name_1'],
-            Invoice_Date=renamed_data['Invoice_Date']
-        ).first()
-
         try:
             batch_vendor = vendor
             if (str(vendor).lower().startswith('a') and str(vendor).endswith('t')):
@@ -1707,9 +1680,6 @@ class ProcessZip:
 import tempfile
 
 class ProcessExcel:
-
-
-
     def __init__(self, instance, user_mail):
         self.instance = instance
         self.file = instance.file
@@ -1724,72 +1694,101 @@ class ProcessExcel:
         self.year = instance.year
         self.account_number = instance.ban
         self.ban = instance.ban
-        self.mapping = model_to_dict(MappingObjectBan.objects.filter(viewupload=self.instance)[0])
+        self.mapping = model_to_dict(MappingObjectBan.objects.filter(viewupload=self.instance).first())
         
-
 
     def process(self):
         try:
+            def is_valid_wireless_number(number):
+                pattern = r'^(?:\d{10}|\d{3}-\d{3}-\d{4}|\(\d{3}\) \d{3}-\d{4})$'
+                return bool(re.match(pattern, number))
+            # Read Excel file
             df_csv = pd.read_excel(BytesIO(self.file.read()))
-            df_csv.columns = df_csv.columns.str.strip()
 
-            df_csv.columns = df_csv.columns.str.strip().str.replace('-', '').str.replace(r'\s+', ' ', regex=True).str.replace(' ', '_')
+            # Normalise column names
+            df_csv.columns = (
+                df_csv.columns
+                .str.strip()
+                .str.replace('-', '', regex=False)
+                .str.replace(r'\s+', ' ', regex=True)
+                .str.replace(' ', '_')
+            )
 
-            # Save column names mapping in Column_mapping_data
-            columns_list = df_csv.columns.tolist()
-            column_names_str = ','.join(columns_list)
-
-            # Save the uploaded file temporarily for background processing
-            with tempfile.NamedTemporaryFile(delete=False) as temper_file:
+            # Save uploaded file temporarily
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                 for chunk in self.file.chunks():
-                    temper_file.write(chunk)
-                path = temper_file.name
+                    temp_file.write(chunk)
 
-            # Parse the mapping object and set wireless number column
+            # Wireless number column from mapping
             wireless_column_name = self.mapping.get('wireless_number', 'wireless_number')
 
-            # Filter unique_pdf_data_table for existing data with the given account number (Ban)
+            # Fetch existing DB data for the BAN
             existing_data = UniquePdfDataTable.objects.filter(account_number=self.ban)
 
-            # Create a dictionary of existing data by wireless number for easy access
+            # Index existing data by normalised wireless number
             existing_wireless_data = {
-                row['wireless_number']: row for row in existing_data.values()
+                str(row['wireless_number']).strip(): row
+                for row in existing_data.values()
             }
-
-            # Initialize logs for previous and new data
             previous_data_log = []
             new_data_log = []
 
+            # Helper for safe value comparison
+            def is_value_changed(new_val, old_val):
+                if pd.isna(new_val) and pd.isna(old_val):
+                    return False
+                return str(new_val) != str(old_val)
+
+            # Iterate over uploaded rows
             for _, new_row in df_csv.iterrows():
-                wireless_number = new_row.get(wireless_column_name)
+                
+                wireless_number = str(new_row.get(wireless_column_name)).strip()
+                
+
+                if not is_valid_wireless_number(wireless_number):
+                    continue
+                print("wireless_number",wireless_number)
                 if wireless_number in existing_wireless_data:
-                    # Existing row found, compare each field for changes
                     old_row = existing_wireless_data[wireless_number]
+                    print("old_row",old_row)
                     updated_fields = {}
+
                     for field in df_csv.columns:
+                        print("field",field)
                         new_value = new_row[field]
                         old_value = old_row.get(field)
 
-                        # Check if the field's new value differs from old value, handle NaT if present
-                        if pd.notna(new_value) and new_value != old_value:
+                        if is_value_changed(new_value, old_value):
+                            print(new_value,old_value)
                             updated_fields[field] = new_value
-
-                    # If any updates are found, log both previous and updated fields
+                            
                     if updated_fields:
-                        previous_data_log.append(self.clean_data_for_json(old_row))  # Full old row for reference
-                        new_data_log.append(self.clean_data_for_json(updated_fields))  # Only changed fields for new data
+                        previous_data_log.append(
+                            self.clean_data_for_json(old_row)
+                        )
+                        new_data_log.append(
+                            self.clean_data_for_json(updated_fields)
+                        )
+
                 else:
-                    # For new wireless numbers, log the entire row in new data
-                    new_data_log.append(self.clean_data_for_json(new_row.to_dict()))
-            print("*****88")
+                    print("new",wireless_number)
+                    # New wireless number → log full row
+                    new_data_log.append(
+                        self.clean_data_for_json(new_row.to_dict())
+                    )
+
             return {
                 'message': 'process done',
-                'error':0
+                'error': 0
             }
-    
+
         except Exception as e:
-            print(e)
-            return {'message' : str(e), 'error' : -1}
+            print("error =", e)
+            return {
+                'message': str(e),
+                'error': -1
+            }
+
     def clean_data_for_json(self, data):
         cleaned_data = {}
         for key, value in data.items():
@@ -2110,8 +2109,7 @@ class PaperBillView(APIView):
             
             base = BaseDataTable.objects.filter(sub_company=org, vendor=vendor, accountnumber=ban)
             if not base:
-                return Response({"message":"Unexpected error occur!"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            print("base===")
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             if base.filter(invoicenumber=invoice_number).exists():
                 return Response({"message":f"Bill with invoice number {invoice_number} already exists!"},status=status.HTTP_400_BAD_REQUEST)
         
@@ -2175,7 +2173,7 @@ class PaperBillView(APIView):
             if new_base_obj:
                 baseline = BaselineDataTable.objects.filter(viewpapered=new_base_obj.viewpapered).filter(is_draft=False, is_pending=False)
             else:
-                return Response({"message":"Internal Server Error"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             wireless_numbers = baseline.values_list('Wireless_number', flat=True)
             Onboardedobjects = BaselineDataTable.objects.filter(
                 viewpapered=None,

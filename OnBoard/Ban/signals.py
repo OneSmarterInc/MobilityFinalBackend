@@ -1,4 +1,4 @@
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_save, pre_save, post_delete,pre_delete
 from django.dispatch import receiver
 from .models import BaseDataTable, OnboardBan, UploadBAN, UniquePdfDataTable
 from Dashboard.ModelsByPage.Req import CostCenters
@@ -6,6 +6,43 @@ from View.models import Contracts
 from Batch.ser import NotificationSerializer
 from detect_model_changes import detect_model_changes
 from authenticate.views import saveuserlog
+from authenticate.models import PortalUser, EmployeeWirelessNumber
+from django.db.models import Q
+
+
+@receiver(post_save, sender=UniquePdfDataTable) 
+def sync_employee_wireless(sender, instance, **kwargs): 
+    obj = EmployeeWirelessNumber.objects.filter( number=instance.wireless_number ).first() 
+    if not obj: return 
+    new_is_active = instance.User_status == "Active" 
+    if obj.is_active != new_is_active: 
+        obj.is_active = new_is_active 
+        obj.save()
+
+
+@receiver(pre_delete, sender=BaseDataTable)
+def delete_ban_users(sender, instance, **kwargs):
+    q = Q(account_number=instance.accountnumber)
+
+    if instance.banOnboarded_id:
+        q &= Q(
+            organization_id=instance.banOnboarded.organization_id,
+            vendor_id=instance.banOnboarded.vendor_id,
+        )
+
+    if instance.banUploaded_id:
+        q |= Q(
+            organization_id=instance.banUploaded.organization_id,
+            vendor_id=instance.banUploaded.Vendor_id,
+        )
+
+    all_users = PortalUser.objects.filter(q)
+
+    print("Users to be deleted:", all_users.count())
+
+    all_users.delete()
+
+
 @receiver(post_save, sender=BaseDataTable)
 def remittance_format_after_save(sender, instance, created, **kwargs):
 
@@ -90,10 +127,8 @@ def detect_changes_before_save(sender, instance, **kwargs):
 
     if changes:
         msg = "The following fields have been updated:"
-        print("Changes detected:", changes)
         for field_name, old_value, new_value in changes:
             msg += f" {field_name}: '{old_value}' → '{new_value}';"
-        print(msg)
         if instance.banOnboarded:
             save_ban_history(onboardID=instance.banOnboarded.id, action=msg, user="System", ban=instance.accountnumber)
         elif instance.banUploaded:
@@ -113,9 +148,6 @@ def detect_changes_before_save_unique(sender, instance, **kwargs):
     for field_name, old_value, new_value in changes:
         msg += f" {field_name}: '{old_value}' → '{new_value}';"
     
-    print("Changes detected:", changes)
-    print(msg)
-
     if instance.banOnboarded:
         save_wireless_history(
             onboardID=instance.banOnboarded.id, 

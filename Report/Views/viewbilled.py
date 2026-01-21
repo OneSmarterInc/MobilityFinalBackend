@@ -662,7 +662,7 @@ class ViewBilledReportView(APIView):
 
         filtered_data = Report_Billed_Data.objects.filter(company=filter_kwargs['company'])
         if not filtered_data.exists():
-            return Response({"message":f"no unbilled report found for {filter_kwargs['company'].Company_name}"},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":f"no unbilled report found for {filter_kwargs['organization'].Organization_name}"},status=status.HTTP_400_BAD_REQUEST)
         filtered_data = filtered_data.filter(organization=filter_kwargs['organization'])
         if not filtered_data.exists():
             return Response({"message":f"no unbilled report found for {filter_kwargs['organization'].Organization_name}"},status=status.HTTP_400_BAD_REQUEST)
@@ -712,7 +712,7 @@ class ViewBilledReportView(APIView):
                         return Response({"message": "No data found for the given filters."}, status=status.HTTP_200_OK)
                     self.data = showBilledReport(zero, many=True)
                 except Exception:
-                    return Response({"message": "Unable to view report."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             else:
                 return Response({"message": "Invalid sub_type provided."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1133,4 +1133,4 @@ class ViewBilledReportView(APIView):
             )
         except Exception as e:
             print("Combined (all months, pivot) report error:", e)
-            return Response({"message": "Unable to generate combined report."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)

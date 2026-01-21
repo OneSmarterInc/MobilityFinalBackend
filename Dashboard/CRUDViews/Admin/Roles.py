@@ -48,8 +48,6 @@ class UserRoleView(APIView):
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     def put(self, request, pk):
         print(request.data)
-        org = request.data.get('organization')
-        orgObj = Organizations.objects.filter(Organization_name=org).first()
         user_role = UserRoles.objects.filter(id=pk).first()
         if not user_role:
             return Response({"message": "User role does not exist!"}, status=status.HTTP_404_NOT_FOUND)

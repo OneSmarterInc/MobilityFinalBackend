@@ -9,22 +9,22 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 from authenticate.models import PortalUser
 from OnBoard.Ban.models import UniquePdfDataTable
-from Dashboard.Serializers.requestser import EmployeeSerializer, SaveUpgradeDeviceRequestSerializer, ShowUpgradeDeviceRequestSerializer
+from Dashboard.Serializers.requestser import EmployeeSerializer, SaveUpgradeDeviceRequestSerializer, ShowUpgradeDeviceRequestSerializer,PortalEmployeeSerializer
 from authenticate.views import saveuserlog
 
 class EmployeeRequest(APIView):
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
 
     def get(self, request, email, *args, **kwargs):
         get_user = PortalUser.objects.filter(email=email).first()
-        if not get_user:
-            return Response({"message":f"Employee with email {email} not found."},status=status.HTTP_400_BAD_REQUEST)
-        
-        get_user_records = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(wireless_number=get_user.mobile_number).first()
-        if not get_user_records:
-            return Response({"message":f"Records of user {get_user.email} not found!"},status=status.HTTP_400_BAD_REQUEST)
-        ser = EmployeeSerializer(get_user_records)
-        return Response({"data":ser.data},status=status.HTTP_200_OK)
+        portalSer = PortalEmployeeSerializer(get_user)
+        wireless = request.GET.get("wireless")
+        if wireless:
+            get_user_records = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(wireless_number=wireless).first()
+            ser = EmployeeSerializer(get_user_records)
+            print(ser.data)
+            return Response({"data":portalSer.data, "records":ser.data},status=status.HTTP_200_OK)
+        return Response({"data":portalSer.data},status=status.HTTP_200_OK)
 
     
 from ..ModelsByPage.Req import upgrade_device_request

@@ -48,7 +48,7 @@ class ManageUsersView(APIView):
             return Response({"message": "User Updated successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
             print(e)
-            return Response({"message":"Unable to update user."},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def delete(self, request, pk, *args, **kwargs):
         try:

@@ -301,6 +301,7 @@ class ProcessCSVOnboard:
 
         df_csv.rename(columns=filtered_mapping, inplace=True)
         def format_wireless_number(number):
+            print("Inventory Excel")
             pattern2 = r'^\d{3}\-\d{3}\-\d{4}$'
             if len(str(number)) <= 10:
                 return
@@ -338,12 +339,6 @@ class ProcessCSVOnboard:
         vendors = PdfDataTable.objects.values_list('vendor', flat=True).distinct()
 
         print("getting first")
-        bill_date = BaseDataTable.objects.filter(
-            company=self.company,
-            sub_company=self.sub_company,
-            vendor=self.vendor,
-            accountnumber=self.account_number
-        ).values_list('bill_date', flat=True).first()
 
         try:
             unique_account_numbers_list = list(unique_account_numbers)
@@ -359,7 +354,6 @@ class ProcessCSVOnboard:
                     if self.vendor in vendor_list:
                         print('in3')
                         if df_acc in unique_account_numbers_list:
-                            checked_acc = df_acc
                             print('credentials matched')
                         else:
                             checked_acc = None
@@ -379,9 +373,22 @@ class ProcessCSVOnboard:
         df_csv['sub_company'] = self.sub_company
         df_csv['vendor'] = self.vendor
         df_csv['plans'] = df_csv['Plan_name'] if 'Plan_name' in df_csv.columns else None
+        
         columns = df_csv.columns.tolist()
+        print(columns)
+        if "upgrade_eligible_date" in columns:
+            df_csv["upgrade_eligible_date"] = pd.to_datetime(
+                df_csv["upgrade_eligible_date"],
+                errors="coerce"   # invalid values -> NaT
+            ).dt.strftime("%Y-%m-%d")
+
+            df_csv["upgrade_eligible_date"] = df_csv["upgrade_eligible_date"].where(
+                df_csv["upgrade_eligible_date"].notna(),
+                None
+            )
 
         for _, row in df_csv.iterrows():
+
             wireless_number = row['wireless_number']
             # Prepare update dictionary
             update_data = {col: row[col] for col in columns if col != 'wireless_number' and pd.notnull(row[col])}
@@ -393,6 +400,6 @@ class ProcessCSVOnboard:
                 if self.type and self.type == 'inventory':
                     UniquePdfDataTable.objects.create(inventory=self.instance, **row.to_dict())
                 else:
-                    UniquePdfDataTable.objects.create(banOnboarded=self.instance,**row.to_dict())
+                    UniquePdfDataTable.objects.create(banOnboarded=self.instance.banOnboarded, banUploaded=self.instance.banUploaded,**row.to_dict())
                 print("Data added to UniquePdfDataTable")
         return {"message":f"Inventory updated successfully", 'code':0}

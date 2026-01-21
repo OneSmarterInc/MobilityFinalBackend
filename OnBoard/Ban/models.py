@@ -7,7 +7,7 @@ from..Location.models import Location
 from authenticate.models import PortalUser
 # Create your models here.
 import datetime
-
+from addon import normalize_us_phone
 
 # Base Account Number
 
@@ -177,6 +177,9 @@ class Lines(models.Model):
 
     def __str__(self):
         return f'{self.wireless_number}-{self.username}'
+    def save(self, *args, **kwargs):
+        if self.wireless_number: self.wireless_number = normalize_us_phone(self.wireless_number)
+        super().save(*args, **kwargs)
     
 
     
@@ -239,9 +242,10 @@ class MappingObjectBan(models.Model):
     bill_date =  models.CharField(max_length=255, null=False, blank=True)
     invoice_number =  models.CharField(max_length=255, null=True, blank=True)
     account_number = models.CharField(max_length=255, null=False, blank=True)
-    vendor = models.CharField(max_length=255, null=False, blank=True)
+    vendor = models.CharField(max_length=255, default="Verizon")
     wireless_number = models.CharField(max_length=255, null=False, blank=True)
     monthly_charges = models.CharField(max_length=255, null=True, blank=True)
+    total_charges = models.CharField(max_length=255, null=True, blank=True)
     user_name = models.CharField(max_length=255, null=True, blank=True)
     site_name = models.CharField(max_length=255, null=True, blank=True)
     mobile_device = models.CharField(max_length=255, null=True, blank=True)
@@ -262,7 +266,7 @@ class MappingObjectBan(models.Model):
     device_id = models.CharField(max_length=255, null=True, blank=True)
     VendorNumber = models.CharField(max_length=255, null=True,blank=True)
     cost_centers = models.CharField(max_length=255, null=True,blank=True)
-    User_status = models.CharField(max_length=255, null=True, blank=True)
+    User_status = models.CharField(max_length=255, null=True, default="Active")
     User_email = models.CharField(max_length=255, null=True, blank=True)
     Devices_device_type = models.CharField(max_length=255, null=True, blank=True)
     Devices_make = models.CharField(max_length=255, null=True, blank=True)
@@ -295,37 +299,37 @@ class MappingObjectBan(models.Model):
 class PdfDataTable(models.Model):
     banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedpdf', on_delete=models.CASCADE, null=True, blank=True)
     viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewpdf', on_delete=models.CASCADE, null=True, blank=True)
-    company = models.CharField(max_length=255, blank=True, null=True, default="")
-    account_number = models.CharField(max_length=255, blank=True, null=True, default="")
-    wireless_number = models.CharField(max_length=255, blank=True, null=True, default="")
-    user_name = models.CharField(max_length=255, blank=True, null=True, default="")
-    plans = models.CharField(max_length=255, blank=True, null=True, default="")
-    cost_center = models.CharField(max_length=255, blank=True, null=True, default="")
-    account_charges_and_credits = models.CharField(max_length=255, blank=True, null=True, default="")
-    monthly_charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    usage_and_purchase_charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    equipment_charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    surcharges_and_other_charges_and_credits = models.CharField(max_length=255, blank=True, null=True, default="")
-    taxes_governmental_surcharges_and_fees = models.CharField(max_length=255, blank=True, null=True, default="")
-    third_party_charges_includes_tax = models.CharField(max_length=255, blank=True, null=True, default="")
-    total_charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    voice_plan_usage = models.CharField(max_length=255, blank=True, null=True, default="")
-    data_usage = models.CharField(max_length=255, blank=True, null=True, default="")
-    group_number = models.CharField(max_length=255, blank=True, null=True, default="")
-    messaging_usage = models.CharField(max_length=255, blank=True, null=True, default="")
-    user_email = models.CharField(max_length=255, blank=True, null=True, default="")
-    status = models.CharField(max_length=255, blank=True, null=True, default="")
-    cost_center = models.CharField(max_length=255, blank=True, null=True, default="")
-    account_charges_credits = models.CharField(max_length=255, blank=True, null=True, default="")
-    charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    sub_company = models.CharField(max_length=255, blank=True, null=True, default="")
-    location = models.CharField(max_length=255, blank=True, null=True, default="")
-    item_category =  models.CharField(max_length=255, blank=True, null=True, default="")
-    item_description =  models.CharField(max_length=255, blank=True, null=True, default="")
-    item_charges = models.CharField(max_length=255, blank=True, null=True, default="")
+    sub_company = models.CharField(max_length=255,default="OSI")
+    company = models.CharField(max_length=255,default="OneSmarter")
+    account_number = models.CharField(max_length=255, blank=True, null=True)
+    wireless_number = models.CharField(max_length=255, blank=True, null=True)
+    user_name = models.CharField(max_length=255, blank=True, null=True)
+    plans = models.CharField(max_length=255, blank=True, null=True)
+    cost_center = models.CharField(max_length=255, blank=True, null=True)
+    account_charges_and_credits = models.CharField(max_length=255, blank=True, null=True)
+    monthly_charges = models.CharField(max_length=255, blank=True, null=True)
+    usage_and_purchase_charges = models.CharField(max_length=255, blank=True, null=True)
+    equipment_charges = models.CharField(max_length=255, blank=True, null=True)
+    surcharges_and_other_charges_and_credits = models.CharField(max_length=255, blank=True, null=True)
+    taxes_governmental_surcharges_and_fees = models.CharField(max_length=255, blank=True, null=True)
+    third_party_charges_includes_tax = models.CharField(max_length=255, blank=True, null=True)
+    total_charges = models.CharField(max_length=255, blank=True, null=True)
+    voice_plan_usage = models.CharField(max_length=255, blank=True, null=True)
+    data_usage = models.CharField(max_length=255, blank=True, null=True)
+    group_number = models.CharField(max_length=255, blank=True, null=True)
+    messaging_usage = models.CharField(max_length=255, blank=True, null=True)
+    user_email = models.CharField(max_length=255, blank=True, null=True)
+    status = models.CharField(max_length=255, blank=True, null=True)
+    cost_center = models.CharField(max_length=255, blank=True, null=True)
+    account_charges_credits = models.CharField(max_length=255, blank=True, null=True)
+    charges = models.CharField(max_length=255, blank=True, null=True)
+    location = models.CharField(max_length=255, blank=True, null=True)
+    item_category =  models.CharField(max_length=255, blank=True, null=True)
+    item_description =  models.CharField(max_length=255, blank=True, null=True)
+    item_charges = models.CharField(max_length=255, blank=True, null=True)
     
     
-    vendor = models.CharField(max_length=255, blank=True, null=True, default="")
+    vendor = models.CharField(max_length=255, default="Verizon")
     
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True, null=True)
@@ -334,6 +338,9 @@ class PdfDataTable(models.Model):
         db_table = 'PdfDataTable'
     def __str__(self):
         return self.account_number
+    def save(self, *args, **kwargs):
+        if self.wireless_number: self.wireless_number = normalize_us_phone(self.wireless_number)
+        super().save(*args, **kwargs)
     
 from View.models import ViewUploadBill,PaperBill
 from django.utils import timezone
@@ -347,57 +354,57 @@ class BaseDataTable(models.Model):
     viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewbase', on_delete=models.CASCADE, null=True, blank=True)
     viewpapered = models.ForeignKey(PaperBill, related_name='paperbase', on_delete=models.CASCADE, null=True, blank=True)
     inventory = models.ForeignKey(InventoryUpload, related_name='inventorybase', on_delete=models.CASCADE, null=True, blank=True)
-    bill_date = models.CharField(max_length=255, blank=True, null=True, default="")
-    date_due = models.CharField(max_length=255, blank=True, null=True, default="")
-    accountnumber = models.CharField(max_length=255, blank=True, null=True, default="")
+    bill_date = models.CharField(max_length=255, blank=True, null=True)
+    date_due = models.CharField(max_length=255, blank=True, null=True)
+    accountnumber = models.CharField(max_length=255, blank=True, null=True)
     auto_pay_enabled = models.BooleanField(default=False, null=True)
-    invoicenumber = models.CharField(max_length=255, blank=True, null=True, default="")
-    duration = models.CharField(max_length=255, blank=True, null=True, default="")
-    total_charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    company = models.CharField(max_length=255, blank=True, null=True, default="")
-    Entry_type = models.CharField(max_length=255, blank=True, null=True, default="")
-    vendor = models.CharField(max_length=255, blank=True, null=True, default="")
-    sub_company = models.CharField(max_length=255, blank=True, null=True, default="")
-    location = models.CharField(max_length=255, blank=True, null=True, default="")
-    master_account = models.CharField(max_length=255, blank=True, null=True, default="")
-    website = models.CharField(max_length=255, blank=True, null=True, default="")
-    Total_Current_Charges = models.CharField(max_length=255, blank=True, null=True, default="")
+    invoicenumber = models.CharField(max_length=255, blank=True, null=True)
+    duration = models.CharField(max_length=255, blank=True, null=True)
+    total_charges = models.CharField(max_length=255, blank=True, null=True)
+    sub_company = models.CharField(max_length=255,default="OSI")
+    company = models.CharField(max_length=255,default="OneSmarter")
+    Entry_type = models.CharField(max_length=255, blank=True, null=True)
+    vendor = models.CharField(max_length=255, default="Verizon")
+    location = models.CharField(max_length=255, blank=True, null=True)
+    master_account = models.CharField(max_length=255, blank=True, null=True)
+    website = models.CharField(max_length=255, blank=True, null=True)
+    Total_Current_Charges = models.CharField(max_length=255, blank=True, null=True)
     
-    plans = models.CharField(max_length=255, blank=True, null=True, default="")
+    plans = models.CharField(max_length=255, blank=True, null=True)
 
     BillingCurrency = models.CharField(max_length=255, default="USD")
     
-    charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    RemittanceAdd = models.CharField(max_length=255, blank=True, null=True, default="")
+    charges = models.CharField(max_length=255, blank=True, null=True)
+    RemittanceAdd = models.CharField(max_length=255, blank=True, null=True)
 
-    BillingName = models.CharField(max_length=255, blank=True, null=True, default="")
-    BillingAdd = models.CharField(max_length=255, blank=True, null=True, default="")
+    BillingName = models.CharField(max_length=255, blank=True, null=True)
+    BillingAdd = models.CharField(max_length=255, blank=True, null=True)
 
-    Total_Amount_Due =  models.CharField(max_length=255, blank=True, null=True, default="")
+    Total_Amount_Due =  models.CharField(max_length=255, blank=True, null=True)
 
     current_annual_review = models.CharField(max_length=2550, null=True, blank=True)
     previous_annual_review = models.CharField(max_length=2550, null=True, blank=True)
 
      ### Billing Information
 
-    BillingState = models.CharField(max_length=255, null=True, blank=True, default="")
-    BillingZip = models.CharField(max_length=255, null=True, blank=True, default="")
-    BillingCity = models.CharField(max_length=255, null=True, blank=True, default="")
+    BillingState = models.CharField(max_length=255, null=True, blank=True)
+    BillingZip = models.CharField(max_length=255, null=True, blank=True)
+    BillingCity = models.CharField(max_length=255, null=True, blank=True)
     BillingCountry = models.CharField(max_length=255, null=True, blank=True, default="United States")
-    BillingAtn = models.CharField(max_length=255, null=True, blank=True, default="")
-    BillingDate = models.CharField(max_length=255, null=True, blank=True, default="")
+    BillingAtn = models.CharField(max_length=255, null=True, blank=True)
+    BillingDate = models.CharField(max_length=255, null=True, blank=True)
     is_production = models.BooleanField(default=False)
     ### Remittance Information
-    RemittanceName = models.CharField(max_length=255, null=True, blank=True, default="")
-    RemittanceState = models.CharField(max_length=255, null=False, blank=False, default="")
-    RemittanceZip = models.CharField(max_length=255, null=False, blank=False, default="")
-    RemittanceCity = models.CharField(max_length=255, null=False, blank=False, default="")
+    RemittanceName = models.CharField(max_length=255, null=True, blank=True)
+    RemittanceState = models.CharField(max_length=255, null=False, blank=False)
+    RemittanceZip = models.CharField(max_length=255, null=False, blank=False)
+    RemittanceCity = models.CharField(max_length=255, null=False, blank=False)
     RemittanceCountry = models.CharField(max_length=255, null=True, blank=True, default="United States")
-    RemittanceAtn = models.CharField(max_length=255, null=True, blank=True, default="")
-    RemittanceNotes = models.CharField(max_length=255, null=True, blank=True, default="")
+    RemittanceAtn = models.CharField(max_length=255, null=True, blank=True)
+    RemittanceNotes = models.CharField(max_length=255, null=True, blank=True)
 
-    costcenterlevel = models.CharField(max_length=255, null=True, blank=True, default="")
-    costcentertype = models.CharField(max_length=255, null=True, blank=True, default="")
+    costcenterlevel = models.CharField(max_length=255, null=True, blank=True)
+    costcentertype = models.CharField(max_length=255, null=True, blank=True)
 
     costcenterstatus = models.BooleanField(default=False)
     CostCenter = models.CharField(max_length=255, null=True, blank=True)
@@ -406,17 +413,17 @@ class BaseDataTable(models.Model):
     Displaynotesonbillprocessing = models.BooleanField(default=False)
     POamt = models.CharField(max_length=255, null=True, blank=True)
     FoundAcc = models.CharField(max_length=255, null=True, blank=True)
-    bantype = models.CharField(max_length=255, null=True, blank=True, default="")
-    invoicemethod =models.CharField(max_length=255, null=True, blank=True, default="")
+    bantype = models.CharField(max_length=255, null=True, blank=True)
+    invoicemethod =models.CharField(max_length=255, null=True, blank=True)
 
     vendorCS = models.CharField(max_length=255, null=True, blank=True)
     
     vendor_alias = models.CharField(max_length=255, null=True, blank=True)
 
-    month =  models.CharField(max_length=255, blank=True, null=True, default="")
-    year =  models.CharField(max_length=255, blank=True, null=True, default="")
-    pdf_filename = models.CharField(max_length=255, blank=True, null=True, default="")
-    pdf_path = models.CharField(max_length=255, blank=True, null=True, default="")
+    month =  models.CharField(max_length=255, blank=True, null=True)
+    year =  models.CharField(max_length=255, blank=True, null=True)
+    pdf_filename = models.CharField(max_length=255, blank=True, null=True)
+    pdf_path = models.CharField(max_length=255, blank=True, null=True)
     remarks = models.CharField(max_length=2550, null=True, blank=True)
 
     account_password = models.CharField(max_length=255, null=True, blank=True)
@@ -432,9 +439,9 @@ class BaseDataTable(models.Model):
     AccCharge = models.CharField(max_length=255, null=True, blank=True)
     CustomerOfRecord = models.CharField(max_length=255, null=True, blank=True)
 
-    paymentType = models.CharField(max_length=255, null=True, blank=True, default="")
-    billstatus = models.CharField(max_length=255, null=True, blank=True, default="Active")
-    banstatus = models.CharField(max_length=255, null=True, blank=True,default="Active")
+    paymentType = models.CharField(max_length=255, null=True, blank=True)
+    billstatus = models.CharField(max_length=255, default="Active")
+    banstatus = models.CharField(max_length=255, default="Active")
     Check = models.CharField(max_length=255, null=True, blank=True)
     summary_file = models.FileField(upload_to='view_summary_files/', null=True, blank=True)
     is_baseline_approved = models.BooleanField(default=False)
@@ -464,24 +471,38 @@ class BaseDataTable(models.Model):
         return self.accountnumber
 
     def save(self, *args, **kwargs):
+
+        # 1. Location resolution (Uploaded takes precedence)
+        if self.banUploaded and self.banUploaded.location:
+            self.location = self.banUploaded.location.site_name
+        elif self.banOnboarded and self.banOnboarded.location:
+            self.location = self.banOnboarded.location.site_name
+
+        # 2. Check timestamp
+        if self.check and not self.check_timestamp:
+            self.check_timestamp = timezone.now()
+
+        # 3. Due date calculation
         if self.bill_date and not self.date_due:
             try:
-                # Parse ANY date format automatically
-                bill_dt = parser.parse(self.bill_date)
+                bill_dt = parser.parse(self.bill_date, dayfirst=True)
+                due_dt = bill_dt + relativedelta(months=1) - timedelta(days=1)
+                self.date_due = due_dt.strftime("%b %d %Y")
+            except Exception:
+                pass  # do not break save
 
-                # Add 1 month
-                due_dt = bill_dt + relativedelta(months=1)- timedelta(days=1)
+        # 4. Invoice number generation
+        if (self.viewpapered or self.viewuploaded) and not self.invoicenumber:
+            try:
+                parsed_date = parser.parse(self.bill_date, dayfirst=True)
+                formatted_date = parsed_date.strftime("%d%m%Y")
+            except Exception:
+                formatted_date = "00000000"
 
-                # Save back in same style (keep it readable)
-                self.date_due = due_dt.strftime("%b %d %Y")  # e.g. "Feb 15 2024"
-
-            except Exception as e:
-                print("Invalid bill_date format:", e)
-
-        if self.check:
-                self.check_timestamp = timezone.now()
+            self.invoicenumber = f"{self.accountnumber}x{formatted_date}"
 
         super().save(*args, **kwargs)
+
     
 class UniquePdfDataTable(models.Model):
     banOnboarded = models.ForeignKey(OnboardBan, related_name='onboardedlines', on_delete=models.CASCADE, null=True, blank=True)
@@ -489,11 +510,11 @@ class UniquePdfDataTable(models.Model):
     inventory = models.ForeignKey(InventoryUpload, related_name='inventorylines', on_delete=models.CASCADE, null=True, blank=True)
     viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewunique', on_delete=models.CASCADE, null=True, blank=True)
     viewpapered = models.ForeignKey(PaperBill, related_name='paperunique', on_delete=models.CASCADE, null=True, blank=True)
-    account_number = models.CharField(max_length=255, blank=True, null=True, default="")
-    ECPD_Profile_ID = models.CharField(max_length=255, blank=True, null=True, default="")
-    wireless_number = models.CharField(max_length=255, blank=True, null=True, default="")
-    user_name = models.CharField(max_length=255, blank=True, null=True, default="")
-    plans = models.CharField(max_length=255, blank=True, null=True, default="")
+    account_number = models.CharField(max_length=255, blank=True, null=True)
+    ECPD_Profile_ID = models.CharField(max_length=255, blank=True, null=True)
+    wireless_number = models.CharField(max_length=255, blank=True, null=True)
+    user_name = models.CharField(max_length=255, blank=True, null=True)
+    plans = models.CharField(max_length=255, blank=True, null=True)
 
     #plans attributes
 
@@ -505,68 +526,68 @@ class UniquePdfDataTable(models.Model):
     mifi = models.FloatField(default=0)
     wearables = models.FloatField(default=0)
 
-    cost_center = models.CharField(max_length=255, blank=True, null=True, default="")
+    cost_center = models.CharField(max_length=255, blank=True, null=True)
     VendorNumber = models.CharField(max_length=255, null=True,blank=True)
-    bill_date = models.CharField(max_length=255, blank=True, null=True, default="")
-    account_charges_and_credits = models.CharField(max_length=255, blank=True, null=True, default="")
-    monthly_charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    usage_and_purchase_charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    equipment_charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    surcharges_and_other_charges_credits = models.CharField(max_length=255, blank=True, null=True, default="")
-    taxes_governmental_surcharges_and_fees = models.CharField(max_length=255, blank=True, null=True, default="")
-    third_party_charges_includes_tax = models.CharField(max_length=255, blank=True, null=True, default="")
-    total_charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    voice_plan_usage = models.CharField(max_length=255, blank=True, null=True, default="")
-    messaging_usage = models.CharField(max_length=255, blank=True, null=True, default="")
-    data_usage = models.CharField(max_length=255, blank=True, null=True, default="")
-    group_number = models.CharField(max_length=255, blank=True, null=True, default="")
-    sub_company = models.CharField(max_length=255, blank=True, null=True, default="")
-    company = models.CharField(max_length=255, blank=True, null=True, default="")
-    vendor = models.CharField(max_length=255, blank=True, null=True, default="")
-    entry_type = models.CharField(max_length=255, blank=True, null=True, default="")
-    mobile_device = models.CharField(max_length=255, blank=True, null=True, default="")
-    imei_number = models.CharField(max_length=255, blank=True, null=True, default="")
-    mobile_sim_num = models.CharField(max_length=255, blank=True, null=True, default="")
-    User_status = models.CharField(max_length=255, blank=True, null=True, default="Active")
-    User_email = models.CharField(max_length=255, blank=True, null=True, default="")
-    Devices_device_type = models.CharField(max_length=255, blank=True, null=True, default="")
-    Devices_make = models.CharField(max_length=255, blank=True, null=True, default="")
-    Devices_model = models.CharField(max_length=255, blank=True, null=True, default="")
-    Devices_color = models.CharField(max_length=255, blank=True, null=True, default="")
-    Devices_storage = models.CharField(max_length=255, blank=True, null=True, default="")
-    Devices_os = models.CharField(max_length=255, blank=True, null=True, default="")
-    Devices_serial_number = models.CharField(max_length=255, blank=True, null=True, default="")
-    Device_ETF = models.CharField(max_length=255, blank=True, null=True, default="")
-    Plan_name = models.CharField(max_length=255, blank=True, null=True, default="")
-    Plan_line_number = models.CharField(max_length=255, blank=True, null=True, default="")
-    Location_address_1 = models.CharField(max_length=255, blank=True, null=True, default="")
-    Location_address_2 = models.CharField(max_length=255, blank=True, null=True, default="")
-    Location_city = models.CharField(max_length=255, blank=True, null=True, default="")
-    Location_state = models.CharField(max_length=255, blank=True, null=True, default="")
-    Location_zip = models.CharField(max_length=255, blank=True, null=True, default="")
-    Location_code = models.CharField(max_length=255, blank=True, null=True, default="")
-    site_name = models.CharField(max_length=255, blank=True, null=True, default="")
-    upgrade_eligible_date = models.CharField(max_length=255, blank=True, null=True, default="")
-    voice_plan_mins = models.CharField(max_length=255, blank=True, null=True, default="")
-    voice_plan_charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    data_plan_allotment = models.CharField(max_length=255, blank=True, null=True, default="")
-    data_plan_charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    mobile_access_charge = models.CharField(max_length=255, blank=True, null=True, default="")
-    third_party_app_charge = models.CharField(max_length=255, blank=True, null=True, default="")
-    international_voice_feat = models.CharField(max_length=255, blank=True, null=True, default="")
-    international_data_feat = models.CharField(max_length=255, blank=True, null=True, default="")
-    international_text_feat = models.CharField(max_length=255, blank=True, null=True, default="")
-    insurance = models.CharField(max_length=255, blank=True, null=True, default="")
-    device_id = models.CharField(max_length=255, blank=True, null=True, default="")
-    cost_centers = models.CharField(max_length=255, blank=True, null=True, default="")
+    bill_date = models.CharField(max_length=255, blank=True, null=True)
+    account_charges_and_credits = models.CharField(max_length=255, blank=True, null=True)
+    monthly_charges = models.CharField(max_length=255, blank=True, null=True)
+    usage_and_purchase_charges = models.CharField(max_length=255, blank=True, null=True)
+    equipment_charges = models.CharField(max_length=255, blank=True, null=True)
+    surcharges_and_other_charges_credits = models.CharField(max_length=255, blank=True, null=True)
+    taxes_governmental_surcharges_and_fees = models.CharField(max_length=255, blank=True, null=True)
+    third_party_charges_includes_tax = models.CharField(max_length=255, blank=True, null=True)
+    total_charges = models.CharField(max_length=255, blank=True, null=True)
+    voice_plan_usage = models.CharField(max_length=255, blank=True, null=True)
+    messaging_usage = models.CharField(max_length=255, blank=True, null=True)
+    data_usage = models.CharField(max_length=255, blank=True, null=True)
+    group_number = models.CharField(max_length=255, blank=True, null=True)
+    sub_company = models.CharField(max_length=255,default="OSI")
+    company = models.CharField(max_length=255,default="OneSmarter")
+    vendor = models.CharField(max_length=255, default="Verizon")
+    entry_type = models.CharField(max_length=255, blank=True, null=True)
+    mobile_device = models.CharField(max_length=255, blank=True, null=True)
+    imei_number = models.CharField(max_length=255, blank=True, null=True)
+    mobile_sim_num = models.CharField(max_length=255, blank=True, null=True)
+    User_status = models.CharField(max_length=255,null=True,default="Active")
+    User_email = models.CharField(max_length=255, blank=True, null=True)
+    Devices_device_type = models.CharField(max_length=255, blank=True, null=True)
+    Devices_make = models.CharField(max_length=255, blank=True, null=True)
+    Devices_model = models.CharField(max_length=255, blank=True, null=True)
+    Devices_color = models.CharField(max_length=255, blank=True, null=True)
+    Devices_storage = models.CharField(max_length=255, blank=True, null=True)
+    Devices_os = models.CharField(max_length=255, blank=True, null=True)
+    Devices_serial_number = models.CharField(max_length=255, blank=True, null=True)
+    Device_ETF = models.CharField(max_length=255, blank=True, null=True)
+    Plan_name = models.CharField(max_length=255, blank=True, null=True)
+    Plan_line_number = models.CharField(max_length=255, blank=True, null=True)
+    Location_address_1 = models.CharField(max_length=255, blank=True, null=True)
+    Location_address_2 = models.CharField(max_length=255, blank=True, null=True)
+    Location_city = models.CharField(max_length=255, blank=True, null=True)
+    Location_state = models.CharField(max_length=255, blank=True, null=True)
+    Location_zip = models.CharField(max_length=255, blank=True, null=True)
+    Location_code = models.CharField(max_length=255, blank=True, null=True)
+    site_name = models.CharField(max_length=255, blank=True, null=True)
+    upgrade_eligible_date = models.DateField(max_length=255, blank=True, null=True)
+    voice_plan_mins = models.CharField(max_length=255, blank=True, null=True)
+    voice_plan_charges = models.CharField(max_length=255, blank=True, null=True)
+    data_plan_allotment = models.CharField(max_length=255, blank=True, null=True)
+    data_plan_charges = models.CharField(max_length=255, blank=True, null=True)
+    mobile_access_charge = models.CharField(max_length=255, blank=True, null=True)
+    third_party_app_charge = models.CharField(max_length=255, blank=True, null=True)
+    international_voice_feat = models.CharField(max_length=255, blank=True, null=True)
+    international_data_feat = models.CharField(max_length=255, blank=True, null=True)
+    international_text_feat = models.CharField(max_length=255, blank=True, null=True)
+    insurance = models.CharField(max_length=255, blank=True, null=True)
+    device_id = models.CharField(max_length=255, blank=True, null=True)
+    cost_centers = models.CharField(max_length=255, blank=True, null=True)
     deviceAmount = models.CharField(max_length=255, null=True, blank=True)
     deviceCredit = models.CharField(max_length=255, null=True, blank=True)
     accessories = models.JSONField(default=list)
     cost_center = models.CharField(max_length=255, null=True, blank=True)
     cost_center_status = models.CharField(max_length=255, null=True, blank=True)
     cost_center_notes = models.CharField(max_length=255, null=True, blank=True)
-    item_category =  models.CharField(max_length=255, blank=True, null=True, default="")
-    item_description =  models.CharField(max_length=255, blank=True, null=True, default="")
+    item_category =  models.CharField(max_length=255, blank=True, null=True)
+    item_description =  models.CharField(max_length=255, blank=True, null=True)
     category_object = models.JSONField(default=dict, null=True, blank=True)
 
     remark = models.CharField(max_length=255, blank=True, null=True)
@@ -585,15 +606,24 @@ class UniquePdfDataTable(models.Model):
     # def __str__(self):
     #     return self.account_number if self.account_number else None
 
+    def save(self, *args, **kwargs):
+        if self.wireless_number: self.wireless_number = normalize_us_phone(self.wireless_number)
+        if self.banUploaded:
+            self.site_name = self.banUploaded.location.site_name if self.banUploaded.location else None
+        elif self.banOnboarded:
+            self.site_name = self.banOnboarded.location.site_name if self.banOnboarded.location else None
+        super().save(*args, **kwargs)
+
+
 class BaselineDataTable(models.Model):
     banUploaded = models.ForeignKey(UploadBAN, related_name='banUploadedbaseline', on_delete=models.CASCADE, null=True, blank=True)
     banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedbaseline', on_delete=models.CASCADE, null=True, blank=True)
     viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewbaseline', on_delete=models.CASCADE, null=True, blank=True)
     viewpapered = models.ForeignKey(PaperBill, related_name='paperbaseline', on_delete=models.CASCADE, null=True, blank=True)
-    account_number = models.CharField(max_length=255, blank=True, null=True, default="")
-    Wireless_number = models.CharField(max_length=255, blank=True, null=True, default="")
-    user_name = models.CharField(max_length=255, blank=True, null=True, default="")
-    plans = models.CharField(max_length=255, blank=True, null=True, default="")
+    account_number = models.CharField(max_length=255, blank=True, null=True)
+    Wireless_number = models.CharField(max_length=255, blank=True, null=True)
+    user_name = models.CharField(max_length=255, blank=True, null=True)
+    plans = models.CharField(max_length=255, blank=True, null=True)
 
     #plans attributes
 
@@ -605,24 +635,24 @@ class BaselineDataTable(models.Model):
     mifi = models.FloatField(default=0)
     wearables = models.FloatField(default=0)
 
-    cost_center = models.CharField(max_length=255, blank=True, null=True, default="")
-    account_charges_and_credits = models.CharField(max_length=255, blank=True, null=True, default="")
-    monthly_charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    usage_and_purchase_charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    equipment_charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    data_usage = models.CharField(max_length=255, blank=True, null=True, default="")
-    surcharges_and_other_charges_and_credits = models.CharField(max_length=255, blank=True, null=True, default="")
-    taxes_governmental_surcharges_and_fees = models.CharField(max_length=255, blank=True, null=True, default="")
-    third_party_charges_includes_tax = models.CharField(max_length=255, blank=True, null=True, default="")
-    total_charges = models.CharField(max_length=255, blank=True, null=True, default="")
-    voice_plan_usage = models.CharField(max_length=255, blank=True, null=True, default="")
+    cost_center = models.CharField(max_length=255, blank=True, null=True)
+    account_charges_and_credits = models.CharField(max_length=255, blank=True, null=True)
+    monthly_charges = models.CharField(max_length=255, blank=True, null=True)
+    usage_and_purchase_charges = models.CharField(max_length=255, blank=True, null=True)
+    equipment_charges = models.CharField(max_length=255, blank=True, null=True)
+    data_usage = models.CharField(max_length=255, blank=True, null=True)
+    surcharges_and_other_charges_and_credits = models.CharField(max_length=255, blank=True, null=True)
+    taxes_governmental_surcharges_and_fees = models.CharField(max_length=255, blank=True, null=True)
+    third_party_charges_includes_tax = models.CharField(max_length=255, blank=True, null=True)
+    total_charges = models.CharField(max_length=255, blank=True, null=True)
+    voice_plan_usage = models.CharField(max_length=255, blank=True, null=True)
     VendorNumber = models.CharField(max_length=255, null=True,blank=True)
-    messaging_usage = models.CharField(max_length=255, blank=True, null=True, default="")
-    sub_company = models.CharField(max_length=255, blank=True, null=True, default="")
+    messaging_usage = models.CharField(max_length=255, blank=True, null=True)
     category_object = models.JSONField(default=dict)
-    company = models.CharField(max_length=255, blank=True, null=True, default="")
-    vendor = models.CharField(max_length=255, blank=True, null=True, default="")
-    bill_date = models.CharField(max_length=255, blank=True, null=True, default="")
+    sub_company = models.CharField(max_length=255,default="OSI")
+    company = models.CharField(max_length=255,default="OneSmarter")
+    vendor = models.CharField(max_length=255, default="Verizon")
+    bill_date = models.CharField(max_length=255, blank=True, null=True)
     remark =  models.CharField(max_length=255, blank=True, null=True)
     is_baseline_approved = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
@@ -637,46 +667,51 @@ class BaselineDataTable(models.Model):
     def __str__(self):
         return self.account_number
     
+    def save(self, *args, **kwargs):
+        if self.Wireless_number: self.Wireless_number = normalize_us_phone(self.Wireless_number)
+        super().save(*args, **kwargs)
+    
+    
 class BatchReport(models.Model):
     banUploaded = models.ForeignKey(UploadBAN, related_name='banUploadedbatch', on_delete=models.CASCADE, null=True, blank=True)
     banOnboarded = models.ForeignKey(OnboardBan, related_name='banOnboardedbatchreport', on_delete=models.CASCADE, null=True, blank=True)
     viewuploaded = models.ForeignKey(ViewUploadBill, related_name='viewbatch', on_delete=models.CASCADE, null=True, blank=True)
     viewpapered = models.ForeignKey(PaperBill, related_name='paperbatch', on_delete=models.CASCADE, null=True, blank=True)
-    Cust_Id = models.CharField(max_length=100, null=True, blank=True, default="")
-    Sub_Id = models.CharField(max_length=100, null=True, blank=True, default="")
-    Vendor_Number = models.CharField(max_length=100, null=True, blank=True, default="")
-    Location_Code = models.CharField(max_length=100, null=True, blank=True, default="")
-    Payment_Comments = models.CharField(max_length=255, null=True, blank=True, default="")
-    Payment_Number = models.CharField(max_length=100, null=True, blank=True, default="")
-    Vendor_Name_1 = models.CharField(max_length=255, null=True, blank=True, default="")
-    Vendor_Name_2 = models.CharField(max_length=255, null=True, blank=True, default="")
-    Vendor_Address_1 = models.CharField(max_length=255, null=True, blank=True, default="")
-    Vendor_Address_2 = models.CharField(max_length=255, null=True, blank=True, default="")
-    Vendor_City = models.CharField(max_length=100, null=True, blank=True, default="")
-    Vendor_State = models.CharField(max_length=100, null=True, blank=True, default="")
-    Vendor_Zip = models.CharField(max_length=100, null=True, blank=True, default="")
-    Vendor_Country = models.CharField(max_length=100, null=True, blank=True, default="")
-    Vendor_Tax_Id = models.CharField(max_length=100, null=True, blank=True, default="")
-    Vendor_Phone_Number = models.CharField(max_length=100, null=True, blank=True, default="")
-    Customer_Vendor_Account_Number = models.CharField(max_length=100, null=True, blank=True, default="")
-    Payment_Misc_1 = models.CharField(max_length=255, null=True, blank=True, default="") 
-    Invoice_Number = models.CharField(max_length=100, null=True, blank=True, default="")
-    Total_Amount = models.CharField(max_length=100, null=True, blank=True, default="")
-    Adjustment_Amount = models.CharField(max_length=100, null=True, blank=True, default="")
-    Net_Amount = models.CharField(max_length=100, null=True, blank=True, default="")
-    Due_Date = models.CharField(max_length=100, null=True, blank=True, default="")
-    Invoice_Date = models.CharField(max_length=100, null=True, blank=True, default="")
-    Invoice_Comments = models.CharField(max_length=255, null=True, blank=True, default="")
-    Invoice_Misc_1 = models.CharField(max_length=255, null=True, blank=True, default="")
-    company = models.CharField(max_length=255, null=True, blank=True, default="")
-    remmitance_country = models.CharField(max_length=255, null=True, blank=True, default="")
-    month = models.CharField(max_length=100,null=True, default="")
-    year = models.CharField(max_length=100,null=True, default="")
-    email = models.CharField(max_length=100,null=True, default="")
-    sub_company_name = models.CharField(max_length=100,null=True, default="")
-    Total_Current_Charges = models.CharField(max_length=100,null=True, default="")
-    duration = models.CharField(max_length=100,null=True, default="")
-    sub_company = models.CharField(max_length=100,null=True, default="")
+    Cust_Id = models.CharField(max_length=100, null=True, blank=True)
+    Sub_Id = models.CharField(max_length=100, null=True, blank=True)
+    Vendor_Number = models.CharField(max_length=100, null=True, blank=True)
+    Location_Code = models.CharField(max_length=100, null=True, blank=True)
+    Payment_Comments = models.CharField(max_length=255, null=True, blank=True)
+    Payment_Number = models.CharField(max_length=100, null=True, blank=True)
+    Vendor_Name_1 = models.CharField(max_length=255, null=True, blank=True)
+    Vendor_Name_2 = models.CharField(max_length=255, null=True, blank=True)
+    Vendor_Address_1 = models.CharField(max_length=255, null=True, blank=True)
+    Vendor_Address_2 = models.CharField(max_length=255, null=True, blank=True)
+    Vendor_City = models.CharField(max_length=100, null=True, blank=True)
+    Vendor_State = models.CharField(max_length=100, null=True, blank=True)
+    Vendor_Zip = models.CharField(max_length=100, null=True, blank=True)
+    Vendor_Country = models.CharField(max_length=100, null=True, blank=True)
+    Vendor_Tax_Id = models.CharField(max_length=100, null=True, blank=True)
+    Vendor_Phone_Number = models.CharField(max_length=100, null=True, blank=True)
+    Customer_Vendor_Account_Number = models.CharField(max_length=100, null=True, blank=True)
+    Payment_Misc_1 = models.CharField(max_length=255, null=True, blank=True) 
+    Invoice_Number = models.CharField(max_length=100, null=True, blank=True)
+    Total_Amount = models.CharField(max_length=100, null=True, blank=True)
+    Adjustment_Amount = models.CharField(max_length=100, null=True, blank=True)
+    Net_Amount = models.CharField(max_length=100, null=True, blank=True)
+    Due_Date = models.CharField(max_length=100, null=True, blank=True)
+    Invoice_Date = models.CharField(max_length=100, null=True, blank=True)
+    Invoice_Comments = models.CharField(max_length=255, null=True, blank=True)
+    Invoice_Misc_1 = models.CharField(max_length=255, null=True, blank=True)
+    sub_company = models.CharField(max_length=255,default="OSI")
+    company = models.CharField(max_length=255,default="OneSmarter")
+    remmitance_country = models.CharField(max_length=255, null=True, blank=True)
+    month = models.CharField(max_length=100,null=True)
+    year = models.CharField(max_length=100,null=True)
+    email = models.CharField(max_length=100,null=True)
+    sub_company_name = models.CharField(max_length=100,null=True)
+    Total_Current_Charges = models.CharField(max_length=100,null=True)
+    duration = models.CharField(max_length=100,null=True)
     billing_day = models.CharField(max_length=255, blank=True, null=True)
     is_downloaded = models.CharField(max_length=255, blank=True, null=True, default="False")
     approved = models.CharField(max_length=255, null=True, blank=True, default='Pending')

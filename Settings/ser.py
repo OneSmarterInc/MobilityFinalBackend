@@ -8,7 +8,7 @@ class PortalUserSerializer(serializers.ModelSerializer):
     company = serializers.CharField(source='company.Company_name', read_only=True)
     class Meta:
         model = PortalUser
-        fields = ['email', 'first_name', 'last_name', 'designation', 'company']
+        fields = ['email', 'first_name', 'last_name', 'designation', 'company','is_admin']
 
 class ReminderSerializer(serializers.ModelSerializer):
     # to_roles = serializers.SlugRelatedField(

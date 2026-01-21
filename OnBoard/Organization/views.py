@@ -85,8 +85,9 @@ class OnboardOrganizationView(APIView):
                 f"Organization '{organization.Organization_name}' updated. Changes: {change_log}"
             )
 
+        
             return Response({"message": "Organization updated successfully!", "data": serializer.data}, status=status.HTTP_200_OK)
-
+        print(serializer.error_messages, serializer.errors)
         return Response({"message": "Unable to update organization.", "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
     
@@ -160,7 +161,7 @@ class DivisionView(APIView):
                 return Response({"message": "Unable to create division."}, status=status.HTTP_400_BAD_REQUEST)        
         except Exception as e:
             print(e)
-            return Response({"message": "Unable to create division."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     def get(self, request, org, pk=None):
         if pk is None:
             divisions = Division.objects.filter(organization=org)
@@ -240,7 +241,7 @@ class DivisionView(APIView):
 
         except Exception as e:
             print(e)
-            return Response({"message": "Unable to update division."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     
     def delete(self, request, org, pk):
@@ -275,7 +276,7 @@ class LinksView(APIView):
             return Response({"message" : "Link created successfully!", "data" : serializer.data}, status=status.HTTP_201_CREATED)
         except Exception as e:
             print(e)
-            return Response({"message": "Unable to create link."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     
     def get(self, request, org, pk=None):
@@ -379,4 +380,4 @@ def ChangeOrgStatus(request, pk):
         return Response({"message": f"Organization status changed to {string_status}."}, status=status.HTTP_200_OK)
     except Exception as e:
         print("error", e)
-        return Response({"message": "Unable to update organization."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)

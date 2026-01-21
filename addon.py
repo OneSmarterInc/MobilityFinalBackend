@@ -140,3 +140,23 @@ def auto_width_excel(file_path, output_path=None):
 
 def has_field(model, field_name):
     return field_name in [f.name for f in model._meta.get_fields()]
+
+
+# utils/phone.py
+from django.core.exceptions import ValidationError
+
+def normalize_us_phone(value: str) -> str:
+    
+    value = value.strip()
+    if not value or len(value) < 10:
+        return value
+    # remove everything except digits
+    digits = re.sub(r"\D", "", value)
+
+    # handle country code (1XXXXXXXXXX)
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    if len(digits) != 10:
+        raise ValidationError("Invalid phone number")
+
+    return f"{digits[0:3]}-{digits[3:6]}-{digits[6:10]}"

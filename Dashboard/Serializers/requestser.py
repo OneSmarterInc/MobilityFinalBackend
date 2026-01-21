@@ -133,20 +133,18 @@ class showVendorInformationSerializer(serializers.ModelSerializer):
             'mifi': obj.vendor_plan.mifi,
             'wearables': obj.vendor_plan.wearables,
         } if obj.vendor_plan else None
-
+from Batch.models import EmailConfiguration
 class showOrganizations(serializers.ModelSerializer):
     vendors = serializers.SerializerMethodField()
-    # sub_company_models = showMakeModelSerializer(read_only=True, many=True)
-    # sub_company_devices = showdevicesSerializer(read_only=True, many=True)
-    # sub_company_vendor_devices = showdevicesSerializer(read_only=True, many=True)
-    # sub_company_vendor_info = showdevicesSerializer(read_only=True, many=True)
+    is_email_configured = serializers.SerializerMethodField()
     class Meta:
         model = Organizations
-        # fields = ('id','Organization_name','sub_company_devices','sub_company_models','sub_company_vendor_devices','sub_company_vendor_info')
-        fields = ('id','Organization_name','vendors')
+        fields = ('id','Organization_name','vendors','is_email_configured')
 
     def get_vendors(self, obj):
         return [{"id":vendor.id, "name":vendor.name} for vendor in obj.vendors.all()]
+    def get_is_email_configured(self,obj):
+        return EmailConfiguration.objects.filter(sub_company=obj).first() is not None
 
 
 
@@ -306,30 +304,30 @@ class CostCentersSaveSerializer(serializers.ModelSerializer):
         model = CostCenters
         fields = '__all__'
 
-class EmployeeSerializer(serializers.ModelSerializer):
+class PortalEmployeeSerializer(serializers.ModelSerializer):
+    wireless_numbers = serializers.SerializerMethodField()
     sub_company = serializers.SerializerMethodField()
     vendor = serializers.SerializerMethodField()
-    email = serializers.SerializerMethodField()
     designation = serializers.SerializerMethodField()
-    user_id = serializers.SerializerMethodField()
+    class Meta:
+        model = PortalUser
+        fields = ("id","first_name","last_name","email","wireless_numbers","sub_company","vendor","designation","account_number")
+    def get_wireless_numbers(self,user):
+        return list(user.wireless_numbers.all().values("id","number","is_active"))
+    def get_sub_company(self, obj):
+        return {"id":obj.organization.id,"name":obj.organization.Organization_name} if obj.organization else None
+    def get_vendor(self, obj):
+        return {"id":obj.vendor.id, "name":obj.vendor.name} if obj.vendor else None
+    def get_designation(self, obj):
+        return {"id":obj.designation.id, "name":obj.designation.name} if obj.designation else None
+    
+class EmployeeSerializer(serializers.ModelSerializer):
+    is_active = serializers.SerializerMethodField()
     class Meta:
         model = UniquePdfDataTable
-        exclude = ("category_object", "inventory")
-    def get_user_id(self, obj):
-        userObj = PortalUser.objects.filter(mobile_number=obj.wireless_number).first()
-        return userObj.id
-    def get_sub_company(self, obj):
-        orgObj = Organizations.objects.filter(Organization_name=obj.sub_company).first()
-        return {"id":orgObj.id, "Organization_name":orgObj.Organization_name}
-    def get_vendor(self, obj):
-        vendorObj = Vendors.objects.filter(name=obj.vendor).first()
-        return {"id":vendorObj.id, "name":vendorObj.name}
-    def get_email(self, obj):
-        userObj = PortalUser.objects.filter(mobile_number=obj.wireless_number).first()
-        return userObj.email
-    def get_designation(self, obj):
-        userObj = PortalUser.objects.filter(mobile_number=obj.wireless_number).first()
-        return userObj.designation.name
+        exclude = ("inventory","viewuploaded","viewpapered")
+    def get_is_active(self,unique):
+        return "inactive" not in unique.User_status.lower()
     
 from ..ModelsByPage.Req import upgrade_device_request, AccessoriesRequest
 

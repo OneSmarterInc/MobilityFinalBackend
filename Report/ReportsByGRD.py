@@ -92,7 +92,7 @@ def get_vendor_summary_report(request):
     filtered_data = filter_by_range(data=filtered_data, start=start_date, end=end_date)
 
     response = [model_to_dict(item, fields=["id", "bill_date", "sub_company", "net_amount", "vendor"]) for item in filtered_data]
-    print(response)
+     
 
 
     if is_download:
@@ -144,7 +144,7 @@ def get_division_summary_report(request):
     filtered_data = filter_by_range(data=filtered_data, start=start_date, end=end_date)
 
     response = [model_to_dict(item, fields=["id", "bill_date", "sub_company", "net_amount", "vendor"]) for item in filtered_data]
-    print(response)
+     
 
 
     if is_download:
@@ -191,7 +191,7 @@ def get_base_bills_report(request):
 
 
     response = [model_to_dict(item, fields=["accountnumber", "invoicenumber", "vendor", "location", "bill_date", "variance", "net_amount", "created_at", "bill_approved_date"]) for item in filtered_data]
-    print(response)
+     
 
 
     if is_download:
@@ -229,7 +229,7 @@ def get_consolidated_bills_report(request):
     filtered_data = filtered_data.filter(is_baseline_approved=approve_status) if approve_status else filtered_data
 
     response = [model_to_dict(item, fields=["accountnumber", "invoicenumber", "vendor", "location", "bill_date", "variance", "net_amount", "created_at", "bill_approved_date"]) for item in filtered_data]
-    print(response)
+     
 
 
     if is_download:
@@ -267,7 +267,7 @@ def get_highest_expense_report(request):
 
     response = [model_to_dict(item, fields=["accountnumber", "invoicenumber", "vendor", "location", "bill_date", "variance", "net_amount", "bill_approved_date"]) for item in filtered_data]
    
-    print(response)
+     
 
 
     if is_download:
@@ -304,7 +304,7 @@ def get_baseline_billing_report(request):
     filtered_data = filter_by_range(data=filtered_data, start=start_date, end=end_date)
     
     response = [model_to_dict(item, fields=["accountnumber", "invoicenumber", "vendor", "location", "bill_date", "variance", "net_amount", "bill_approved_date"]) for item in filtered_data]
-    print(response)
+     
 
     uploaded_ids = filtered_data.values_list("viewuploaded", flat=True).distinct()
     papered_ids = filtered_data.values_list("viewpapered", flat=True).distinct()
@@ -379,7 +379,7 @@ def get_location_level_bill_summary_report(request):
 
 
     filtered_data = base_data_onboarded.filter(company=company, sub_company=sub_company)
-    filtered_data = filtered_data.filter(location=location)
+    filtered_data = filtered_data.filter(location=location) if location else filtered_data
     
     account_numbers = filtered_data.values_list("accountnumber", flat=True)
     print(account_numbers)
@@ -425,7 +425,7 @@ def get_location_level_service_summary_report(request):
 
 
     filtered_data = base_data_onboarded.filter(company=company, sub_company=sub_company)
-    filtered_data = filtered_data.filter(location=location)
+    filtered_data = filtered_data.filter(location=location) if location else filtered_data
     
     account_numbers = filtered_data.values_list("accountnumber", flat=True)
     print(account_numbers)
@@ -524,7 +524,7 @@ def get_invoice_tracking_report(request):
         total_sum_of_all_bill_dates += charge
 
 
-    print(response)
+     
 
     if is_download:
         if len(response) == 0:
@@ -564,7 +564,7 @@ def get_cost_center_summary_report(request):
 
     
     response = [model_to_dict(item, fields=["id", "CostCenter", "net_amount", "accountnumber", "bill_date", "vendor", "bill_approved_date"]) for item in filtered_data]
-    print(response)
+     
 
 
     if is_download:
@@ -603,7 +603,7 @@ def get_cost_center_detailed_report(request):
 
     
     response = [model_to_dict(item, fields=["id", "CostCenter", "net_amount", "accountnumber", "bill_date", "vendor", "bill_approved_date", "master_account"]) for item in filtered_data]
-    print(response)
+     
 
 
     if is_download:
@@ -650,7 +650,7 @@ def get_out_of_variance_report(request):
         Q(viewuploaded__in=uploaded_ids) |
         Q(viewpapered__in=[p for p in papered_ids if p is not None])
     )
-    print(response)
+     
 
 
     if is_download:
@@ -724,7 +724,7 @@ def get_missing_bills_base_tem_report(request):
             except ValueError:
                 continue
     response = [model_to_dict(item, fields=["id", "location", "BillingName","BillingAdd", "BillingState", "BillingZip", "BillingCity", "BillingCountry","venodr","accountnumber","bill_date","invoicemethod"]) for item in new_filtered_data]
-    print(response)
+     
 
     if is_download:
         if len(response) == 0:
@@ -793,7 +793,7 @@ def get_missing_bills_consolidated_tem_report(request):
             except ValueError:
                 continue
     response = [model_to_dict(item, fields=["id", "location", "BillingName","BillingAdd", "BillingState", "BillingZip", "BillingCity", "BillingCountry","venodr","accountnumber","bill_date","invoicemethod"]) for item in new_filtered_data]
-    print(response)
+     
 
     if is_download:
         if len(response) == 0:
@@ -828,7 +828,7 @@ def get_location_summary_report(request):
     filtered_data = filter_by_range(data=filtered_data, start=start_date, end=end_date)
 
     response = [model_to_dict(item, fields=["id", "bill_date", "sub_company", "net_amount", "vendor", "BillingName","BillingAdd", "BillingState", "BillingZip", "BillingCity", "BillingCountry"]) for item in filtered_data]
-    print(response)
+     
 
 
     if is_download:
@@ -901,7 +901,7 @@ def get_duplicate_bills_base_tem_report(request):
         data["total_charges_sum"] = charges_lookup.get(key, 0)  # default 0 if not found
         response.append(data)
 
-    print(response)
+     
 
 
     if is_download:
@@ -944,7 +944,7 @@ def get_service_by_type_report(request):
     
     response = [model_to_dict(item, exclude=["summary_file", "batch_file"]) for item in filtered_data]
 
-    print(response)
+     
 
 
     if is_download:
@@ -1032,7 +1032,7 @@ def get_payment_detail_report(request):
         total_sum_of_all_bill_dates += charge
 
     
-    print(response)
+     
     if is_download:
         if len(response) == 0:
             return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
@@ -1114,7 +1114,7 @@ def get_mobile_bills_report(request):
         total_sum_of_all_bill_dates += charge
 
     
-    print(response)
+     
     if is_download:
         if len(response) == 0:
             return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
@@ -1149,21 +1149,21 @@ def get_entered_bills_report(request):
     upload_by = request.GET.get('upload_by')
 
     
-    filtered_data = base_data_billed.filter(company=company, sub_company="OSI")
+    filtered_data = base_data_billed.filter(company=company, sub_company=sub_company)
 
     filtered_data = filter_by_range(data=filtered_data, start=start_date, end=end_date)
 
-    upload_by = PortalUser.objects.filter(email=upload_by).first() if upload_by else None
-    filtered_data = filtered_data.filter(uploaded_by=upload_by) if upload_by else filtered_data
+    filtered_data = filtered_data.filter(uploaded_by__id=upload_by) if upload_by else filtered_data
 
+    user = PortalUser.objects.filter(id=upload_by).first() if upload_by else None
     
     response = []
     for item in filtered_data:
         data = model_to_dict(item, fields=["id", "vendor", "accountnumber", "bill_date", "net_amount", "BillingName", "date_due", "variance", "created_at", "is_baseline_approved"])
-        data["upload_by"] = upload_by  # Add the extra field after conversion
+        data["upload_by"] = f'{user.first_name} {user.last_name} ({user.designation.name if user.designation else "User"})' if user else upload_by
         response.append(data)
-    print(response)
-        
+     
+
 
     uploaded_ids = filtered_data.values_list("viewuploaded", flat=True).distinct()
     papered_ids = filtered_data.values_list("viewpapered", flat=True).distinct()
@@ -1304,11 +1304,11 @@ def get_Inactive_location_report(request):
         return Response({"message":"Organization not found!"}, status=status.HTTP_400_BAD_REQUEST)
     filtered_data = Location.objects.filter(organization=orgObj)
 
-    filtered_data = filtered_data.filter(Q(location_type="Closed") | Q(location_type="Inactive Site"))
+    filtered_data = filtered_data.filter(~Q(status="Active"))
 
-    
+
     response = [model_to_dict(item, exclude=["location_picture_1","location_picture_2","location_picture_3","location_picture_4", "created", "updated"]) for item in filtered_data]
-    print(response)
+     
     if is_download:
         if len(response) == 0:
             return Response({"message":"Empty data to generate excel!"},status=status.HTTP_400_BAD_REQUEST)
@@ -1375,14 +1375,14 @@ def get_ban_by_location_report(request):
 
     filtered_data = base_data_onboarded.filter(company=company, sub_company=sub_company)
 
-    filtered_data = filtered_data.filter(location=location)
+    filtered_data = filtered_data.filter(location=location) if location else filtered_data
     filtered_data = filtered_data.filter(banstatus=ban_status) if ban_status else filtered_data
 
 
     response = [model_to_dict(item, fields=["id", "bill_date", "sub_company", "net_amount", "vendor","BillingName","BillingAdd", "BillingState", "BillingZip", "BillingCity", "BillingCountry",]) for item in filtered_data]
-    print(response)
+     
 
-    print(response)
+     
 
 
     if is_download:
@@ -1457,9 +1457,9 @@ def get_Inactive_bans_report(request):
     filtered_data = filtered_data.filter(Q(banstatus="Closed") | Q(banstatus="Inactive"))
 
 
-    response = [model_to_dict(item) for item in filtered_data]
+    response = [model_to_dict(item, fields=["id","accountnumber","location","banstatus","paymentType"]) for item in filtered_data]
+     
     print(response)
-
 
     if is_download:
         if len(response) == 0:
@@ -1490,11 +1490,11 @@ def get_asset_tracking_report(request):
 
     filtered_data = base_data_onboarded.filter(company=company, sub_company=sub_company)
 
-    filtered_data = filtered_data.filter(location=location)
+    filtered_data = filtered_data.filter(location=location) if location else filtered_data
 
 
     response = [model_to_dict(item) for item in filtered_data]
-    print(response)
+     
 
 
     if is_download:
@@ -1528,11 +1528,11 @@ def get_asset_transactions_report(request):
 
     filtered_data = base_data_onboarded.filter(company=company, sub_company=sub_company)
 
-    filtered_data = filtered_data.filter(location=location)
+    filtered_data = filtered_data.filter(location=location) if location else filtered_data
 
 
     response = [model_to_dict(item) for item in filtered_data]
-    print(response)
+     
 
 
     if is_download:
@@ -1564,11 +1564,11 @@ def get_outstanding_loaners_report(request):
 
     filtered_data = base_data_onboarded.filter(company=company, sub_company=sub_company)
 
-    filtered_data = filtered_data.filter(location=location)
+    filtered_data = filtered_data.filter(location=location) if location else filtered_data
 
 
     response = [model_to_dict(item) for item in filtered_data]
-    print(response)
+     
 
 
     if is_download:
@@ -1604,7 +1604,7 @@ def get_order_tracking_report(request):
 
 
     response = [model_to_dict(item) for item in filtered_data]
-    print(response)
+     
 
 
     if is_download:
@@ -1640,7 +1640,7 @@ def get_contact_report(request):
 
 
     response = [model_to_dict(item) for item in filtered_data]
-    print(response)
+     
 
 
     if is_download:
@@ -1673,7 +1673,7 @@ def get_ban_autopay_listing_report(request):
 
 
     response = [model_to_dict(item, fields=["accountnumber","location", "vendor"]) for item in filtered_data]
-    print(response)
+     
 
 
     if is_download:
@@ -1709,7 +1709,7 @@ def get_phone_list_byOrg_report(request):
 
 
     response = [model_to_dict(item, fields=["account_number","wireless_number", "user_name"]) for item in unique_filtered_data]
-    print(response)
+     
 
 
     if is_download:
@@ -1743,7 +1743,7 @@ def get_inventory_report(request):
 
     filtered_data = base_data_onboarded.filter(company=company, sub_company=sub_company)
 
-    filtered_data = filtered_data.filter(location=location)
+    filtered_data = filtered_data.filter(location=location) if location else filtered_data
     filtered_data = filtered_data.filter(banstatus=ban_status) if ban_status else filtered_data
 
     account_numbers = filtered_data.values_list("accountnumber", flat=True)

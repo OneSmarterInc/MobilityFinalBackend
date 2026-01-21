@@ -46,6 +46,6 @@ class PortalInformationView(APIView):
             else:
                 return Response({"message": str(ser.errors)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     def delete(self, request, pk, *args, **kwargs):
         pass

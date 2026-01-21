@@ -24,4 +24,4 @@ class userSerializer(serializers.ModelSerializer):
 class showOrgsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organizations
-        fields = ['Organization_name',]
+        fields = ['Organization_name','id']

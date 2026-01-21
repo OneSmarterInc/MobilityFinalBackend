@@ -54,7 +54,7 @@ class ChatBotView(APIView):
             is_ran, result_df = botObj.run_query(conn=self.connection, sql=sql_query)
 
             print(result_df)
-            response_text = botObj.make_human_response(question, result_df, db_schema=self.schema)
+            _check, response_text = botObj.make_human_response(question, result_df, db_schema=self.schema)
             print()
             allLines = response_text.split("\n")
             questions = [line.strip() for line in allLines if line.strip().endswith("?")]

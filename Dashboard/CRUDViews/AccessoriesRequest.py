@@ -78,7 +78,7 @@ class AccessoryRequestView(APIView):
         except AccessoriesRequest.DoesNotExist:
             return Response({"message":"Request not found!"},status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"message":"Internal Server Error!"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         data = request.data.copy() 
         data = json.loads(data) if not isinstance(data, dict) else data
         ser = SaveaccessoriesRequestSer(obj, data=data,partial=True)
@@ -107,7 +107,7 @@ class AccessoryRequestView(APIView):
             return Response({"message": "request does not exist"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             print(e)
-            return Response({"message":"Unable to delete request."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
@@ -116,7 +116,6 @@ def update_status(request,pk):
     if not obj:
         return Response({"message": "request does not exist"}, status=status.HTTP_400_BAD_REQUEST) 
     data = request.data
-    print(data)
     try:
         s_type = data.get("status_type")
         updated = data.get("newStatus")

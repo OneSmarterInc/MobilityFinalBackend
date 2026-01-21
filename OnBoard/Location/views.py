@@ -7,10 +7,11 @@ from ..Organization.models import Organizations, Division
 from ..Company.models import Company
 from .ser import LocationSaveSerializer, LocationShowSerializer, LocationSerializer, showDivisions, showOrgs
 import pandas as pd
+from OnBoard.Ban.models import BaseDataTable
 from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
 class LocationView(APIView):
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
 
     def get(self, request, org=None, pk=None):
         if pk:
@@ -24,17 +25,17 @@ class LocationView(APIView):
         return Response({"data" : serializer.data, "organizations":orgs.data, "divisions":divisions.data}, status=status.HTTP_200_OK)
         
     def post(self, request, org=None, *args, **kwargs):
-        if org==None:
+        print(request.data)
+        if not org:
             data = request.data
-            org = data['organization']
+            org = data.get('organization')
             organization = Organizations.objects.filter(Organization_name=org)
             if not organization.exists():
-                return Response({"message": f"Organization with name {org} not found"}, status=status.HTTP_404_NOT_FOUND)
+                return Response({"message": f"Organization {org} not found"}, status=status.HTTP_404_NOT_FOUND)
             organization = organization[0]
         else:
             try:
                 organization = Organizations.objects.get(id=org)
-                company_name = organization.company.Company_name
             except Organizations.DoesNotExist:
                 return Response({"message": "Organization not found"}, status=status.HTTP_404_NOT_FOUND)
         try:
@@ -63,13 +64,13 @@ class LocationView(APIView):
 
         
     def put(self, request, org, pk, *args, **kwargs):
-        print(pk)
+        print("id==",pk)
         try:
             org = int(org)
             org = Organizations.objects.get(id=org)
         except:
             org = Organizations.objects.filter(Organization_name=org).first()
-            
+        print("org==",org)
         if not org:
             return Response({"message":"oraganization not found!"},status=status.HTTP_400_BAD_REQUEST)
         try:
@@ -79,12 +80,10 @@ class LocationView(APIView):
 
         try:
             request_data = request.data.copy()
-
             division_id_name = request_data.get('division', None)
             request_data.pop('division')
-            print(division_id_name)
             divisionObj = Division.objects.filter(organization=location.organization)
-            division = divisionObj.filter(id=division_id_name)
+            division = divisionObj.filter(id=division_id_name) if division_id_name else None
             if not division: division = divisionObj.filter(name=division_id_name)
 
             # --- Capture Original Data ---
@@ -139,7 +138,7 @@ class LocationView(APIView):
         #     return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, org, pk):
-        if type(org) is str:
+        if isinstance(org,str):
             org = Organizations.objects.filter(Organization_name=org).first()
         else:
             org = Organizations.objects.get(id=org)
@@ -148,6 +147,8 @@ class LocationView(APIView):
         except Location.DoesNotExist:
             return Response({"message" : "Location not found!"}, status=status.HTTP_404_NOT_FOUND)
         name = loc.site_name
+        if BaseDataTable.objects.filter(location=name).exists():
+            return Response({"message" : "Deletion failed. This location is linked to existing bans"}, status=status.HTTP_409_CONFLICT) 
         loc.delete()
         saveuserlog(request.user, f"location with site name {name} deleted successfully!") 
         return Response({"message" : "Location deleted successfully!"}, status=status.HTTP_200_OK)
@@ -186,7 +187,7 @@ class LocationBulkUpload(APIView):
             print(df,df.columns)
             to_db = add_bulk_file(organization, file)
             if not to_db:
-                return Response({'message': 'Failed to add bulk locations.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)                
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)                
             columns = df.columns.to_list()
             for index, row in df.iterrows():
                 data = {column: value for column, value in zip(columns, row)}
@@ -197,7 +198,7 @@ class LocationBulkUpload(APIView):
             return Response({'message': 'Bulk locations added successfully!'}, status=status.HTTP_201_CREATED)
         except Exception as e:
             print(f"Error in bulk upload: {e}")
-            return Response({'message': f'Failed to upload bulk locations. due to {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 def add_bulk_file(org, file):
     try:

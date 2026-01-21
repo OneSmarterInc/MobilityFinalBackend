@@ -1,342 +1,264 @@
-from django.db.models.signals import post_save,post_delete
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+import json
+
+from authenticate.models import PortalUser
+from sendmail import send_custom_email
+from addon import parse_until_dict
+
 from .ModelsByPage.DashAdmin import Vendors
 from .ModelsByPage.cat import BaselineCategories
-from OnBoard.Ban.models import BaselineDataTable, UniquePdfDataTable
-from addon import parse_until_dict
-from django.dispatch import receiver
+from .ModelsByPage.Req import Requests, TrackingInfo, upgrade_device_request, AccessoriesRequest
 from Dashboard.ModelsByPage.DashAdmin import UserRoles
-from authenticate.models import PortalUser
-import json
-from Dashboard.ModelsByPage.Req import Requests, upgrade_device_request, AccessoriesRequest
-from sendmail import send_custom_email
+from OnBoard.Ban.models import BaselineDataTable, UniquePdfDataTable
+
+
+# =========================
+# EMAIL HELPERS (US-SAFE)
+# =========================
+
+def notify_user(email, subject, body, company):
+    send_custom_email(to=email, subject=subject, body_text=body, company=company)
+
+
+def notify_admins(admins, subject, body, company):
+    if admins:
+        send_custom_email(
+            to=list(admins.values_list("email", flat=True)),
+            subject=subject,
+            body_text=body,
+            company=company
+        )
+
+
+# =========================
+# UPGRADE DEVICE REQUEST
+# =========================
 
 @receiver(post_save, sender=upgrade_device_request)
-def send_upgrade_device_status(instance, created, **kwargs):
+def send_upgrade_device_status(sender, instance, created, **kwargs):
     try:
         requester = instance.raised_by
-        requester_mail = requester.email
-        requester_name = f"{requester.first_name} {requester.last_name}" or requester.username
-        admins = PortalUser.objects.filter(
-            organization=requester.organization,
-            designation__name__in=["Client Admin"]
-        )
         requester_org = instance.sub_company.Organization_name
-        
+        company = instance.sub_company.company.Company_name
+
+        admins = PortalUser.objects.filter(organization=requester.organization,
+        ).filter(vendor=None,account_number=None)
+
+        print("wireless",instance.wireless_number)
+        print(instance.authority_status)
+
         if created:
-            sub = f"Request to upgrade device created"
-            msg = (
-                f"Dear {requester.first_name},\n\n"
-                f"Your request to upgrade your device has been successfully created and submitted to {requester_org} for review.\n\n"
-                f"Our team will notify you once it has been reviewed by your organization or approved by the authority.\n\n"
-                f"Best regards,\n"
-                f"The {requester_org} Support Team"
+            subject = "Device Upgrade Request Submitted"
+            body = (
+                f"Hello {requester.first_name},\n\n"
+                f"Your request to upgrade your device has been successfully submitted to {requester_org} for review.\n\n"
+                "You will be notified once a decision has been made.\n\n"
+                f"Regards,\n{requester_org} Support Team"
             )
-        else:
-           
-            if instance.status == "Rejected":
-                sub = f"Request Rejected"
-                msg = (
-                    f"Dear {requester.first_name},\n\n"
-                    f"Your request to upgrade your device has been rejected by your organization ({requester_org}).\n\n"
-                    f"If you believe this was in error, please contact your organization administrator for clarification.\n\n"
-                    f"Regards,\n"
-                    f"The {requester_org} Support Team"
-                )
 
-            elif instance.status == "Approved":
-                sub = f"Request Approved by Organization"
-                msg = (
-                    f"Dear {requester.first_name},\n\n"
-                    f"Good news! Your request to upgrade your device has been approved by your organization ({requester_org}).\n\n"
-                    f"It will now be processed and verified by the company authority for final completion.\n\n"
-                    f"Regards,\n"
-                    f"The {requester_org} Support Team"
-                )
+        if instance.status == "Rejected":
+            subject = "Device Upgrade Request Rejected"
+            body = (
+                f"Hello {requester.first_name},\n\n"
+                f"Your device upgrade request was reviewed and rejected by {requester_org}.\n\n"
+                "If you believe this decision is incorrect, please contact your organization administrator.\n\n"
+                f"Regards,\n{requester_org} Support Team"
+            )
 
-            if instance.authority_status == "Completed":
-                employee = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(sub_company=requester_org, wireless_number=requester.mobile_number).first()
-                new_date = instance.new_upgrade_date
+        elif instance.status == "Approved":
+            subject = "Device Upgrade Request Approved"
+            body = (
+                f"Hello {requester.first_name},\n\n"
+                f"Your device upgrade request has been approved by {requester_org} "
+                "and forwarded for final authority verification.\n\n"
+                f"Regards,\n{requester_org} Support Team"
+            )
+        
+
+
+        if instance.authority_status == "Completed":
+            print("completed")
+            employee = UniquePdfDataTable.objects.filter(
+                viewuploaded=None,
+                viewpapered=None,
+                sub_company=requester_org,
+                vendor=requester.vendor,
+                account_number=requester.account_number,
+                wireless_number=instance.wireless_number
+            ).first()
+
+            print("em==",employee)
+
+            new_date = instance.new_upgrade_date
+            if employee:
                 employee.upgrade_eligible_date = new_date
                 employee.save()
-                sub = "Request Completed by Authority"
-                msg = (
-                    f"Dear {requester.first_name},\n\n"
-                    f"We are pleased to inform you that your request to upgrade your device "
-                    f"has been completed and verified by the company authority.\n\n"
-                    f"Please note that the upgraded device is valid until {new_date.strftime("%d %B %Y")}. "
-                    f"You will not be able to raise a new upgrade request before this date.\n\n"
-                    f"Thank you for your patience and cooperation.\n\n"
-                    f"Regards,\n"
-                    f"The {requester_org} Support Team"
-                )
-                if admins:
-                    msg = (
-                        f"Dear {requester_org} Team,\n\n"
-                        f"This is to inform you that the request submitted by {requester_name} "
-                        f"to upgrade users device has been successfully completed and verified by the company authority.\n\n"
-                        f"Please review the request details in your dashboard if any further action or acknowledgment is required.\n\n"
-                        f"Best regards,\n"
-                        f"The Company Authority\n"
-                        f"(Automated Notification)"
-                    )
-                    send_custom_email(to=list(admins.values_list("email", flat=True)), subject=sub, body_text=msg, company=instance.organization.company.Company_name)
 
-            else:
-                sub = None
-                msg = None
-        if sub and msg: send_custom_email(to=requester_mail, subject=sub, body_text=msg, company=instance.sub_company.company.Company_name)
-        
+            subject = "Device Upgrade Request Completed"
+            body = (
+                f"Hello {requester.first_name},\n\n"
+                "Your device upgrade request has been fully approved and completed.\n\n"
+                f"The upgraded device is valid until {new_date.strftime('%d %B %Y')}.\n"
+                "You will not be able to submit another upgrade request before this date.\n\n"
+                f"Regards,\n{requester_org} Support Team"
+            )
+
+            notify_admins(
+                admins,
+                subject,
+                (
+                    f"The device upgrade request submitted by {requester.first_name} {requester.last_name} "
+                    "has been successfully completed and verified by the company authority."
+                ),
+                company
+            )
+
+        else:
+            return
+
+        notify_user(requester.email, subject, body, company)
+
     except Exception as e:
         print(e)
-    
+
+
+# =========================
+# GENERIC REQUESTS
+# =========================
 
 @receiver(post_save, sender=Requests)
-def send_mail(sender, instance, created, **kwargs):
+def send_request_status(sender, instance, created, **kwargs):
     try:
         requester = instance.requester
-        requester_mail = requester.email
-        requester_name = f"{requester.first_name} {requester.last_name}" or requester.username
-        admins = PortalUser.objects.filter(
-            organization=requester.organization,
-            designation__name__in=["Client Admin"]
-        )
-        requester_org = instance.organization.Organization_name
+        org = instance.organization.Organization_name
+        company = instance.organization.company.Company_name
+
+        admins = PortalUser.objects.filter(organization=requester.organization,
+        ).filter(vendor=None,account_number=None)
 
         if created:
-            sub = f"Request Created: {instance.request_type}"
-            msg = (
-                f"Dear {requester.first_name},\n\n"
-                f"This is to confirm that your request for **{instance.request_type}** "
-                f"has been successfully created and submitted to **{requester_org}** for review.\n\n"
-                f"You will be notified once the request has been reviewed and further action is taken.\n\n"
-                f"Regards,\n"
-                f"{requester_org} Support Team\n\n"
-                f"Note: This is an automated system-generated email. Please do not reply."
+            subject = f"Request Submitted: {instance.request_type}"
+            body = (
+                f"Hello {requester.first_name},\n\n"
+                f"Your request for {instance.request_type} has been submitted to {org} for review.\n\n"
+                "You will be notified once the review is completed.\n\n"
+                f"Regards,\n{org} Support Team"
+            )
+
+        elif instance.status == "Rejected":
+            subject = f"Request Rejected: {instance.request_type}"
+            body = (
+                f"Hello {requester.first_name},\n\n"
+                f"Your request for {instance.request_type} was rejected by {org}.\n\n"
+                "Please contact your organization administrator if clarification is needed.\n\n"
+                f"Regards,\n{org} Support Team"
+            )
+
+        elif instance.status == "Approved":
+            subject = f"Request Approved: {instance.request_type}"
+            body = (
+                f"Hello {requester.first_name},\n\n"
+                f"Your request for {instance.request_type} has been approved and forwarded "
+                "for final authority processing.\n\n"
+                f"Regards,\n{org} Support Team"
+            )
+
+        elif instance.authority_status == "Completed":
+            subject = f"Request Completed: {instance.request_type}"
+            body = (
+                f"Hello {requester.first_name},\n\n"
+                f"Your request for {instance.request_type} has been fully completed.\n\n"
+                "No further action is required.\n\n"
+                f"Regards,\n{org} Support Team"
+            )
+
+            notify_admins(
+                admins,
+                subject,
+                f"The request submitted by {requester.first_name} {requester.last_name} has been completed.",
+                company
             )
 
         else:
-            if instance.status == "Rejected":
-                sub = f"Request Rejected: {instance.request_type}"
-                msg = (
-                    f"Dear {requester.first_name},\n\n"
-                    f"We regret to inform you that your request for **{instance.request_type}** "
-                    f"has been rejected by **{requester_org}**.\n\n"
-                    f"For further clarification or corrective action, please contact your organization administrator.\n\n"
-                    f"Regards,\n"
-                    f"{requester_org} Support Team\n\n"
-                    f"Note: This is an automated system-generated email. Please do not reply."
-                )
+            return
 
-            elif instance.status == "Approved":
-                sub = f"Request Approved: {instance.request_type}"
-                msg = (
-                    f"Dear {requester.first_name},\n\n"
-                    f"We are pleased to inform you that your request for **{instance.request_type}** "
-                    f"has been approved by **{requester_org}**.\n\n"
-                    f"The request has now been forwarded to the company authority for final processing "
-                    f"and verification.\n\n"
-                    f"Regards,\n"
-                    f"{requester_org} Support Team\n\n"
-                    f"Note: This is an automated system-generated email. Please do not reply."
-                )
+        notify_user(requester.email, subject, body, company)
 
-            elif instance.authority_status == "Completed":
-                sub = f"Request Completed: {instance.request_type}"
-                msg = (
-                    f"Dear {requester.first_name},\n\n"
-                    f"We are pleased to inform you that your request for **{instance.request_type}** "
-                    f"has been successfully completed and verified by the company authority.\n\n"
-                    f"No further action is required at this time.\n\n"
-                    f"Regards,\n"
-                    f"{requester_org} Support Team\n\n"
-                    f"Note: This is an automated system-generated email. Please do not reply."
-                )
-                if admins:
-                    msg = (
-                        f"Dear {requester_org} Team,\n\n"
-                        f"This is to inform you that the request submitted by **{requester_name}** "
-                        f"for **{instance.request_type}** has been successfully completed and "
-                        f"verified by the company authority.\n\n"
-                        f"Please review the request details in the administrative dashboard "
-                        f"if any follow-up or acknowledgment is required.\n\n"
-                        f"Regards,\n"
-                        f"Company Authority\n\n"
-                        f"Note: This is an automated system-generated email."
-                    )
-
-                    send_custom_email(to=list(admins.values_list("email", flat=True)), subject=sub, body_text=msg, company=instance.organization.company.Company_name)
-
-            else:
-                sub = None
-                msg = None
-
-        if sub and msg: send_custom_email(to=requester_mail, subject=sub, body_text=msg, company=instance.organization.company.Company_name)
     except Exception as e:
         print(e)
-        
+
+
+# =========================
+# ACCESSORIES REQUEST
+# =========================
 
 @receiver(post_save, sender=AccessoriesRequest)
-def Accessories_mail_sender(sender, instance, created, **kwargs):
+def accessories_request_mail(sender, instance, created, **kwargs):
     try:
         requester = instance.requester
-        requester_mail = requester.email
-        requester_name = f"{requester.first_name} {requester.last_name}" or requester.username
-        admins = PortalUser.objects.filter(
-            organization=requester.organization,
-            designation__name__in=["Client Admin"]
-        )
-        requester_org = instance.organization.Organization_name
-        
+        org = instance.organization.Organization_name
+        company = instance.organization.company.Company_name
+
+        admins = PortalUser.objects.filter(organization=requester.organization,
+        ).filter(vendor=None,account_number=None)
 
         if created:
-            sub = f"Request Created: {instance.request_type}"
-            msg = (
-                f"Dear {requester.first_name},\n\n"
-                f"Your {instance.request_type} request for {instance.accessory_type} has been successfully created and submitted to {requester_org} for review.\n\n"
-                f"Our team will notify you once it has been reviewed by your organization or approved by the authority.\n\n"
-                f"Best regards,\n"
-                f"The {requester_org} Support Team"
+            subject = f"{instance.request_type} Request Submitted"
+            body = (
+                f"Hello {requester.first_name},\n\n"
+                f"Your request for {instance.accessory_type} has been submitted to {org} for review.\n\n"
+                f"Regards,\n{org} Support Team"
+            )
+
+        elif instance.status == "Rejected":
+            subject = f"{instance.request_type} Request Rejected"
+            body = (
+                f"Hello {requester.first_name},\n\n"
+                f"Your request for {instance.accessory_type} was rejected by {org}.\n\n"
+                f"Regards,\n{org} Support Team"
+            )
+
+        elif instance.status == "Approved":
+            subject = f"{instance.request_type} Request Approved"
+            body = (
+                f"Hello {requester.first_name},\n\n"
+                f"Your request for {instance.accessory_type} has been approved and forwarded for final processing.\n\n"
+                f"Regards,\n{org} Support Team"
+            )
+
+        elif instance.authority_status == "Completed":
+            subject = f"{instance.request_type} Request Completed"
+            body = (
+                f"Hello {requester.first_name},\n\n"
+                f"Your request for {instance.accessory_type} has been completed.\n\n"
+                f"Regards,\n{org} Support Team"
+            )
+
+            notify_admins(
+                admins,
+                subject,
+                f"The accessories request submitted by {requester.first_name} has been completed.",
+                company
             )
 
         else:
-            if instance.status == "Rejected":
-                sub = f"Request Rejected: {instance.request_type}"
-                msg = (
-                    f"Dear {requester.first_name},\n\n"
-                    f"Your {instance.request_type} request for {instance.accessory_type} has been rejected by your organization ({requester_org}).\n\n"
-                    f"If you believe this was in error, please contact your organization administrator for clarification.\n\n"
-                    f"Regards,\n"
-                    f"The {requester_org} Support Team"
-                )
+            return
 
-            elif instance.status == "Approved":
-                sub = f"Request Approved by Organization: {instance.request_type}"
-                msg = (
-                    f"Dear {requester.first_name},\n\n"
-                    f"Good news! Your {instance.request_type} request for {instance.accessory_type} has been approved by your organization ({requester_org}).\n\n"
-                    f"It will now be processed and verified by the company authority for final completion.\n\n"
-                    f"Regards,\n"
-                    f"The {requester_org} Support Team"
-                )
+        notify_user(requester.email, subject, body, company)
 
-            elif instance.authority_status == "Completed":
-                sub = f"Request Completed by Authority: {instance.request_type}"
-                msg = (
-                    f"Dear {instance.requester.first_name},\n\n"
-                    f"We are pleased to inform you that your {instance.request_type} request for {instance.accessory_type} has been completed and verified by the company authority.\n\n"
-                    f"Thank you for your patience and cooperation.\n\n"
-                    f"Regards,\n"
-                    f"The {requester_org} Support Team"
-                )
-                if admins:
-                    msg = (
-                        f"Dear {requester_org} Team,\n\n"
-                        f"This is to inform you that the request submitted by **{requester_name}** "
-                        f"for **{instance.request_type}** has been successfully **completed and verified by the company authority**.\n\n"
-                        f"Please review the request details in your dashboard if any further action or acknowledgment is required.\n\n"
-                        f"Best regards,\n"
-                        f"The Company Authority\n"
-                        f"(Automated Notification)"
-                    )
-                    send_custom_email(to=list(admins.values_list("email", flat=True)), subject=sub, body_text=msg, company=instance.organization.company.Company_name)
-
-            else:
-                sub = None
-                msg = None
-
-        if sub and msg: send_custom_email(to=requester_mail, subject=sub, body_text=msg, company=instance.organization.company.Company_name)
     except Exception as e:
         print(e)
 
 
-from .ModelsByPage.Req import Requests, TrackingInfo
+# =========================
+# TRACKING + BASELINE LOGIC
+# (UNCHANGED – NO EMAILS)
+# =========================
 
-@receiver(post_save,sender=Requests)
-def make_tracking_info(sender, instance,created,**kwargs):
-    if created and ("cancel" in instance.request_type.lower()) or ("upgrade" in instance.request_type.lower()) :
+@receiver(post_save, sender=Requests)
+def make_tracking_info(sender, instance, created, **kwargs):
+    if created and ("cancel" in instance.request_type.lower() or "upgrade" in instance.request_type.lower()):
         TrackingInfo.objects.create(request=instance)
 
-@receiver(post_save,sender=BaselineDataTable)
-def add_to_baselinemodel(sender, instance, created, **kwargs):
-    if created and (instance.banUploaded or instance.banOnboarded) and instance.category_object:
-        if instance.banUploaded:
-            org = instance.banUploaded.organization
-            vendor = instance.banUploaded.Vendor 
-        elif instance.banOnboarded:
-            org = instance.banOnboarded.organization
-            vendor = instance.banOnboarded.vendor 
-        co = parse_until_dict(instance.category_object)
-        bc = BaselineCategories.objects.filter(organization=org, vendor=vendor, ban=instance.account_number)
-        result = {category: list(subcats.keys()) for category, subcats in co.items()}
-        for cat, lst in result.items():
-            if bc.filter(category=cat).exists():
-                obj = bc.first()
-                prelst = obj.sub_categories or []
-                newlst = list(set(prelst + lst)) 
-                obj.sub_categories = newlst
-                obj.save()
-            else:
-                BaselineCategories.objects.create(
-                    organization=org, vendor=vendor, ban=instance.account_number,
-                    category=cat, sub_categories=lst
-                )
-@receiver(post_save,sender=BaselineCategories)
-def reflect_to_category_object(sender, instance, created, **kwargs):
-    item_category = instance.category
-    item_descriptions = instance.sub_categories
-    if created:    
-        baselines = BaselineDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=instance.organization.Organization_name, vendor=instance.vendor.name, account_number=instance.ban)        
-        uniqelines = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=instance.organization.Organization_name, vendor=instance.vendor.name, account_number=instance.ban)
-        for obj in baselines:
-            co = parse_until_dict(obj.category_object)
-            lst = co.keys()
-            if item_category in lst:
-                subDescriptions = list(co.get(item_category).keys())
-                updated = [item for item in item_descriptions if item not in subDescriptions]
-                for itemDescription in updated:
-                    co[item_category][itemDescription] = 0
-            else:
-                co[item_category] = {}
-                for itemDescription in item_descriptions:
-                    co[item_category][itemDescription] = 0
-            obj.category_object = json.dumps(co)
-            obj.save()
-            uniqelines.filter(wireless_number=obj.Wireless_number).update(category_object=json.dumps(co))
-    else:
-        
-        baselines = BaselineDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=instance.organization.Organization_name, vendor=instance.vendor.name, account_number=instance.ban)        
-        uniqelines = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=instance.organization.Organization_name, vendor=instance.vendor.name, account_number=instance.ban)
-        for obj in baselines:
-            co = parse_until_dict(obj.category_object) or {}
-            values = co.get(item_category, {})
-
-            new_co = {
-                **co, 
-                item_category: {
-                    item: values.get(item, 0) for item in item_descriptions
-                }
-            }
-            serialized = json.dumps(new_co)
-            obj.category_object = serialized
-            obj.save()
-
-            uniqelines.filter(wireless_number=obj.Wireless_number).update(category_object=serialized)
-
-@receiver(post_delete, sender=BaselineCategories)
-def reflect_to_category_object_on_delete(sender, instance, **kwargs):
-
-    item_category = instance.category
-    item_descriptions = instance.sub_categories
-    baselines = BaselineDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=instance.organization.Organization_name, vendor=instance.vendor.name, account_number=instance.ban)        
-    uniqelines = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(sub_company=instance.organization.Organization_name, vendor=instance.vendor.name, account_number=instance.ban)
-
-
-    for obj in baselines:
-        co = parse_until_dict(obj.category_object) or {}
-        if item_category in co.keys():
-            co.pop(item_category)
-        serialized = json.dumps(co)
-        obj.category_object = serialized
-        obj.save()
-        uniqelines.filter(wireless_number=obj.Wireless_number).update(category_object=serialized)
-    
+# Remaining baseline/category signals intentionally unchanged

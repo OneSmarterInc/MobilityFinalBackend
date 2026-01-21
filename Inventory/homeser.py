@@ -4,6 +4,7 @@ from OnBoard.Organization.models import Organizations
 from OnBoard.Location.models import Location
 from Dashboard.ModelsByPage.DashAdmin import Vendors, EntryType
 from OnBoard.Ban.models import UploadBAN, OnboardBan, BaseDataTable, Lines, UniquePdfDataTable, BaselineDataTable
+from Batch.models import EmailConfiguration
 
 class showCompanySerializer(serializers.ModelSerializer):
     class Meta:
@@ -11,18 +12,21 @@ class showCompanySerializer(serializers.ModelSerializer):
         fields = ("Company_name",)
     
 class showOrganizationSerializer(serializers.ModelSerializer):
+    is_email_configured = serializers.SerializerMethodField()
     company = serializers.CharField() 
     locations = serializers.SerializerMethodField()
     vendors = serializers.SerializerMethodField()
     class Meta:
         model = Organizations
-        fields = ("id","Organization_name","company","locations","vendors")
+        fields = ("id","Organization_name","company","locations","vendors","is_email_configured")
     def get_locations(self,obj):
         locs = Location.objects.filter(organization=obj)
         return [{"id":loc.id, "name":loc.site_name} for loc in locs]
     def get_vendors(self,obj):
         vendors = obj.vendors.all()
         return [{"id":vendor.id, "name":vendor.name} for vendor in vendors]
+    def get_is_email_configured(self,obj):
+        return EmailConfiguration.objects.filter(sub_company=obj).first() is not None
     
 
 class showOnboardedSerializer(serializers.ModelSerializer):

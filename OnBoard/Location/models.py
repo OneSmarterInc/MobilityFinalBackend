@@ -54,7 +54,7 @@ class Location(models.Model):
     extension = models.CharField(max_length=255, blank=True, null=True)
     mobile_code = models.CharField(max_length=255)
     mobile_number = models.CharField(max_length=255)
-    mobile_status = models.CharField(max_length=255)
+    status = models.CharField(max_length=255,default="Active")
     notes = models.TextField(blank=True, null=True)
 
     location_picture_1 = models.FileField(upload_to='location_pictures/', blank=True, null=True)

@@ -22,6 +22,7 @@ class GetCompanyView(APIView):
         companies = Company.objects.all()
         comser = showCompanySerializer(companies, many=True)
         return Response({"companies":comser.data},status=status.HTTP_200_OK)
+from django.db.models import Q
 
 class Homepageview(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -57,13 +58,13 @@ class InventorySubjectView(APIView):
         else:
             objs = Organizations.objects.filter(id=org.id)
             serializer = OrganizationShowOnboardSerializer(objs, many=True)
-            onboardbanObjs = BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(banUploaded__organization=org, banOnboarded__organization=org)
+            onboardbanObjs = BaseDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(Q(banUploaded__organization=org) | Q(banOnboarded__organization=org))
             onbanser = BaseDataTableShowSerializer(onboardbanObjs, many=True)
             all_lines = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None)
             lines_Ser = UniqueTableShowSerializer(all_lines, many=True)
             return Response({"data": serializer.data, 'banonboarded':onbanser.data, "lines":lines_Ser.data}, status=status.HTTP_200_OK)
 
-        
+from django.db.models import Q
 class InventoryDataView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -190,7 +191,6 @@ class BanInfoView(APIView):
         
         obj = obj[0] 
         original_data = {f.name: getattr(obj, f.name) for f in obj._meta.fields}
-        print(request.data)
 
         if request.data['type'] == 'add-remark':
             obj.remarks = request.data['remarks']
@@ -247,9 +247,8 @@ class BanInfoView(APIView):
         
         if not base:
             return Response({"message":f"Ban {ban} not found!"},status=status.HTTP_400_BAD_REQUEST)
-        if len(base) > 1:
-            return Response({"message":f"can not delete ban {ban}!"},status=status.HTTP_400_BAD_REQUEST)
-        print(base[0].banOnboarded, base[0].banUploaded)
+        if base.exclude(viewuploaded=None,viewpapered=None).exists():
+            return Response({"message":f"Deletion blocked. Ban '{ban}' has associated bills and cannot be deleted."},status=status.HTTP_400_BAD_REQUEST)
         if base[0].banOnboarded:
             obj = OnboardBan.objects.get(id=base[0].banOnboarded.id)
         elif base[0].banUploaded:
@@ -340,7 +339,6 @@ class MobileView(APIView):
         sub_com = request.GET.get('sub_company')
         lines = UniquePdfDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(account_number=account_number, company=com, sub_company=sub_com)
         
-        print("length of lines", len(lines))
         if not wireless_number:
             lines = lines
         else:
@@ -358,7 +356,6 @@ class MobileView(APIView):
         com = data.get('company', None)
         sub_com = data.get('sub_company', None)
         vendor = data.get('vendor', None)
-        print(com, sub_com, account_number, wireless_number)
         mainobject = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(company=com, sub_company=sub_com, account_number=account_number,vendor=vendor)
         if mainobject.filter(wireless_number=wireless_number).exists():
             return Response({

@@ -14,6 +14,7 @@ from django.conf import settings
 from addon import get_cat_obj_total
 from ..models import ProcessedWorkbook
 from django.core.files import File
+from collections.abc import Mapping
 
 import os, io
 
@@ -23,7 +24,6 @@ class EnterBillProcessExcel:
         print("init")
         self.instance = instance
         self.buffer_data = json.loads(buffer_data) if isinstance(buffer_data, str) else buffer_data
-        print(type(self.buffer_data))
         self.type = typeofupload
         self.company = self.buffer_data.get('company')
         self.vendor = self.buffer_data.get('vendor')
@@ -137,7 +137,6 @@ class EnterBillProcessExcel:
         current_numbers = current_bill.values_list('wireless_number', flat=True)
         uploaded_numbers = uploaded_baseline.values_list('wireless_number', flat=True)
         missing_numbers = set(current_numbers) - set(uploaded_numbers)
-        print("length of missing uniques", len(missing_numbers))
         missing_entries = current_bill.filter(wireless_number__in=missing_numbers)
         new_entries = []
         for entry in missing_entries:
@@ -168,7 +167,6 @@ class EnterBillProcessExcel:
         current_numbers = current_bill.values_list('Wireless_number', flat=True)
         uploaded_numbers = uploaded_baseline.values_list('Wireless_number', flat=True)
         missing_numbers = set(current_numbers) - set(uploaded_numbers)
-        print("length of missing baselines", len(missing_numbers))
         missing_entries = current_bill.filter(Wireless_number__in=missing_numbers)
         new_entries = []
         for entry in missing_entries:
@@ -198,9 +196,7 @@ class EnterBillProcessExcel:
             account_number=self.account_number,
             viewuploaded=bill_main_id
         )
-        print("length of baseline",len(baseline))
 
-        print("length of current_bill",len(current_bill))
         baseline_dict = {b.Wireless_number: b for b in baseline if b.Wireless_number}
         for bill_obj in current_bill:
             wireless = bill_obj.Wireless_number
@@ -281,16 +277,13 @@ class EnterBillProcessExcel:
         print("make_sheet3")
         # Convert JSON strings to dictionary
         df2 = df.copy()
-        print(df2.head())
         df2["category_object"] = df2["category_object"].apply(
             lambda x: json.loads(x) if isinstance(x, str) else x
         )
-        print(df2.head())
         # Normalize category_object
         rows = []
         for _, row in df2.iterrows():
             for cat, items in row["category_object"].items():
-                print(row)
                 for desc, amt in items.items():
                     rows.append({
                         "Account Number": row["Account Number"],
@@ -363,7 +356,112 @@ class EnterBillProcessExcel:
         sheet4 = self.make_sheet4(datadf)
 
         return sheet2, sheet3, sheet4
+
     
+    def build_baseline(self, instance, total_charges_df):
+  
+
+        qs = BaselineDataTable.objects.filter(
+            banOnboarded=instance.banOnboarded,
+            banUploaded=instance.banUploaded
+        ).values("Wireless_number", "category_object", "user_name")
+
+        baseline_df = pd.DataFrame.from_records(qs)
+
+        if baseline_df.empty:
+            return pd.DataFrame(
+                columns=["wireless_number", "user_name", "category_object", "total_charges"]
+            )
+
+        baseline_df.rename(
+            columns={
+                "Wireless_number": "wireless_number",
+                "user_name": "baseline_user_name"
+            },
+            inplace=True
+        )
+
+        total_charges_df = total_charges_df.copy()
+
+        merged_df = baseline_df.merge(
+            total_charges_df[["wireless_number", "total_charges", "user_name"]],
+            on="wireless_number",
+            how="left"
+        )
+
+        merged_df["user_name"] = merged_df["user_name"].fillna(
+            merged_df["baseline_user_name"]
+        )
+        merged_df.drop(columns=["baseline_user_name"], inplace=True)
+
+        merged_df["total_charges"] = merged_df["total_charges"].fillna(0)
+
+        def flatten_leaves(d):
+            leaves = []
+            for v in d.values():
+                if isinstance(v, Mapping):
+                    leaves.extend(flatten_leaves(v))
+                else:
+                    try:
+                        leaves.append(float(v))
+                    except (TypeError, ValueError):
+                        continue
+            return leaves
+
+        def compute_total(category_json):
+            try:
+                data = json.loads(category_json)
+                return round(sum(flatten_leaves(data)), 2)
+            except Exception:
+                return 0.0
+
+        def add_split(category_json, total_charges):
+            try:
+                total_charges = float(str(total_charges).replace("$", ""))
+            except (TypeError, ValueError):
+                total_charges = 0.0
+
+            if not category_json:
+                return json.dumps({})
+
+            try:
+                data = json.loads(category_json)
+            except Exception:
+                return json.dumps({})
+
+            leaves = flatten_leaves(data)
+            count = len(leaves)
+
+            if count == 0:
+                return json.dumps(data)
+
+            split_value = total_charges / count
+
+            def apply_split(d):
+                for k, v in d.items():
+                    if isinstance(v, Mapping):
+                        apply_split(v)
+                    else:
+                        try:
+                            d[k] = round(float(v) + split_value, 2)
+                        except (TypeError, ValueError):
+                            d[k] = round(split_value, 2)
+
+            apply_split(data)
+            return json.dumps(data)
+
+        merged_df["category_object"] = merged_df.apply(
+            lambda r: add_split(r["category_object"], r["total_charges"]),
+            axis=1
+        )
+
+        merged_df["total_charges"] = merged_df["category_object"].apply(compute_total)
+
+        return merged_df[
+            ["wireless_number", "user_name", "category_object", "total_charges"]
+        ]
+
+
     def dataframe_to_excel(self, df1, df2, df3, df4):
         print("def dataframe_to_excel")
         output = io.BytesIO()
@@ -378,7 +476,6 @@ class EnterBillProcessExcel:
     def process_excel(self):
         print("process excel")
         df_csv = pd.read_excel(self.excel_csv_path)
-        print("length of csv",len(df_csv))
         df_csv.columns = df_csv.columns.str.strip()
         df_csv.columns = df_csv.columns.str.strip().str.replace('-', '').str.replace(r'\s+', ' ', regex=True).str.replace(' ', '_')
 
@@ -401,12 +498,9 @@ class EnterBillProcessExcel:
 
         # Drop rows with any NaN (i.e., blank cells)
         df_csv.dropna(how='all', inplace=True)
-        print("new df csv====",len(df_csv))
-        print(df_csv)
         rw = df_csv.iloc[0]
         base_dict = rw.to_dict()
 
-        print(base_dict)
         file_vendor = base_dict.get('vendor')
         file_account_number = base_dict.get('account_number')
         file_bill_date = base_dict.get('bill_date')
@@ -415,7 +509,6 @@ class EnterBillProcessExcel:
             return {"message":f"Input vendor {self.vendor} not matched with excel vendor {file_vendor}!", 'code':1}
 
         print("vendor checked")
-        print(file_account_number, self.account_number)
         if str(file_account_number) != str(self.account_number):
             return {"message":f"Input account number {self.account_number} not matched with excel account number {file_account_number}!", 'code':1}
 
@@ -427,7 +520,6 @@ class EnterBillProcessExcel:
         print("account number presence checked")
         
         bill_date = file_bill_date.replace(",","").split(" ")
-        print(bill_date)
         file_bill_date = " ".join(bill_date)
 
         if not (bill_date[0] in str(self.month)):
@@ -440,7 +532,6 @@ class EnterBillProcessExcel:
             return {'message' : f'Bill already exists for account number {file_account_number}', 'code' : 1}
         
         print("existance checked")
-        print(base_dict)
         base_dict['company'] = self.company
         base_dict['vendor'] = self.vendor
         base_dict['sub_company'] = self.sub_company
@@ -450,7 +541,7 @@ class EnterBillProcessExcel:
         base_dict['location'] = self.location
         base_dict['master_account'] = self.master_account
         base_dict['bill_date'] = file_bill_date
-        self.invoice_number = base_dict["invoice_number"]
+        self.invoice_number = base_dict.get("invoice_number")
         base_dict["invoicenumber"] = self.invoice_number
         
         keys_to_keep = ['company', 'vendor', 'sub_company', 'accountnumber', 'Entry_type', 'location', 'master_account','bill_date','invoicenumber']
@@ -467,21 +558,40 @@ class EnterBillProcessExcel:
         df_csv['wireless_number'] = df_csv['wireless_number'].apply(self.format_wireless_number)
         df_csv_dict = df_csv.to_dict(orient='records')
         df_csv_dict = [item for item in df_csv_dict if item.get("wireless_number")]
-        
+        if "total_charges" not in df_csv.columns:
+            df_csv["total_charges"] = 0
+        if "user_name" not in df_csv.columns:
+            df_csv["user_name"] = None
+        try: categoried_df = self.build_baseline(instance=onboarded,total_charges_df=df_csv[["wireless_number","total_charges","user_name"]])
+        except Exception as e: print("e==",e)
+        category_map = {
+            row["wireless_number"]: {
+                "category_object": row["category_object"],
+                "total_charges": row["total_charges"],
+                "user_name": row["user_name"],
+            }
+            for _, row in categoried_df.iterrows()
+        }
+
         for item in df_csv_dict:
-            print(item)
+            wn = item.get("wireless_number")
+            data = category_map.get(wn)
+            if data:
+                item["category_object"] = data["category_object"]
+                item["total_charges"] = data["total_charges"]
+                item["user_name"] = data["user_name"]
+            else:
+                item["category_object"] = "{}"
+                item["total_charges"] = 0.0
+                item["user_name"] = None
             item['company'] = self.company
             item['bill_date'] = file_bill_date
             item['vendor'] = self.vendor
             item['sub_company'] = self.sub_company
             item['account_number'] = self.account_number
             item['entry_type'] = self.entry_type
+            item["plans"] = item.get("Plan_name")
 
-            plan = item.get("Plan_name")
-            item["plans"] = plan
-            monthly_charges = item.get("monthly_charges")
-            item["category_object"] = self.create_category_object(plan, monthly_charges)
-        # Bulk insert into UniquePDFDataTable
 
         model_fields = [field.name for field in UniquePdfDataTable._meta.get_fields() if field.concrete and not field.auto_created]
 
@@ -572,6 +682,7 @@ class EnterBillProcessExcel:
         except Exception as e:
             print(e)
             message = str(e).strip()
+
         create_notification(user=self.user_obj, msg=f"Bill with date {bill_date} of ban {self.account_number} uploaded.",company=self.company_obj)
         return {"message":"Bill uploaded successully", 'code':0}
 

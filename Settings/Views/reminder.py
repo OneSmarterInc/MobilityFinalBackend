@@ -64,7 +64,7 @@ class ReminderView(APIView):
             return Response({"message": "Reminder not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             print(f"An error occurred while deleting the reminder: {e}")
-            return Response({"message": "An error occurred while deleting the reminder"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 from OnBoard.Company.models import Company
 from Dashboard.ModelsByPage.DashAdmin import UserRoles

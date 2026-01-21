@@ -6,6 +6,12 @@ from django.contrib.auth.password_validation import validate_password
 from Dashboard.ModelsByPage.DashAdmin import UserRoles, Permission, Vendors
 from Settings.models import PermissionsbyCompany
 from Dashboard.ModelsByPage.ProfileManage import Profile
+from OnBoard.Ban.models import UniquePdfDataTable
+from .signals import UserSignalThread
+class banUsersSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UniquePdfDataTable
+        fields = ("id","User_email","wireless_number","user_name")
 
 from Dashboard.Serializers.AdminPage import UserRoleShowSerializer
 
@@ -21,7 +27,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PortalUser
-        fields = ['username', 'email', 'password', 'password2', 'designation', 'company', 'first_name','last_name','phone_number','mobile_number','string_password','temp_password', 'organization', 'vendor','account_number']
+        fields = ['username', 'email', 'password', 'password2', 'designation', 'company', 'first_name','last_name','phone_number','mobile_number','string_password','temp_password', 'organization', 'vendor','account_number','id']
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
@@ -36,6 +42,9 @@ class RegisterSerializer(serializers.ModelSerializer):
         designation_name = validated_data.pop('designation', None)
         company_name = validated_data.pop('company', None)
         vendor_name = validated_data.pop('vendor',None)
+        ban = validated_data.pop('account_number',None)
+
+
 
         # Create the user
         user = PortalUser.objects.create_user(**validated_data)
@@ -60,10 +69,22 @@ class RegisterSerializer(serializers.ModelSerializer):
             try:
                 ven = Vendors.objects.get(name=vendor_name)
                 user.vendor = ven
-                user.save()
+                
             except Vendors.DoesNotExist:
                 raise serializers.ValidationError(f"Vendor '{vendor_name}' does not exist.")
-
+            if not ban:
+                raise serializers.ValidationError(f"Account number {ban} not found!")
+            user.account_number = ban
+            user.save()
+        UserSignalThread(
+            instance=user,
+            company=user.company.Company_name if user.company else None,
+            organization=user.organization.Organization_name if user.organization else None,
+            role=user.designation.name if user.designation else None,
+            username=user.username,
+            email=user.email,
+            pwd=user.string_password
+        ).start()
         return user
 
 
@@ -74,18 +95,16 @@ class showUsersSerializer(serializers.ModelSerializer):
     organization = serializers.CharField(max_length=255, read_only=True)
     is_admin = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
+    all_wireless_numbers = serializers.SerializerMethodField()
     """
     Serializer to display user data.
     """
     class Meta:
         model = PortalUser
-        fields = ['username', 'email', 'designation', 'company', 'organization', 'mobile_number', 'account_number', 'id','is_admin','permissions']
+        fields = ['username', 'email', 'designation', 'company', 'organization', 'mobile_number', 'account_number', 'id','is_admin','permissions','first_name','last_name','all_wireless_numbers','is_active','is_notified']
     def get_is_admin(self, user):
-        return "admin" in user.designation.name.lower() if user.designation else True
+        return not (user.vendor and user.account_number)
     def get_permissions(self,user):
-        print(user.company, user.organization, user.designation)
-        xyz = PermissionsbyCompany.objects.filter(company=user.company, organization=user.organization, role=user.designation)
-        print(xyz)
         permissions = list(
             Permission.objects.filter(
                 permissions_by_company__company=user.company,
@@ -93,8 +112,9 @@ class showUsersSerializer(serializers.ModelSerializer):
                 permissions_by_company__role=user.designation
             ).values_list('name', flat=True).distinct()
         )
-        print(permissions)
         return permissions
+    def get_all_wireless_numbers(self,user):
+        return user.wireless_numbers.all().values("number","is_active","id")
 
 
 class UserLogSaveSerializer(serializers.ModelSerializer):
@@ -120,7 +140,6 @@ class allDesignationsSerializer(serializers.ModelSerializer):
         return {"id":obj.organization.id, "name":obj.organization.Organization_name}
 
 from OnBoard.Company.models import Company
-
 
 class CompanyShowSerializer(serializers.ModelSerializer):
     class Meta:

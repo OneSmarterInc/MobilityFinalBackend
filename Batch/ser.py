@@ -15,9 +15,21 @@ class OrganizationShowSerializer(serializers.ModelSerializer):
         fields = ['id', 'Organization_name']
 
 class BaseDataSerializer(serializers.ModelSerializer):
+    is_bill_in_batch = serializers.SerializerMethodField()
+    is_bill_approved = serializers.SerializerMethodField()
+    is_bill_payment_done = serializers.SerializerMethodField()
+    is_paper_bill = serializers.SerializerMethodField()
     class Meta:
         model = BaseDataTable
         fields = '__all__'
+    def get_is_bill_in_batch(self,obj):
+        return obj.is_baseline_approved
+    def get_is_bill_approved(self,obj):
+        return "approved" in obj.batch_approved.lower() if obj.batch_approved else False
+    def get_is_bill_payment_done(self,obj):
+        return obj.Check.lower() not in ("", None, "null", "false") if obj.Check else False
+    def get_is_paper_bill(self,obj):
+        return obj.viewpapered is not None
     
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:

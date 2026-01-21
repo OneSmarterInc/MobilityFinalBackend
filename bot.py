@@ -205,9 +205,7 @@ class BotClass:
         def repl(m):
             col, val = m.group(1), m.group(2)
             if "wireless" in col.lower():
-                # keep only digits from the value
                 digits_only = re.sub(r"\D", "", val)
-                # normalize wireless_number column (strip symbols, spaces, etc.)
                 cleaned_col = (
                     "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE("
                     f"{col}, '-', ''), ' ', ''), '(', ''), ')', ''), '.', ''), '+', ''), '*', ''), '#', ''), '/', ''), '\\\\', '')"
@@ -218,7 +216,6 @@ class BotClass:
 
         query = re.sub(pattern, repl, query)
 
-        # Step 3: Ensure trailing semicolon
         query = query.strip().rstrip(";") + ";"
 
         return query
@@ -238,10 +235,7 @@ class BotClass:
             return False, f"Error executing query: {e}"
 
     def make_human_response(self,user_question, result, db_schema=None):
-        
-
-        # if not isinstance(result, pd.DataFrame):
-        #     return "I couldn't find any information matching your request."
+ 
 
         prompt = f"""
         You are a helpful assistant. The user asked:
@@ -274,5 +268,7 @@ class BotClass:
         """
 
         response = self.response_model.generate_content(prompt)
+        if response == "RATE_LIMITED":
+            return False, "LLM rate limit hit. Try again later."
         print(response.text)
-        return response.text
+        return  True, response.text

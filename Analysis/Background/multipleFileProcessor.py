@@ -68,7 +68,10 @@ class MultipleFileProcessor:
         try:
             dataframes = extract_data_from_zip(path)
             if not dataframes:
-                return {"message": "No readable files found in zip", "error": -1}
+                return {
+                    "message": "No readable files were found in the ZIP archive.",
+                    "error": -1
+                }
 
             unique_dfs = [df for df in dataframes if "Wireless Number" in df.columns and df["Wireless Number"].is_unique]
 

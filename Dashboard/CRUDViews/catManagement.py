@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import permissions
 from rest_framework import status
 from ..Serializers.cat import catserializer, showcategoriesSerializer
-from OnBoard.Ban.models import BaselineDataTable
+from OnBoard.Ban.models import BaselineDataTable, BaseDataTable
 from OnBoard.Ban.models import Organizations
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 from rest_framework.permissions import IsAuthenticated
@@ -35,7 +35,14 @@ class CategoryView(APIView):
         ven = request.data.get('vendor')
         ban = request.data.get('ban')
         cat = request.data.get('category')
-        subcat = request.data.get('sub_categories')
+
+        banObj = BaseDataTable.objects.exclude(banOnboarded=None, banUploaded=None).filter(accountnumber=ban).first()
+        if not banObj:
+            return Response(
+                {"message": "account number not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        data["banObj"] = banObj.id
 
         check =  BaselineCategories.objects.filter(organization=org, vendor=ven, ban=ban, category=cat)
         
@@ -87,10 +94,8 @@ class CategoryView(APIView):
         try:
             category = BaselineCategories.objects.get(id=pk)
             ban = category.ban
-            cat = category.category
             category.delete()
             saveuserlog(request.user, f"Baseline category {category} of ban {ban} deleted.")
-            # create_notification(request.user, f"Baseline category {category} of ban {ban} deleted.",request.user.company)
             return Response({"message": "category deleted successfully!"}, status=status.HTTP_200_OK)
         except BaselineCategories.DoesNotExist:
             return Response({"message": "category does not exist"}, status=status.HTTP_400_BAD_REQUEST)

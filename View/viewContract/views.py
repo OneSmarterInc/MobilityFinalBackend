@@ -10,17 +10,16 @@ from Dashboard.ModelsByPage.DashAdmin import Vendors
 from .ser import showOrganizationSerializer, vendorshowSerializer, showContractSerializer, saveContractSerializer
 from OnBoard.Ban.models import UploadBAN, BaseDataTable, OnboardBan
 from Batch.views import create_notification
+from django.db.models import Q
 class viewContractView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, *args, **kwargs):
-        org = request.user.organization
-        orgs = showOrganizationSerializer(Organizations.objects.all() if not org else Organizations.objects.filter(id=org.id), many=True)
-        vendors = vendorshowSerializer(Vendors.objects.all(), many=True)
-        contracts = showContractSerializer(Contracts.objects.all() if not org else Contracts.objects.filter(onboardedban__organization=org, uploadedban__organization=org), many=True)
-
+    def get(self, request, org, *args, **kwargs):
+        try:org = Organizations.objects.get(id=org)
+        except Organizations.DoesNotExist: return Response({"message":"Organization not found!"},status=status.HTTP_404_NOT_FOUND)
+        contracts = showContractSerializer(Contracts.objects.filter(Q(onboardedban__organization=org) | Q(uploadedban__organization=org)), many=True)
         return Response(
-            {"orgs": orgs.data, "vendors": vendors.data, "contracts":contracts.data},
+            {"data":contracts.data},
             status=status.HTTP_200_OK,
         )
     def post(self, request, *args, **kwargs):
@@ -75,7 +74,7 @@ class viewContractView(APIView):
 
         except Exception as e:
             print(e)
-            return Response({"message": "Internal Server Error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def put(self, request, pk, *args, **kwargs):
         data = request.data
@@ -92,7 +91,7 @@ class viewContractView(APIView):
             return Response({"message": "Contract not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             print(e)
-            return Response({"message": "Internal Server Error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
     def delete(self, request, pk, *args, **kwargs):
         try:
@@ -108,4 +107,4 @@ class viewContractView(APIView):
             return Response({"message": "Contract not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             print(e)
-            return Response({"message": "Unable to delete Contract"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)

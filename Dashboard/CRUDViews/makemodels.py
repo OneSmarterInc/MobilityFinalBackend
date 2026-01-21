@@ -32,6 +32,7 @@ class MakeModelView(APIView):
             create_notification(request.user, f"New model {data['name']} of device type {data['device_type']} added.",request.user.company)
             return Response({"message":"Model added succesfully!"},status=status.HTTP_200_OK)
         else:
+            print(ser.errors)
             return Response({"message":"Unable to add new model."},status=status.HTTP_400_BAD_REQUEST)
     def put(self, request, pk, *args, **kwargs):
         obj = MakeModel.objects.filter(id=pk).first()

@@ -44,7 +44,6 @@ class ProcessPdf2:
         self.account_number = None
         
     def base_data_table(self, data):
-        print("variance==", self.variance)
         baseDatamapped = {
             "accountnumber": data.get("Account Number"),
             "invoicenumber": data.get("Invoice Number"),
@@ -274,8 +273,7 @@ class ProcessPdf2:
     def start_process(self):
         if not (self.pdf_path and self.instance and self.company_name and self.sub_company and self.vendor_name):
             return False, "Unable to process pdf due to incomplete data.", None
-        print(self.vendor_name.lower())
-        print(self.t_mobile_type)
+
         try:
             if "verizon" in self.vendor_name.lower():
                 obj = VerizonClass(self.pdf_path)

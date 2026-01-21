@@ -23,6 +23,7 @@ from rest_framework import viewsets, permissions
 from .models import BatchAutomation
 from .serializers import BatchAutomationSerializer
 from django.core.files.base import ContentFile
+from datetime import datetime, timedelta
 
 from uuid import uuid4
 from django.conf import settings
@@ -39,6 +40,8 @@ from .serializers import EmailConfigurationSerializer
 from pandas.api.types import is_datetime64_any_dtype as is_datetime
 
 from authenticate.views import saveuserlog
+from authenticate.models import PortalUser
+from django.db.models import Func, DateField, F, Q, Sum
 
 class BatchView(APIView):
     permission_classes = [IsAuthenticated]
@@ -73,6 +76,32 @@ class BatchView(APIView):
         excel_buffer.seek(0)
         
         return excel_buffer 
+    def filter_by_range(self,data, start, end):
+        formatted_start = self.parse_custom_date(start) if start else None
+        formatted_end = self.parse_custom_date(end) if end else None
+
+        filtered_data = data.annotate(
+            bill_date_parsed=Func(
+            F('bill_date'),
+            function='STRFTIME',
+            template="DATE(STRFTIME('%%%%Y-%%%%m-%%%%d', %(expressions)s))",
+            output_field=DateField(),
+        )
+        )
+
+        if formatted_start:
+            filtered_data = filtered_data.filter(bill_date_parsed__gte=formatted_start)
+        if formatted_end:
+            filtered_data = filtered_data.filter(bill_date_parsed__lte=formatted_end)
+
+        return filtered_data
+    
+    def parse_custom_date(self, date_str):
+        try:
+            return datetime.strptime(date_str.strip(), "%b %d %Y").date()
+        except:
+            return None
+
     def post(self, request, *args, **kwargs):
         data = request.data
         if 'action' in data:
@@ -87,6 +116,7 @@ class BatchView(APIView):
                 base_ids = BaseDataTable.objects.filter(id__in=ids)
             
             base_ids = base_ids.exclude(batch_approved="Pending")
+            base_ids = self.filter_by_range(data=base_ids, start=from_date, end=to_date)
             if not base_ids:
                 return Response({"message": f"Data not found!"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -95,9 +125,21 @@ class BatchView(APIView):
             df = df.drop(columns=['created', 'updated','auto_pay_enabled','Entry_type','master_account', 'website', 'Total_Current_Charges','plans','charges', 'location','duration','id', 'banUploaded_id','Total_Amount_Due', 'banOnboarded_id', 'viewuploaded_id','viewpapered_id', 'inventory_id','costcenterlevel', 'costcentertype','costcenterstatus', 'CostCenter', 'CostCenterNotes', 'PO','Displaynotesonbillprocessing', 'POamt', 'FoundAcc', 'bantype','invoicemethod', 'vendorCS', 'vendor_alias', 'month', 'year',
             'pdf_filename', 'pdf_path', 'remarks', 'account_password','payor', 'GlCode', 'ContractTerms', 'ContractNumber', 'Services','Billing_cycle', 'BillingDay', 'PayTerm', 'AccCharge','CustomerOfRecord', 'paymentType',
             'billstatus', 'banstatus', 'Check', 'summary_file','is_baseline_approved','workbook_path','batch_file','current_annual_review',
-            'previous_annual_review','variance','is_production'])
+            'previous_annual_review','variance','is_production','check_timestamp','is_baseline_replaced'])
+
+            user_ids = df["uploaded_by_id"].dropna().unique()
+            user_map = (
+                PortalUser.objects
+                .filter(id__in=user_ids)
+                .values_list("id", "email")
+            )
+
+            user_map = dict(user_map)
+            df["Uploaded by"] = df["uploaded_by_id"].map(user_map).fillna("Unknown User")
+            df.drop(columns=["uploaded_by_id"], inplace=True)
 
             batch = base_ids
+
 
             print(df.columns)
             
@@ -147,12 +189,8 @@ class BatchView(APIView):
             print(df[['Bill Date','Billing Name']])
             excel_buffer = self.generate_excel_file(df)
             obj = batch[0]
-            if type(ids) == list:
-                from_to = str(ids[0]) + '->' + str(ids[-1]) 
-                BatchReport.objects.first()
-            else:
-                from_to = str(ids)
-            file_name = f"batch_report_{from_to} .xlsx"
+
+            file_name = f"batch_report_{org}.xlsx"
             obj.batch_file.save(file_name, ContentFile(excel_buffer.getvalue()), save=True)
 
             
@@ -177,7 +215,7 @@ class BatchView(APIView):
                     return Response({"message":f"Email sent successfully sent to {rm}"}, status=status.HTTP_200_OK)
                 except Exception as e:
                     print(e)
-                    return Response({"message":f"Error in sending mail"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             else:
                 return Response({"message":"Invalid action!"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -212,7 +250,7 @@ class BatchView(APIView):
             return Response({'message': 'Batch Report not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             print(f'Error in Batch Report update: {e}')
-            return Response({'message': "Error in Batch Report update"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
     def delete(self, request,org, id, *args, **kwargs):
         try:
@@ -258,6 +296,7 @@ def email_config_list(request):
         return Response(serializer.data)
 
     if request.method == 'POST':
+        print(request.data)
         serializer = EmailConfigurationSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()

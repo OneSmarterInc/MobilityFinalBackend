@@ -7,3 +7,4 @@ class OnboardConfig(AppConfig):
 
     def ready(self):
         from .Ban import signals
+        from .Location import signals

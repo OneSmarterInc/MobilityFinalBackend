@@ -62,7 +62,7 @@ class TicketView(APIView):
             return Response({"message": "Ticket not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             print(f"An error occurred while updating the ticket: {e}")
-            return Response({"message": "An error occurred while updating the ticket"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     def delete(self, request, pk):
         # Placeholder for deleting a ticket
         try:
@@ -87,7 +87,7 @@ class TicketChatView(APIView):
             return Response({"message": "Ticket not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             print(f"An error occurred while retrieving the chat: {e}")
-            return Response({"message": "An error occurred while retrieving the chat"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def post(self, request, pk):
         try:
@@ -103,4 +103,4 @@ class TicketChatView(APIView):
             return Response({"message": "Ticket not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             print(f"An error occurred while adding a message to the chat: {e}")
-            return Response({"message": "An error occurred while adding a message to the chat"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)

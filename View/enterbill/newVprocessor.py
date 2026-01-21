@@ -83,7 +83,6 @@ class ProcessPdf2:
         obj = BaseDataTable.objects.create(uploaded_by=PortalUser.objects.filter(email=self.email).first(),**baseDatamapped)
         return obj
         
-        print("Added to base data table")
     def pdf_data_table(self, datadf):
         pdf_mapping = {
             'Wireless Number': "wireless_number",
@@ -472,36 +471,47 @@ class ProcessPdf2:
         })
         return datadf
         
-    def get_sheet2(self, datadf,dbdf):
+    def get_sheet2(self, datadf, dbdf):
         print("def get_sheet2")
-        sheet2 = datadf
+        sheet2 = datadf.copy()
+
         sheet2["Account Number"] = self.account_number
-        if not "Plans" in sheet2.columns:
+
+        if "Plans" not in sheet2.columns:
             sheet2["Plans"] = "NA"
-        
-        sheet2 = sheet2.drop(columns=["Page"])
+
+        if "Data Usage" in sheet2.columns:
+            sheet2["Data Usage (GB)"] = sheet2["Data Usage"].apply(
+                lambda x: (
+                    float(str(x).replace("GB", "").strip())
+                    if isinstance(x, str) and "GB" in x
+                    else x
+                )
+            )
+            sheet2 = sheet2.drop(columns=["Data Usage"])
+
+        sheet2 = sheet2.drop(columns=["Page"], errors="ignore")
+
         if dbdf is not None:
             sheet2 = pd.merge(sheet2, dbdf, on="Wireless Number")
         else:
             sheet2["cost_center"] = "NA"
             sheet2["User_email"] = "NA"
             sheet2["User_status"] = "NA"
-        # reorder such as put User_email, User_status both immediately after user_name
-        cols = sheet2.columns.tolist()
-        if "User_email" in cols and "User_status" in cols:
-            user_email_index = cols.index("User_email")
-            user_status_index = cols.index("User_status")
-            user_name_index = cols.index("Username")
-            if user_email_index > user_name_index:
-                cols.insert(user_name_index + 1, cols.pop(user_email_index))
-            if user_status_index > user_name_index + 1:
-                cols.insert(user_name_index + 2, cols.pop(user_status_index))
 
-        
-        cols.insert(0, cols.pop(cols.index('Account Number')))
-        cols.insert(3, cols.pop(cols.index('Plans')))
+        cols = sheet2.columns.tolist()
+        if "User_email" in cols and "User_status" in cols and "Username" in cols:
+            user_name_index = cols.index("Username")
+            cols.insert(user_name_index + 1, cols.pop(cols.index("User_email")))
+            cols.insert(user_name_index + 2, cols.pop(cols.index("User_status")))
+
+        cols.insert(0, cols.pop(cols.index("Account Number")))
+        cols.insert(3, cols.pop(cols.index("Plans")))
         sheet2 = sheet2[cols]
+
         return sheet2
+
+
     
     def get_sheet3(self, datadf,dbdf):
         print("def get_sheet3")
@@ -516,20 +526,7 @@ class ProcessPdf2:
             sheet3["cost_center"] = "NA"
             sheet3["User_email"] = "NA"
             sheet3["User_status"] = "NA"
-        cols = sheet3.columns.tolist()
-        # reorder such as put User_email, User_status both immediately after user_name
-        if "User_email" in cols and "User_status" in cols:
-            user_email_index = cols.index("User_email")
-            user_status_index = cols.index("User_status")
-            user_name_index = cols.index("Username")
-            if user_email_index > user_name_index:
-                cols.insert(user_name_index + 1, cols.pop(user_email_index))
-            if user_status_index > user_name_index + 1:
-                cols.insert(user_name_index + 2, cols.pop(user_status_index))
-        
-        cols.insert(0, cols.pop(cols.index('Account Number')))
-        cols.insert(3, cols.pop(cols.index('Plans')))
-        sheet3 = sheet3[cols]
+        sheet3 = sheet3[["Account Number", "Wireless Number", "Item Category", "Item Description", "Charges"]]
         return sheet3
     
     def get_sheet4(self, datadf,dbdf):

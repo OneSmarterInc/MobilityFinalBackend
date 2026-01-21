@@ -17,9 +17,9 @@ class InventoryView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request,org,pk=None, *args, **kwargs):
         if pk:
-            inventory = UniquePdfDataTable.objects.filter(sub_company=org).filter(viewuploaded=None,viewpapered=None).filter(id=pk).order_by('-account_number').order_by('-created')
+            inventory = UniquePdfDataTable.objects.filter(sub_company=org).filter(viewuploaded=None,viewpapered=None).filter(id=pk).order_by('-account_number').order_by('-updated')
         else:
-            inventory = UniquePdfDataTable.objects.filter(sub_company=org).filter(viewuploaded=None,viewpapered=None).order_by('-account_number').order_by('-created')
+            inventory = UniquePdfDataTable.objects.filter(sub_company=org).filter(viewuploaded=None,viewpapered=None).order_by('-account_number').order_by('-updated')
         if request.user.designation.name == "Superadmin":
             all_accnts = showBaseDataser(BaseDataTable.objects.filter(sub_company=org).filter(viewuploaded=None,viewpapered=None), many=True)
         else:
@@ -84,20 +84,19 @@ class InventoryView(APIView):
             return Response({"message": "Inventory not found in unique table!"}, status=status.HTTP_404_NOT_FOUND)
         except BaselineDataTable.DoesNotExist:
             return Response({"message": "Inventory not found in baseline table!"}, status=status.HTTP_404_NOT_FOUND)
-        if 'action' in data:
-            if data['action'] == 'move-ban':
-                ban = data['ban']
-                obj1 = unique_obj[0]
-                prev = obj1.account_number
+        if data.get("action",None) == "move-ban":
+            ban = data['ban']
+            obj1 = unique_obj[0]
+            prev = obj1.account_number
+            obj1.account_number = ban
+            obj1.save()
+            if baseline_obj:
+                obj1 = baseline_obj[0]
                 obj1.account_number = ban
                 obj1.save()
-                if baseline_obj:
-                    obj1 = baseline_obj[0]
-                    obj1.account_number = ban
-                    obj1.save()
 
-                    saveuserlog(request.user, f"Inventory of {org} of wireless number {obj1.Wireless_number} updated.")
-                return Response({"message":f"Ban successfully moved from {prev} to {ban}"},status=status.HTTP_200_OK)
+                saveuserlog(request.user, f"Inventory of {org} of wireless number {obj1.Wireless_number} updated.")
+            return Response({"message":f"Ban successfully moved from {prev} to {ban}"},status=status.HTTP_200_OK)
         unique_ser = UniqueTableShowSerializer(unique_obj[0], data, partial=True)
         if unique_ser.is_valid():
             unique_ser.save()
@@ -110,11 +109,10 @@ class InventoryView(APIView):
                     saveuserlog(request.user, f"wireless number {wn} updated successfully.")
                 else:
                     print(baseline_ser.errors)
-                    return Response({"message": "unable to update inventory"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             return Response({"message": "inventory updated successfully!"}, status=status.HTTP_200_OK)
-            
         else:
-                return Response({"message": "unable to update inventory."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     def delete(self, request,org, pk, *args, **kwargs):
         try:
             inventoryunique = UniquePdfDataTable.objects.filter(sub_company=org).filter(id=pk).first()

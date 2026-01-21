@@ -11,7 +11,7 @@ from ..Serializers.requestser import devicesSerializer, showdevicesSerializer,sh
 from authenticate.views import saveuserlog
 from Batch.views import create_notification
 class DevicesView(APIView):
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, pk=None, *args, **kwargs):
         if pk:
@@ -26,8 +26,11 @@ class DevicesView(APIView):
 
         data = request.data.copy()
         print(data)
-        if Device.objects.filter(model=data.get("model"), sub_company=data.get("sub_company"), device_type=data.get('device_type')).exists():
-            return Response({"message":"Device already exists!"},status=status.HTTP_400_BAD_REQUEST)
+        model = Device.objects.filter(model=data.get("model"), sub_company=data.get("sub_company"), device_type=data.get('device_type')).first()
+        if model:
+            model.amount = data.get("amount")
+            model.save()
+            return Response({"message":"Device amount updated!"},status=status.HTTP_200_OK)
         print(data)
         ser = devicesSerializer(data=data)
         if ser.is_valid():

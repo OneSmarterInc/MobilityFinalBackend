@@ -12,6 +12,7 @@ from ..models import Report_Billed_Data
 import pandas as pd
 from ..ser import showBilledReport
 from datetime import datetime
+import json
 from Batch.views import create_notification
 class UploadBilledReportView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -48,119 +49,145 @@ class UploadBilledReportView(APIView):
         )
     def post(self, request, *args, **kwargs):
         data = request.data
-        org = Organizations.objects.filter(Organization_name=data['sub_company'])[0]
-        company = Company.objects.filter(Company_name=org.company.Company_name)[0]
-        vendor = Vendors.objects.filter(name=data['vendor'])[0]
-        file = data['file']
-        account_number = data['account_number']
-        month = data['month']
+
+        # --- Basic validations ---
+        try:
+            org = Organizations.objects.get(Organization_name=data["sub_company"])
+            company = org.company
+            vendor = Vendors.objects.get(name=data["vendor"])
+        except (Organizations.DoesNotExist, Vendors.DoesNotExist):
+            return Response(
+                {"message": "Invalid organization or vendor"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        file = data.get("file")
+        mapping = data.get("mapping")
+        mapping = json.loads(mapping) if isinstance(mapping, str) else mapping
+        account_number = data.get("account_number")
+        month = data.get("month")
+        report_type = data.get("report_type")
+
+        if not file or not mapping:
+            return Response(
+                {"message": "File and mapping are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if report_type != "Billed_Data_Usage":
+            return Response(
+                {"message": "Unsupported report type"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # --- Read file ---
+        try:
+            if file.name.endswith(".csv"):
+                df = pd.read_csv(file)
+            elif file.name.endswith(".xlsx"):
+                df = pd.read_excel(file)
+            elif file.name.endswith(".txt"):
+                df = pd.read_csv(file, delimiter="\t")
+            else:
+                return Response(
+                    {"message": "Unsupported file format"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        except Exception:
+            return Response(
+                {"message": "Unable to read uploaded file"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ---- Normalize ----
+        df.columns = [c.strip() for c in df.columns]
+        mapping = {k.strip(): v.strip() for k, v in mapping.items()}
+
+        df = df.rename(columns=mapping)
+        print(mapping, df.columns)
+        required_fields = [
+            "Wireless_Number",
+            "User_Name",
+            "Voice_Plan_Usage",
+            "Messaging_Usage",
+            "Bill_Cycle_Date",
+        ]
+
+        missing = [f for f in required_fields if f not in df.columns]
+        if missing:
+            return Response(
+                {"message": f"Missing required mappings: {missing}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # --- Validate duplicate report ---
+        if Report_Billed_Data.objects.filter(
+            company=company,
+            organization=org,
+            vendor=vendor,
+            Account_Number=account_number,
+            Month=month,
+            Year=str(self.current_year),
+        ).exists():
+            return Response(
+                {"message": "Report already exists for given details"},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        # --- Data cleaning ---
         wn_format = r'^(\d{3}-\d{3}-\d{4}|\d{3}\.\d{3}\.\d{4}|\(\d{3}\)[ -]?\d{3}-\d{4})$'
-        report_type = data['report_type']
-        if report_type == 'Billed_Data_Usage':
-            try:
-                try:
-                    if file.name.endswith('.csv'):
-                        df = pd.read_csv(file)
-                    elif file.name.endswith('.xlsx'):
-                        df = pd.read_excel(file)
-                    elif file.name.endswith('.txt'):
-                        df = pd.read_csv(file, delimiter='\t')
-                    else:
-                        return Response({"message": "Unsupported file format"}, status=status.HTTP_400_BAD_REQUEST)
-                except Exception as e:
-                    return Response({"message":"Unsupported file format"}, status=status.HTTP_400_BAD_REQUEST)
-                
-                df = df[df['Wireless Number'].str.match(wn_format, na=False)]
+        df = df[df["Wireless_Number"].astype(str).str.match(wn_format, na=False)]
 
-                column_mappings = {
-                    'Wireless Number': 'wireless_number',
-                    'User Name': 'user_name',
-                    'Voice Plan Usage': 'voice_plan_usage',
-                    'Messaging Usage': 'messaging_usage',
-                    'Data Usage (GB)': 'data_usage_gb',
-                    'Data Usage (KB)': 'data_usage_kb',
-                    'Data Usage (MB)': 'data_usage_mb',
-                    'Bill Cycle Date': 'Bill_Cycle_Date '
-                }
-                actual_columns = df.columns.tolist()
-                mapped_columns = {v: k for k, v in column_mappings.items() if k in actual_columns}
-                required_columns = ['wireless_number', 'user_name', 'voice_plan_usage', 'messaging_usage','Bill_Cycle_Date ']
-                if not all(col in mapped_columns for col in required_columns):
-                    return Response({"message": "File is missing required columns"}, status=status.HTTP_200_OK)
+        # --- Process rows ---
+        for _, row in df.iterrows():
+            wireless_number = row["Wireless_Number"]
+            user_name = row["User_Name"]
 
-                data_usage_column = mapped_columns.get('data_usage_gb')
-                if not data_usage_column:
-                    data_usage_column = mapped_columns.get('data_usage_kb') or mapped_columns.get('data_usage_mb')
+            if not wireless_number or not user_name:
+                continue
 
-                if not data_usage_column:
-                    return Response({"message": "File is missing data usage columns"}, status=status.HTTP_200_OK)
+            data_usage_gb = row.get("Data_Usage_GB")
+            data_usage_mb = row.get("Data_Usage_MB")
+            data_usage_kb = row.get("Data_Usage_KB")
 
-                # Extract necessary data
-                existing_data = Report_Billed_Data.objects.filter(
-                    company=company,
-                    organization=org,
-                    vendor=vendor,
-                    Account_Number=account_number,
-                    Month=month,
-                    Year=str(self.current_year)
-                ).exists()
+            if pd.isna(data_usage_gb):
+                if not pd.isna(data_usage_mb):
+                    data_usage_gb = data_usage_mb / 1024
+                elif not pd.isna(data_usage_kb):
+                    data_usage_gb = data_usage_kb / 1024 / 1024
 
-                if existing_data:
-                    return Response(
-                        {"message": "Report Billed Data with provided details already exists"},
-                        status=status.HTTP_409_CONFLICT,
-                    )
-                for _, row in df.iterrows():
-                    wireless_number = row.get(mapped_columns['wireless_number'], '')
-                    user_name = row.get(mapped_columns['user_name'], '')
-                    Bill_Cycle_Date = row.get(mapped_columns['Bill_Cycle_Date '], '')
-                    voice_plan_usage = row.get(mapped_columns['voice_plan_usage'], '')
-                    messaging_usage = row.get(mapped_columns['messaging_usage'], '')
-                    data_usage_gb = row.get(mapped_columns.get('data_usage_gb'), None)
-                    data_usage_kb = row.get(mapped_columns.get('data_usage_kb'), None)
-                    data_usage_mb = row.get(mapped_columns.get('data_usage_mb'), None)
+            Report_Billed_Data.objects.create(
+                company=company,
+                organization=org,
+                vendor=vendor,
+                Account_Number=account_number,
+                Wireless_Number=wireless_number,
+                User_Name=user_name,
+                Report_Type=report_type,
+                Month=month,
+                Year=str(self.current_year),
+                Voice_Plan_Usage=row["Voice_Plan_Usage"],
+                Messaging_Usage=row["Messaging_Usage"],
+                Data_Usage_GB=data_usage_gb,
+                Bill_Cycle_Date=row["Bill_Cycle_Date"],
+                File=file,
+            )
 
-                    if data_usage_gb is None and data_usage_kb is not None:
-                        data_usage_gb = data_usage_kb / 1024 / 1024  # Convert KB to GB
-                    elif data_usage_gb is None and data_usage_mb is not None:
-                        data_usage_gb = data_usage_mb / 1024  # Convert MB to GB
+        create_notification(
+            request.user,
+            f"Billed Data Usage Report uploaded: {file.name} (Vendor: {vendor.name})",
+            request.user.company,
+        )
 
-                    # if data_usage_gb is None:
-                        # data_usage_gb = 0  # Handle cases where data usage columns are missing or empty
+        saveuserlog(
+            request.user,
+            f"Billed Data Usage Report uploaded: {file.name} (Vendor: {vendor.name})",
+        )
 
-                    if wireless_number and user_name:
-                        Report_Billed_Data.objects.create(
-                            company=company,
-                            organization=org,
-                            vendor=vendor,
-                            Account_Number=account_number,
-                            Wireless_Number=wireless_number,
-                            User_Name=user_name,
-                            Report_Type=report_type,
-                            Month=month,
-                            Voice_Plan_Usage=voice_plan_usage,
-                            Messaging_Usage=messaging_usage,
-                            Data_Usage_GB=data_usage_gb,
-                            File=file,
-                            Bill_Cycle_Date = Bill_Cycle_Date,
-                            Year=str(self.current_year)  
-                        )
-                create_notification(
-                        request.user, 
-                        f"Billed Data Usage Report uploaded of file {file.name} and Vendor: {vendor.name}", request.user.company
-                    )
-                saveuserlog(
-                        request.user, 
-                        f"Billed Data Usage Report uploaded of file {file.name} and Vendor: {vendor.name}"
-                    )
-                return Response({
-                    "message": "Billed Data Usage Report uploaded successfully",
-                }, status=status.HTTP_200_OK)
-            except Exception as e:
-                print(e)
-                return Response({"message": "Unable to upload file."}, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            return Response({"message": "Invalid report type"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"message": "Billed Data Usage Report uploaded successfully"},
+            status=status.HTTP_200_OK,
+        )
     
     def delete(self, request, pk, *args, **kwargs):
         self.com = None

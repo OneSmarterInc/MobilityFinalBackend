@@ -102,6 +102,7 @@ class UploadBANView(APIView):
             return Response({"message": "Account number already exists!"}, status=status.HTTP_400_BAD_REQUEST)
         
         data = request.data
+        print(data)
         mutable_data, lines = self.predatatrasform(data)
         orgobj = Organizations.objects.get(Organization_name=data['organization'])
         try:
@@ -258,7 +259,7 @@ class UploadBANView(APIView):
         except Exception as e:
             if self.instance and self.instance.pk: self.instance.delete()
             print(f"Error in BAN creation: {e}")
-            return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         print(lines)
         if lines:
             try:
@@ -285,7 +286,7 @@ class UploadBANView(APIView):
             except Exception as e:
                 if upload_ban and upload_ban.pk: upload_ban.delete()
                 print(f"Error in line creation: {e}")
-                return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({"message": "BAN onboarded successfully!", "data":showBaseDataSerializer(obj).data}, status=status.HTTP_201_CREATED)
     def remove_filds(self, model, data):
@@ -349,7 +350,7 @@ class UploadBANView(APIView):
             return Response({"message" : "BAN not found!"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             print(f"Error in BAN update: {e}")
-            return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
         # serializer = UploadBANSerializer(ban, data=request.data)
@@ -428,8 +429,7 @@ class OnboardBanView(APIView):
                     if not ven: continue
                     if not rd['organization']:
                         continue
-                    # org=get_object_or_404(Organizations, Organization_name=rd.pop('organization', None)),
-                    org = Organizations.objects.filter(Organization_name=rd.pop('organization', None))[0]
+                    org = Organizations.objects.filter(Organization_name=rd.pop('organization', None)).first()
                     boolean_fields = ["is_it_consolidatedBan", "baselineCheck"]
                     for field in boolean_fields:
                         rd[field] = self.str_to_bool(rd.get(field, False))
@@ -479,7 +479,6 @@ class OnboardBanView(APIView):
                                 if self.instance and self.instance.pk:self.instance.delete()      
                         except:
                             if self.instance and self.instance.pk:self.instance.delete()
-                print(len(excel_data))
                 for i, ed in enumerate(excel_data):
                     ven = ed.pop('vendor', None)
                     if not ven: continue
@@ -575,7 +574,7 @@ class OnboardBanView(APIView):
             except Exception as e:
                 if self.instance and self.instance.pk: self.instance.delete()
                 print(f"Error in onboarding ban: {e}")
-                return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         bill = request.data.get('uploadBill')
         contract = request.data.get('contract_file')
@@ -584,7 +583,7 @@ class OnboardBanView(APIView):
             print(isreal)
             if not isreal:
                 return Response({"message" : f"The uploaded file is not {request.data.get('vendor')} file!"}, status=status.HTTP_400_BAD_REQUEST)
-        print(request.data)
+        print("data ==",request.data)
         mutable_data = {k: v for k, v in request.data.items() if not hasattr(v, 'read')}
         mutable_data = {key: (value if value != "" else None) for key, value in mutable_data.items()}
         print(mutable_data)
@@ -592,6 +591,7 @@ class OnboardBanView(APIView):
         for field in boolean_fields:
             mutable_data[field] = self.str_to_bool(mutable_data.get(field, False))
         org = Organizations.objects.get(Organization_name=mutable_data['organization'])
+        print(mutable_data)
         if 'location' in mutable_data:
             loc = get_object_or_404(Location, site_name=mutable_data['location'], organization=org)
         else:
@@ -640,11 +640,11 @@ class OnboardBanView(APIView):
                     if check['error'] == -1:
                         if obj and obj.pk: obj.delete()
                         return Response(
-                            {"message": f"Problem to add onbaord data, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
+                            {"message": f"Unable to onbaord ban, {str(check['message'])}"}, status=status.HTTP_400_BAD_REQUEST
                         )
                 except:
                     if obj and obj.pk: obj.delete()
-                    return Response({"message":"Internal Server Error!"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             else:
                 print("Its pdf")
                 try:
@@ -659,7 +659,7 @@ class OnboardBanView(APIView):
                 except Exception as e:
                     print(e)
                     if obj and obj.pk: obj.delete()
-                    return Response({"message":"Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                
                 
                 month, year = None, None
@@ -685,7 +685,7 @@ class OnboardBanView(APIView):
         except Exception as e:
             if obj and obj.pk: obj.delete()
             print(f"Error in Onboard BAN: {e}")
-            return Response({"message": "Internal Server Error!"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     
     def str_to_bool(self, value):
@@ -809,7 +809,7 @@ class ExcelUploadView(APIView):
             except Exception as e:
                 print(e)
                 if obj and obj.pk: obj.delete()
-                return Response({"message":f"Unable to onboard ban!"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
             return Response({"message":"Mapping not found!"},status=status.HTTP_400_BAD_REQUEST)
 
@@ -840,15 +840,7 @@ class InventoryUploadView(APIView):
     def post(self, request):
         ban = request.data.get('Ban')
         print(request.data)
-        # inv = InventoryUpload.objects.filter(organization=Organizations.objects.get(Organization_name=request.data.get('sub_company')), vendor=Vendors.objects.get(name=request.data.get('vendor_name')), ban=ban).first()
-        # if inv:
-        #     return Response(
-        #         {"message": "Inventory already exists for this BAN, Vendor, and Sub-Company"},
-        #         status=status.HTTP_409_CONFLICT
-        #     )
         mutable_data = request.data.copy()
-        sc = mutable_data.get('sub_company')
-        ven = mutable_data.get('vendor_name')
         ban = mutable_data.get('Ban')
         mutable_data = {key: (value if value != "" else None) for key, value in mutable_data.items()}
         try:
@@ -868,44 +860,36 @@ class InventoryUploadView(APIView):
                     map[key] = None
             mobj = MappingObjectBan.objects.create(inventory=obj, **map)
             mobj.save()
-            process  = InventoryProcess(instance=obj)
-            start, previous_data_log, new_data_log,message  = process.process_file()
-            if start:
-                # All users log
-                # AllUserLogs.objects.create(
-                #     user_email=request.user.email,
-                #     description=(
-                #         f"User onboarded excel file for {obj.organization.company.Company_name} - {obj.organization.Organization_name} "
-                #         f"with account number {obj.ban.account_number} and vendor - {obj.vendor.name}."
-                #     ),
-                #     previus_data=json.dumps(previous_data_log) if previous_data_log else "",
-                #     new_data=json.dumps(new_data_log) if new_data_log else ""
-                # )
+            # process  = InventoryProcess(instance=obj)
+            # start, previous_data_log, new_data_log,message  = process.process_file()
+            # if start:
                 
-                
-                buffer_data = json.dumps({
-                    'csv_path': obj.uploadFile.path,
-                    'company': obj.organization.company.Company_name,
-                    'sub_company': obj.organization.Organization_name,
-                    'vendor': obj.vendor.name,
-                    'account_number': obj.ban,
-                    'mapping_json': model_to_dict(MappingObjectBan.objects.get(inventory=obj)) or {}
-                })
-                print(buffer_data)
-                print("Starting CSV process...")
-                intrnl = process_csv(instance_id=obj.id, buffer_data=buffer_data,type='inventory')
-                print(intrnl)
-                if intrnl["code"] != 0:
-                    return Response({"message" : intrnl["message"]}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                else:
-                    saveuserlog(request.user, f"Account number {obj.ban} inventory updated via excel file successfully!")
-                    return Response({"message" : "Inventory added successfully!", "data" : mutable_data}, status=status.HTTP_200_OK)
+            buffer_data = json.dumps({
+                'csv_path': obj.uploadFile.path,
+                'company': obj.organization.company.Company_name,
+                'sub_company': obj.organization.Organization_name,
+                'vendor': obj.vendor.name,
+                'account_number': obj.ban,
+                'mapping_json': model_to_dict(MappingObjectBan.objects.get(inventory=obj)) or {}
+            })
+            print(buffer_data)
+            print("Starting CSV process...")
+            banObj = BaseDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(sub_company=obj.organization.Organization_name, vendor=obj.vendor.name, accountnumber=obj.ban).first()
+            if not banObj:
+                return Response({"message" : "Account number not found!"}, status=status.HTTP_404_NOT_FOUND)
+            intrnl = process_csv(instance_id=banObj.id, buffer_data=buffer_data)
+            print(intrnl)
+            if intrnl["code"] != 0:
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             else:
-                return Response({"message": f"{message if message else ''}"}, status=status.HTTP_400_BAD_REQUEST)
+                saveuserlog(request.user, f"Account number {obj.ban} inventory updated via excel file successfully!")
+                return Response({"message" : "Inventory updated successfully!", "data" : mutable_data}, status=status.HTTP_200_OK)
+            # else:
+            #     return Response({"message": f"{message if message else ''}"}, status=status.HTTP_400_BAD_REQUEST)
         
         except Exception as e:
             print("inventory post error=", str(e))
-            return Response({"message": "Internal Server Error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def put(self, request, pk):
         inventory = InventoryUpload.objects.get(account_number=pk)
@@ -1251,7 +1235,7 @@ class ProcessZip:
                 bill_date = bill_date.replace(",","")
                 from .models import BaseDataTable
                 if BaseDataTable.objects.filter(accountnumber=acc_no, company=self.company, sub_company=self.org).exists():
-                    return {'message' : f'Bill already exists for account number {acc_no}', 'error' : -1}
+                    return {'message' : f'Account number {acc_no} already exists!', 'error' : -1}
                 else:
                     obj = BaseDataTable.objects.create(banOnboarded=self.instance, uploaded_by=PortalUser.objects.filter(email=self.mail).first(), **data_base)
                     print("saved to base data table")

@@ -157,10 +157,12 @@ class BanShowSerializer(serializers.ModelSerializer):
     invoicemethod = serializers.CharField()
     paymentType = serializers.CharField()
     contract_file = serializers.SerializerMethodField()
-    
+    active_wireless_count = serializers.SerializerMethodField()
+    inactive_wireless_count = serializers.SerializerMethodField()
+    total_wireless_count = serializers.SerializerMethodField()
     class Meta:
         model = BaseDataTable
-        fields = ['id', 'location', 'accountnumber', 'Entry_type','company','contract_file', 'sub_company', 'vendor', 'created', 'costcenterlevel', 'costcentertype', 'costcenterstatus', 'bantype', 'invoicemethod', 'paymentType']
+        fields = ['id', 'location', 'accountnumber', 'Entry_type','company','contract_file', 'sub_company', 'vendor', 'created', 'costcenterlevel', 'costcentertype', 'costcenterstatus', 'bantype', 'invoicemethod', 'paymentType','active_wireless_count','inactive_wireless_count','total_wireless_count']
 
     def get_contract_file(self, obj):
         contractObj = Contracts.objects.filter(
@@ -171,17 +173,15 @@ class BanShowSerializer(serializers.ModelSerializer):
         if contractObj and contractObj.contract_file:
             return contractObj.contract_file.url  
         return None
+    
+    def get_total_wireless_count(self,obj):
+        return UniquePdfDataTable.objects.filter(banUploaded=obj.banUploaded, banOnboarded=obj.banOnboarded).count()
+    def get_active_wireless_count(self,obj):
+        return UniquePdfDataTable.objects.filter(banUploaded=obj.banUploaded, banOnboarded=obj.banOnboarded).filter(User_status="Active").count()
+    def get_inactive_wireless_count(self,obj):
+        return UniquePdfDataTable.objects.filter(banUploaded=obj.banUploaded, banOnboarded=obj.banOnboarded).filter(User_status="Inactive").count()
 
 
-    # uploadedlines = serializers.StringRelatedField(many=True)
-
-    # def get_bans(self, obj):
-    #     grouped_bans = defaultdict(list)
-    #     for ban in obj.bans.all():
-    #         location_name = ban.location.site_name if ban.location else "Unknown"
-    #         grouped_bans[location_name].append(UploadBANSerializer(ban).data)
-
-    #     return [{'site_name': location, 'bans': bans} for location, bans in grouped_bans.items()]
 
 
 class CompanyShowOnboardSerializer(serializers.ModelSerializer):

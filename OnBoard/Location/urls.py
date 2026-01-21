@@ -4,8 +4,8 @@ from .views import LocationBulkUpload
 
 locationurls = [
     path('location/', LocationView.as_view(), name='all-location-list-create'),
-    path('<str:org>/location/', LocationView.as_view(), name='location-list-create'),
-    path('<str:org>/location/<str:pk>/', LocationView.as_view(), name='location-detail')
+    path('<int:org>/location/', LocationView.as_view(), name='location-list-create'),
+    path('<int:org>/location/<str:pk>/', LocationView.as_view(), name='location-detail')
 
 ]
 
