@@ -12,13 +12,14 @@ class OpenAIBotClass:
         
         self.client = OpenAI(
             api_key=config("OPENAI_API_KEY"),
-            max_retries=0   # 🚨 THIS IS THE KEY LINE
+            max_retries=3
         )
+
 
         self.bot_type = bot_type
         self.db = db_path
 
-        self.query_model = "gpt-4o-mini"
+        self.query_model = "gpt-4o"
         self.response_model = "gpt-4o-mini"
 
     def _rate_limit(self, min_interval=1.2):
@@ -78,11 +79,12 @@ class OpenAIBotClass:
     from openai import RateLimitError
 
     def _chat(self, model, prompt):
+        self._rate_limit()
         try:
             response = self.client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0
+                temperature=0.4
             )
             return response.choices[0].message.content.strip()
 

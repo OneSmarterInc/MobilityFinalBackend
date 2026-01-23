@@ -176,7 +176,8 @@ def reflect(id):
 
 from Dashboard.ModelsByPage.aimodels import BotChats
 from Dashboard.Serializers.chatser import ChatSerializer
-from bot import BotClass
+from Geminibot import BotClass
+from OpenAIBot import OpenAIBotClass
 import pandas as pd
 class ViewBillBotView(APIView):
     permission_classes = [IsAuthenticated]
@@ -193,6 +194,9 @@ class ViewBillBotView(APIView):
         return Response({"data":ser.data},status=status.HTTP_200_OK)
         
     def post(self,request,billType,pk,*args,**kwargs):
+        is_deployed = request.GET.get("is_deployed", "").lower() == "true"
+        # if is_deployed: botObj = OpenAIBotClass(bot_type="bill")
+        # else: botObj = BotClass(bot_type="bill")
         botObj = BotClass(bot_type="bill")
         data = request.data
         if not pk:

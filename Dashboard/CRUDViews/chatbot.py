@@ -9,7 +9,8 @@ from ..ModelsByPage.aimodels import BotChats
 from rest_framework.permissions import IsAuthenticated
 from ..Serializers.chatser import ChatSerializer
 import pandas as pd
-from bot import BotClass
+from Geminibot import BotClass
+from OpenAIBot import OpenAIBotClass
 
 class ChatBotView(APIView):
     permission_classes = [IsAuthenticated]
@@ -24,7 +25,9 @@ class ChatBotView(APIView):
         return Response({"data":ser.data}, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
-        # Ensure DB is initialized only once
+        is_deployed = request.GET.get("is_deployed", "").lower() == "true"
+        # if is_deployed: botObj = OpenAIBotClass()
+        # else: botObj = BotClass()
         botObj = BotClass()
         self.connection, self.schema = botObj.init_database()
         data = request.data

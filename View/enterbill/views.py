@@ -2025,7 +2025,7 @@ class AprroveAllView(APIView):
             enter_bill_unique_obj.save()
             print(enter_bill_unique_obj)
 
-            enter_bill_baseline_objs = BaselineDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered=main_uploaded_id.viewpapered)
+            enter_bill_baseline_objs = BaselineDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered=main_uploaded_id.viewpapered).filter(is_pending=False, is_draft=False)
 
             approved_wireless_list = enter_bill_baseline_objs.values_list('is_baseline_approved', flat=True)
             base_obj = BaseDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered= main_uploaded_id.viewpapered)

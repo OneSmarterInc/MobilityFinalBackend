@@ -1094,7 +1094,7 @@ class ZipAnalysis:
         except Exception as e:
             return False, str(e), 0
 
-from bot import BotClass
+from Geminibot import BotClass
 from OpenAIBot import OpenAIBotClass
 class AnalysisBotView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1113,8 +1113,10 @@ class AnalysisBotView(APIView):
         return Response({"data":ser.data},status=status.HTTP_200_OK)
         
     def post(self,request,ChatType,pk,*args,**kwargs):
+        is_deployed = request.GET.get("is_deployed", "").lower() == "true"
+        # if is_deployed: botObj = OpenAIBotClass(bot_type="analysis")
+        # else: botObj = BotClass(bot_type="analysis")
         botObj = BotClass(bot_type="analysis")
-        # botObj = OpenAIBotClass(bot_type="analysis")
         data = request.data
         query_type = data.get('file_type')
         if not pk:
@@ -1133,7 +1135,6 @@ class AnalysisBotView(APIView):
             )
 
             is_generated, sql_query = botObj.get_analysis_sql_from_gemini(question, self.schema, special_id=pk, chat_history=df)
-            print(is_generated, sql_query)
 
             if not is_generated:
                 instance.is_query_generated = False
@@ -1142,7 +1143,6 @@ class AnalysisBotView(APIView):
                 return Response({"response":"Unable to answer the question!"},status=status.HTTP_200_OK)
 
             is_ran, result_df = botObj.run_query(conn=self.connection, sql=sql_query)
-            
             is_resp, response_text = botObj.make_human_response(question, result_df, db_schema=self.schema)
             print("response_text==",response_text)
             allLines = response_text.split("\n")
