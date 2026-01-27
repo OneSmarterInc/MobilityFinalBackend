@@ -17,6 +17,8 @@ from OnBoard.Ban.models import BaselineDataTable, UniquePdfDataTable
 # EMAIL HELPERS (US-SAFE)
 # =========================
 
+
+
 def notify_user(email, subject, body, company):
     send_custom_email(to=email, subject=subject, body_text=body, company=company)
 

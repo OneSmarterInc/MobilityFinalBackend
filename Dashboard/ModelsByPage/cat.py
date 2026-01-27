@@ -17,8 +17,8 @@ class BaselineCategories(models.Model):
 
     def __str__(self):
         return f'{self.organization}-{self.vendor}-{self.ban}-{self.category}'
+    
     def save(self, *args, **kwargs):
         if not self.banObj and (self.organization and self.vendor and self.ban):
             self.banObj = BaseDataTable.objects.exclude(banUploaded=None, banOnboarded=None).filter(sub_company=self.organization.Organization_name, vendor=self.vendor.name, accountnumber=self.ban).first()
-            pass
         super().save(*args, **kwargs)

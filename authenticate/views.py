@@ -93,7 +93,7 @@ class LoginView(APIView):
         }, status=status.HTTP_400_BAD_REQUEST)
     
 class ProfileView(APIView):
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
     def get(self, request, id=None):
         if id is None:
             user = request.user
@@ -133,6 +133,8 @@ class ProfileView(APIView):
     def put(self, request, id):
         try:
             user = PortalUser.objects.get(id=id)
+            print("user==",user,user.username)
+            print(request.data)
             serializer = userSerializer(user, data=request.data,partial=True)
             if serializer.is_valid():
                 serializer.save()
