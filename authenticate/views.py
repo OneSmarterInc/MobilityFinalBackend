@@ -570,6 +570,10 @@ def get_sample_file(request):
         pdf_path = "Bulk_request_upload_sample.xlsx"
     elif request_type == "accessory_requests":
         pdf_path = "Bulk_accessory_requests_sample.xlsx"
+    elif request_type == "unbilled_excel_sample":
+        pdf_path = "Unbilled_excel_sample.xlsx"
+    elif request_type == "billed_excel_sample":
+        pdf_path = "Billed_excel_sample.xlsx"
     else:
         return Response(
             {"message": "Invalid file request!"},
