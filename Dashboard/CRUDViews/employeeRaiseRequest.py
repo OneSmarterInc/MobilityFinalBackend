@@ -22,7 +22,6 @@ class EmployeeRequest(APIView):
         if wireless:
             get_user_records = UniquePdfDataTable.objects.filter(viewuploaded=None, viewpapered=None).filter(wireless_number=wireless).first()
             ser = EmployeeSerializer(get_user_records)
-            print(ser.data)
             return Response({"data":portalSer.data, "records":ser.data},status=status.HTTP_200_OK)
         return Response({"data":portalSer.data},status=status.HTTP_200_OK)
 

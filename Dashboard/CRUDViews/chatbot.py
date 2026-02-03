@@ -58,7 +58,6 @@ class ChatBotView(APIView):
 
             print(result_df)
             _check, response_text = botObj.make_human_response(question, result_df, db_schema=self.schema)
-            print()
             allLines = response_text.split("\n")
             questions = [line.strip() for line in allLines if line.strip().endswith("?")]
             other_lines = "\n".join([line.strip() for line in allLines if line.strip() and not line.strip().endswith("?")])

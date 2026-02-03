@@ -139,9 +139,6 @@ class BatchView(APIView):
             df.drop(columns=["uploaded_by_id"], inplace=True)
 
             batch = base_ids
-
-
-            print(df.columns)
             
             
 
@@ -184,9 +181,7 @@ class BatchView(APIView):
             
             # empty all 
             folder_path = os.path.join(settings.MEDIA_ROOT, "batchfiles")
-            print(folder_path)
             shutil.rmtree(folder_path) if os.path.exists(folder_path) else None
-            print(df[['Bill Date','Billing Name']])
             excel_buffer = self.generate_excel_file(df)
             obj = batch[0]
 
@@ -296,7 +291,7 @@ def email_config_list(request):
         return Response(serializer.data)
 
     if request.method == 'POST':
-        print(request.data)
+         
         serializer = EmailConfigurationSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()

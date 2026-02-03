@@ -47,7 +47,7 @@ class UserRoleView(APIView):
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     def put(self, request, pk):
-        print(request.data)
+         
         user_role = UserRoles.objects.filter(id=pk).first()
         if not user_role:
             return Response({"message": "User role does not exist!"}, status=status.HTTP_404_NOT_FOUND)

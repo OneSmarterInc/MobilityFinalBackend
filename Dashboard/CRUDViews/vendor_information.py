@@ -103,7 +103,7 @@ class VendorInformationView(APIView):
         obj = VendorInformation.objects.filter(id=pk).first()
         if not obj:
             return Response({"message":"vendor information not found"},status=status.HTTP_400_BAD_REQUEST)
-        print(request.data)
+         
         ser = VendorInformationSerializer(obj,data=request.data,partial=True)
         if ser.is_valid():
             ser.save()
@@ -141,7 +141,7 @@ class ReplacePlanView(APIView):
         show_data = showplanevendorInformation(obj).data
         if not obj:
             return Response({"message":"vendor information not found"},status=status.HTTP_400_BAD_REQUEST)
-        print(request.data)
+         
         data = request.data.copy()
         vendor_plan_obj = VendorPlan.objects.filter(id=obj.vendor_plan.id).first()
         print(vendor_plan_obj)

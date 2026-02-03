@@ -3,7 +3,6 @@ import pdfplumber
 def prove_bill_ID(bill_path,vendor_name):
     # Open the PDF file
     Lines = []
-    print(bill_path, vendor_name)
     with pdfplumber.open(bill_path) as pdf:
         for i, page in enumerate(pdf.pages):
             if i == 0:
@@ -18,10 +17,8 @@ def prove_bill_ID(bill_path,vendor_name):
         if "mobile" in vendor_name and ('T-MOBILE'.lower() in line.lower()):
             return True
         elif "verizon" in vendor_name and 'verizon' in line.lower():
-            print(line, vendor_name)
             return True
         elif (vendor_name.startswith("at")) and ('AT&T' in line):
-            print(line, vendor_name)
             return True
     return False
 
@@ -38,10 +35,8 @@ def check_tmobile_type(pdf_path):
                     break
 
         if 'Bill period Account Invoice Page' in Lines[0]:
-            print("Type2 : Bill period Account Invoice Page")
             return 2
         elif 'Your Statement' in Lines[0]:
-            print("Type1 : Your Statement")
             return 1
         else:
             return 0
@@ -131,7 +126,6 @@ def checkTmobile1(pages):
                 account_number = line.split(":")[1]
             if not billing_name and "statement for" in line.lower():
                 billing_name = line.split(":")[1]
-        print(account_number, billing_name)
         return account_number, billing_name
     except:
         return None, None

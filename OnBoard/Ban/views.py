@@ -839,7 +839,7 @@ class InventoryUploadView(APIView):
         
     def post(self, request):
         ban = request.data.get('Ban')
-        print(request.data)
+         
         mutable_data = request.data.copy()
         ban = mutable_data.get('Ban')
         mutable_data = {key: (value if value != "" else None) for key, value in mutable_data.items()}
@@ -880,7 +880,8 @@ class InventoryUploadView(APIView):
             intrnl = process_csv(instance_id=banObj.id, buffer_data=buffer_data)
             print(intrnl)
             if intrnl["code"] != 0:
-                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                msg = intrnl.get("message","Unable to upload file")
+                return Response({"message":str(msg)}, status=status.HTTP_400_BAD_REQUEST)
             else:
                 saveuserlog(request.user, f"Account number {obj.ban} inventory updated via excel file successfully!")
                 return Response({"message" : "Inventory updated successfully!", "data" : mutable_data}, status=status.HTTP_200_OK)

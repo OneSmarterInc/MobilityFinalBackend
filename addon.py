@@ -14,7 +14,6 @@ def parse_until_dict(data):
     return data
 
 def str_to_bool(value):
-    print(value)
     return str(value).strip().lower() in ['true','yes']
 
 import re

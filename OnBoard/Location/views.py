@@ -25,7 +25,7 @@ class LocationView(APIView):
         return Response({"data" : serializer.data, "organizations":orgs.data, "divisions":divisions.data}, status=status.HTTP_200_OK)
         
     def post(self, request, org=None, *args, **kwargs):
-        print(request.data)
+         
         if not org:
             data = request.data
             org = data.get('organization')

@@ -143,7 +143,7 @@ class DivisionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, org):
-        print(request.data)
+         
         try:
             organization = Organizations.objects.get(id=org)
             org_name = organization.Organization_name

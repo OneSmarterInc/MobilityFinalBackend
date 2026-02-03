@@ -134,7 +134,7 @@ class ProfileView(APIView):
         try:
             user = PortalUser.objects.get(id=id)
             print("user==",user,user.username)
-            print(request.data)
+             
             serializer = userSerializer(user, data=request.data,partial=True)
             if serializer.is_valid():
                 serializer.save()
@@ -555,7 +555,6 @@ from django.conf import settings
 def get_sample_file(request):
     org = request.GET.get("organization", None)
     request_type = request.GET.get("request_type", None)
-    print(org,request_type)
     if request_type == "onboard":
         pdf_path = "Excel_ban_onboard_sample.xlsx"
     elif request_type == "upload_bill":
@@ -606,7 +605,7 @@ def update_wireless_status(request,id,*args,**kwargs):
         emp = EmployeeWirelessNumber.objects.get(id=id)
     except EmployeeWirelessNumber.DoesNotExist:
         return Response({"message":"Wireless number not found!"},status=status.HTTP_404_NOT_FOUND)
-    print(request.data)
+     
     emp.is_active = False if emp.is_active else True
     emp.save()
     return Response({"message":"Employee wireless status updated."},status=status.HTTP_200_OK)

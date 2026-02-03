@@ -49,7 +49,7 @@ class ViewBill(APIView):
         if not obj:
             return Response({"message": "Base Data not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        print(request.data)
+         
         if request.data['type'] == 'change-payment':
             obj.paymentType = request.data['paymentType']
             
@@ -224,7 +224,6 @@ class ViewBillBotView(APIView):
             is_ran, result_df = botObj.run_query(conn=self.connection, sql=sql_query)
             print(result_df)
             _is_check, response_text = botObj.make_human_response(question, result_df, db_schema=self.schema)
-            print()
             allLines = response_text.split("\n")
             questions = [line.strip() for line in allLines if line.strip().endswith("?")]
             other_lines = "\n".join([line.strip() for line in allLines if line.strip() and not line.strip().endswith("?")])
