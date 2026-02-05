@@ -205,3 +205,11 @@ SENDERS_NAME = "OneSmarter"
 EMAIL_HOST_PASSWORD = 'znal juyy lruk wxjz'  
 DEFAULT_FROM_EMAIL = f"{SENDERS_NAME} <{EMAIL_HOST_USER}>"
 
+
+CSRF_TRUSTED_ORIGINS = config(
+    "CSRF_TRUSTED_ORIGINS", cast=lambda v: v.split(",")
+)
+
+CORS_ALLOWED_ORIGINS = config(
+    "CORS_ALLOWED_ORIGINS", cast=lambda v: v.split(",")
+)
