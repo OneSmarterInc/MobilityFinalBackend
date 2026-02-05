@@ -222,7 +222,6 @@ class ViewBillBotView(APIView):
                 instance.save()
                 return Response({"response":"Unable to answer the question!"},status=status.HTTP_200_OK)
             is_ran, result_df = botObj.run_query(conn=self.connection, sql=sql_query)
-            print(result_df)
             _is_check, response_text = botObj.make_human_response(question, result_df, db_schema=self.schema)
             allLines = response_text.split("\n")
             questions = [line.strip() for line in allLines if line.strip().endswith("?")]

@@ -1135,7 +1135,7 @@ class AnalysisBotView(APIView):
             )
 
             is_generated, sql_query = botObj.get_analysis_sql_from_gemini(question, self.schema, special_id=pk, chat_history=df)
-
+            print(is_generated, sql_query)
             if not is_generated:
                 instance.is_query_generated = False
                 instance.response = "I need a bit more info to answer.\nCould you please elaborate more on your question."
