@@ -52,30 +52,29 @@ class ChatBotView(APIView):
                 instance.is_query_generated = False
                 instance.response = "I need a bit more info to answer.\nCould you please elaborate more on your question."
                 instance.save()
-                return Response({"response":"Unable to answer the question!"},status=status.HTTP_200_OK)
-            
-            is_ran, result_df = botObj.run_query(conn=self.connection, sql=sql_query)
-
-            print(result_df)
-            _check, response_text = botObj.make_human_response(question, result_df, db_schema=self.schema)
-            allLines = response_text.split("\n")
-            questions = [line.strip() for line in allLines if line.strip().endswith("?")]
-            other_lines = "\n".join([line.strip() for line in allLines if line.strip() and not line.strip().endswith("?")])
-            print(is_ran, result_df)
-            instance.response = other_lines
-            instance.recommended_questions = questions
-            if is_ran:
+                return Response(status=status.HTTP_200_OK)
+            else:
                 instance.is_query_generated = True
+                instance.save()   
+
+            is_ran, result_df = botObj.run_query(conn=self.connection, sql=sql_query)
+            if is_ran:
                 instance.is_query_ran = True
+                is_resp, response_text = botObj.make_human_response(question, result_df, db_schema=self.schema)
+                print("response_text==",is_resp,response_text)
+                allLines = response_text.split("\n")
+                questions = [line.strip() for line in allLines if line.strip().endswith("?")]
+                other_lines = "\n".join([line.strip() for line in allLines if line.strip() and not line.strip().endswith("?")])
+                instance.response = other_lines
+                instance.recommended_questions = questions
+                instance.save()
             else:
                 instance.is_df_empty = True
-            instance.save()   
-
-
-            # saveuserlog(request.user, f"Chatbot query executed: {question} | Response: {response_text}")
+                instance.response = "I’m unable to retrieve the data right now. Please try again in a moment."
+                instance.save()
+            
 
             return Response(
-                {"response": response_text},
                 status=status.HTTP_200_OK
             )
 

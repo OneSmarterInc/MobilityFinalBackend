@@ -205,7 +205,6 @@ SENDERS_NAME = "OneSmarter"
 EMAIL_HOST_PASSWORD = 'znal juyy lruk wxjz'  
 DEFAULT_FROM_EMAIL = f"{SENDERS_NAME} <{EMAIL_HOST_USER}>"
 
-
 CSRF_TRUSTED_ORIGINS = config(
     "CSRF_TRUSTED_ORIGINS", cast=lambda v: v.split(",")
 )
@@ -213,3 +212,24 @@ CSRF_TRUSTED_ORIGINS = config(
 CORS_ALLOWED_ORIGINS = config(
     "CORS_ALLOWED_ORIGINS", cast=lambda v: v.split(",")
 )
+print(CORS_ALLOWED_ORIGINS)
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
+
+CORS_ALLOW_METHODS = [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+]

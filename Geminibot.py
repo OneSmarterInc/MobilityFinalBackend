@@ -259,6 +259,7 @@ class BotClass:
         - Database Schema: {db_schema}
         - After the summary, generate exactly 2 natural, human-like recommendation questions.
         - Each question must reference valid columns or tables from the schema.
+        - Each question must end with question mark (?). 
         - Questions should feel like smart suggestions, not technical jargon.
         - Keep them concise, helpful, and answerable by the chatbot using the schema.
         
