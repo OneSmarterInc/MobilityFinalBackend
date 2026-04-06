@@ -56,7 +56,7 @@ class LocationView(APIView):
                 **cleaned_data,
             )
             loc.save()
-            saveuserlog(request.user, f"new location with site name {data['site_name']} for organization f{organization.Organization_name} created successfully!")
+            saveuserlog(request.user, f"new location with site name {data.get("site_name")} for organization {organization.Organization_name} created successfully!")
             return Response({"message": "Location created successfully!", "data": loc.site_name}, status=status.HTTP_201_CREATED)
         except Exception as e:
             print(e)

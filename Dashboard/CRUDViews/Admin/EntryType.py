@@ -6,6 +6,8 @@ from ...ModelsByPage.DashAdmin import EntryType
 from ...Serializers.AdminPage import EntryTypeOperationSerializer, EntryTypeShowSerializer
 from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 
 
 class EntryTypeView(APIView):
@@ -37,10 +39,12 @@ class EntryTypeView(APIView):
             entry_type = EntryType.objects.get(name=pk)
         except EntryType.DoesNotExist:
             return Response({"message": 'Entry Type not found'}, status=status.HTTP_404_NOT_FOUND)
+        original_data = model_to_dict(entry_type)
         ser = EntryTypeOperationSerializer(entry_type, data=request.data)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, description=f'Entry Type updated: {ser.data["name"]}')
+            change_log = track_model_changes(entry_type, original_data)
+            saveuserlog(request.user, description=f'Updated Entry Type [{ser.data["name"]}]: {change_log}')
             return Response({"message" : "EntryType updated successfully!", "data":ser.data}, status=status.HTTP_200_OK)
         return Response({"message":ser.errors}, status=status.HTTP_400_BAD_REQUEST)
     

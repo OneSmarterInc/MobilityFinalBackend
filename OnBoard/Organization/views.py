@@ -255,7 +255,7 @@ class DivisionView(APIView):
         return Response({"message": "Division deleted successfully!"}, status=status.HTTP_200_OK)
         
 from .models import Links
-
+from detect_model_changes import track_model_changes
 class LinksView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request, org):
@@ -311,27 +311,11 @@ class LinksView(APIView):
 
         if serializer.is_valid():
             serializer.save()
+            data = serializer.data
 
-            # --- Capture New Values After Save ---
-            updated_data = {
-                field: getattr(link, field)
-                for field in original_data
-            }
-
-            # --- Compare and Log Changes ---
-            change_log_lines = []
-            for field, old_val in original_data.items():
-                new_val = updated_data.get(field)
-                if old_val != new_val:
-                    change_log_lines.append(f"{field}: '{old_val}' → '{new_val}'")
-
-            change_log = "; ".join(change_log_lines) if change_log_lines else "No changes detected."
-
-            # --- Save to Log ---
-            saveuserlog(
-                request.user,
-                f"Link '{link.name}' updated. Changes: {change_log}"
-            )
+            change_log = track_model_changes(link, original_data)
+            msg = f"Following fields are updated of link {data["name"]} : {change_log}"
+            saveuserlog(request.user, description=msg)
 
             return Response({
                 "message": "Link updated successfully!",

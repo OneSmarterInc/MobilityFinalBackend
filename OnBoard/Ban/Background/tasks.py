@@ -3,7 +3,6 @@ import json
 from OnBoard.Ban.models import OnboardBan, InventoryUpload, BaseDataTable
 from OnBoard.Ban.Background.cp import ProcessCSVOnboard
 from OnBoard.Ban.Background.pp2 import ProcessPdf2
-from OnBoard.Ban.Background.pp import ProcessPdf
 from sendmail import send_custom_email
 
 
@@ -117,31 +116,6 @@ def verizon_att_onboardPDF_processor(buffer_data, instance_id, btype):
         if instance.pk:
             instance.delete()
 
-
-# =========================
-# LEGACY PDF PROCESSOR
-# =========================
-
-@shared_task
-def process_pdf_task(buffer_data, instance_id):
-    buffer = json.loads(buffer_data)
-
-    try:
-        instance = OnboardBan.objects.get(id=instance_id)
-    except OnboardBan.DoesNotExist:
-        return {"message": "Onboard record not found", "error": 1}
-
-    try:
-        ProcessPdf(buffer_data=buffer, instance=instance).process_pdf_from_buffer()
-    except Exception as e:
-        send_custom_email(
-            company=buffer.get("company_name"),
-            to="gauravdhale09@gmail.com",
-            subject="PDF Processing Failure",
-            body_text=internal_error_email(e)
-        )
-        if instance.pk:
-            instance.delete()
 
 
 # =========================

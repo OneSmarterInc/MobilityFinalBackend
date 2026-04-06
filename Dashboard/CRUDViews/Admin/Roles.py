@@ -6,6 +6,8 @@ from ...ModelsByPage.DashAdmin import UserRoles
 from ...Serializers.AdminPage import UserRoleSaveSerializer, UserRoleShowSerializer
 from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 
 from OnBoard.Company.models import Company
 from OnBoard.Organization.models import Organizations
@@ -47,14 +49,16 @@ class UserRoleView(APIView):
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     def put(self, request, pk):
-         
+
         user_role = UserRoles.objects.filter(id=pk).first()
         if not user_role:
             return Response({"message": "User role does not exist!"}, status=status.HTTP_404_NOT_FOUND)
+        original_data = model_to_dict(user_role)
         ser = UserRoleSaveSerializer(user_role, data=request.data)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, f'user role updated {ser.data["name"]}') 
+            change_log = track_model_changes(user_role, original_data)
+            saveuserlog(request.user, f'Updated UserRole [{ser.data["name"]}]: {change_log}')
             return Response({"message":"user role updated successfully!", "data":ser.data}, status=status.HTTP_200_OK)
         return Response({"message":ser.errors}, status=status.HTTP_400_BAD_REQUEST)
     

@@ -13,6 +13,8 @@ from authenticate.models import PortalUser
 from ..ModelsByPage.ProfileManage import Profile
 from Batch.views import create_notification
 from authenticate.views import saveuserlog
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 
 class GetUserbyOrgView(APIView):
     permission_classes = [IsAuthenticated]
@@ -45,6 +47,7 @@ class ProfileManageView(APIView):
         return Response({"orgs": ser.data, "desg":desgser.data, "company_users":company_users_ser.data, "org_users":org_users_ser.data}, status=status.HTTP_200_OK)
     def post(self, request, *args, **kwargs):
         data = request.data.copy()
+        print(data)
         org = data.get('organization')
         orginstance = Organizations.objects.filter(id=org).first()
         if not orginstance:
@@ -76,12 +79,15 @@ class ProfileManageView(APIView):
         if not org:
             return Response({"message":"Organization not found!"}, status=status.HTTP_400_BAD_REQUEST)
         data = request.data.copy().get('contacts')
-        print(data)
+        print("data===",data)
+        obj = None
         for contact in data:
             utype = contact.get('usertype')
             userid = contact.get('id')
             prev = Profile.objects.filter(organization=org, usertype=utype)
             if prev.exists(): prev.delete()
+            if not userid:
+                continue
             user = PortalUser.objects.filter(id=userid).first()
             obj = Profile.objects.filter(user=user).first()
             if not obj:
@@ -93,7 +99,8 @@ class ProfileManageView(APIView):
                 else:
                     print(ser.errors)
                     return Response({"message": "Unable to update profile."}, status=status.HTTP_400_BAD_REQUEST)
-        saveuserlog(request.user, f"user profile {obj.email} updated.")
+        if obj:
+            saveuserlog(request.user, f"user profile {obj.email} updated.")
         # create_notification(request.user, f"user profile {obj.email} updated.",company=request.user.company)
         return Response({"message": f"Contact list for organization {org.Organization_name} updated successfully!"}, status=status.HTTP_200_OK)
     def delete(self, request, pk, *args, **kwargs):
@@ -111,11 +118,13 @@ class ProfilePermissionsView(APIView):
         if not role.exists():
             return Response({"message":"UserRole not found!"}, status=status.HTTP_400_BAD_REQUEST)
         role = role.first()
+        original_data = model_to_dict(role)
         data = request.data.copy()
         ser = ProfileSaveSerializer(role, data=data, partial=True)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, f"permissions for {role.email} updated.")
+            change_log = track_model_changes(role, original_data)
+            saveuserlog(request.user, f"Updated Profile Permissions [{role.email}]: {change_log}")
             # create_notification(request.user, f"permissions for {role.email} updated.",request.user.company)
             return Response({"message": f"Permission list for {role.role.name} updated successfully!"}, status=status.HTTP_200_OK)
         else:
@@ -124,16 +133,17 @@ class ProfilePermissionsView(APIView):
         
 class ProfileUpdateView(APIView):
     # permission_classes = [IsAuthenticated]
-    def put(self, request,pk, *args, **kwargs):   
+    def put(self, request,pk, *args, **kwargs):
         print("specail update==", pk)
         obj = Profile.objects.filter(id=pk).first()
         if not obj:
-            return Response({"message":"Profile not found!"}, status=status.HTTP_400_BAD_REQUEST) 
-        
+            return Response({"message":"Profile not found!"}, status=status.HTTP_400_BAD_REQUEST)
+        original_data = model_to_dict(obj)
         ser = ProfileSaveSerializer(obj, data=request.data, partial=True)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, f"user profile {obj.email} updated.")
+            change_log = track_model_changes(obj, original_data)
+            saveuserlog(request.user, f"Updated Profile [{obj.email}]: {change_log}")
             # create_notification(request.user, f"user profile {obj.email} updated.",company=request.user.company)
             return Response({"message": "Profile updated successfully!"}, status=status.HTTP_200_OK)
         else:

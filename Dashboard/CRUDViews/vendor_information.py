@@ -9,6 +9,8 @@ from ..ModelsByPage.Req import VendorInformation, VendorPlan
 from OnBoard.Organization.models import Organizations
 from OnBoard.Ban.models import BaseDataTable, BaselineDataTable, UniquePdfDataTable
 from authenticate.views import saveuserlog
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 class getBansView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -103,11 +105,12 @@ class VendorInformationView(APIView):
         obj = VendorInformation.objects.filter(id=pk).first()
         if not obj:
             return Response({"message":"vendor information not found"},status=status.HTTP_400_BAD_REQUEST)
-         
+        original_data = model_to_dict(obj)
         ser = VendorInformationSerializer(obj,data=request.data,partial=True)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, f"vendor information updated for account number {obj.ban}")
+            change_log = track_model_changes(obj, original_data)
+            saveuserlog(request.user, f"Updated Vendor Information [BAN: {obj.ban}]: {change_log}")
             return Response({"message":"vendor information updated succesfully!"},status=status.HTTP_200_OK)
         else:
             return Response({"message":"Unable to update vendor information."},status=status.HTTP_400_BAD_REQUEST)

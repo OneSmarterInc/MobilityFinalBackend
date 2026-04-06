@@ -125,7 +125,7 @@ class BatchView(APIView):
             df = df.drop(columns=['created', 'updated','auto_pay_enabled','Entry_type','master_account', 'website', 'Total_Current_Charges','plans','charges', 'location','duration','id', 'banUploaded_id','Total_Amount_Due', 'banOnboarded_id', 'viewuploaded_id','viewpapered_id', 'inventory_id','costcenterlevel', 'costcentertype','costcenterstatus', 'CostCenter', 'CostCenterNotes', 'PO','Displaynotesonbillprocessing', 'POamt', 'FoundAcc', 'bantype','invoicemethod', 'vendorCS', 'vendor_alias', 'month', 'year',
             'pdf_filename', 'pdf_path', 'remarks', 'account_password','payor', 'GlCode', 'ContractTerms', 'ContractNumber', 'Services','Billing_cycle', 'BillingDay', 'PayTerm', 'AccCharge','CustomerOfRecord', 'paymentType',
             'billstatus', 'banstatus', 'Check', 'summary_file','is_baseline_approved','workbook_path','batch_file','current_annual_review',
-            'previous_annual_review','variance','is_production','check_timestamp','is_baseline_replaced'])
+            'previous_annual_review','variance','is_production','check_timestamp','is_baseline_replaced','company'])
 
             user_ids = df["uploaded_by_id"].dropna().unique()
             user_map = (
@@ -330,7 +330,7 @@ def email_config_detail(request, pk):
     
 class EmailConfigurationViewSet(viewsets.ModelViewSet):
     queryset = EmailConfiguration.objects.all()
-    # serializer_class = ...  # your existing serializer
+    serializer_class = EmailConfigurationSerializer
 
     @action(detail=False, methods=["post"], url_path="verify")
     def verify(self, request):
@@ -399,8 +399,11 @@ class EmailConfigurationViewSet(viewsets.ModelViewSet):
             password=password,
             use_tls=use_tls, use_ssl=use_ssl,
         )
-        code = status.HTTP_200_OK if ok else status.HTTP_400_BAD_REQUEST
-        saveuserlog(request.user, description=f"Email configure verification done for organization")
+        if ok:
+            code,description = status.HTTP_200_OK,"Email configure verification done for organization"
+        else:
+            code,description = status.HTTP_400_BAD_REQUEST,"Email configure verification failed for organization"
+        saveuserlog(request.user, description=description)
         return Response({
             "ok": ok,
             "message": msg,

@@ -874,7 +874,7 @@ class MultipleFileProcessor:
             self.instance.save()
             companyObj = Company.objects.filter(Company_name=self.company).first()
             userObj = PortalUser.objects.filter(email=self.email).first()
-            msg = f'Analysis files of account number {self.account_number} processed successfully'
+            msg = f'Analysis files for account number {self.account_number} processed successfully.'
             create_notification(msg=msg, user=userObj, company=companyObj)
             end = time.perf_counter()
             return True, "Files processed successfully", round(end - start, 2), 1

@@ -8,6 +8,8 @@ from rest_framework.permissions import IsAuthenticated
 from ..ModelsByPage.Req import VendorPlan
 from OnBoard.Organization.models import Organizations
 from authenticate.views import saveuserlog
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 
 class VendorPlanView(APIView):
     # permission_classes = [IsAuthenticated]
@@ -37,10 +39,12 @@ class VendorPlanView(APIView):
         obj = VendorPlan.objects.filter(id=pk).first()
         if not obj:
             return Response({"message": "Vendor plan not found"}, status=status.HTTP_400_BAD_REQUEST)
+        original_data = model_to_dict(obj)
         ser = VendorPlanSerializer(obj, data=request.data, partial=True)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, f"vendor plan updated for account number {obj.ban}")
+            change_log = track_model_changes(obj, original_data)
+            saveuserlog(request.user, f"Updated Vendor Plan [BAN: {obj.ban}]: {change_log}")
             return Response({"message": "Vendor plan updated successfully!"}, status=status.HTTP_200_OK)
         else:
             return Response({"message": "Unable to update vendor plan."}, status=status.HTTP_400_BAD_REQUEST)

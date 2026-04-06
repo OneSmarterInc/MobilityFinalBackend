@@ -8,6 +8,8 @@ from ...Serializers.AdminPage import VendorsOperationSerializer, VendorsShowSeri
 from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
 from Batch.views import create_notification
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 class VendorView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -29,7 +31,7 @@ class VendorView(APIView):
             ser.save()
             name = ser.data["name"]
             saveuserlog(request.user, f'new vendor {name} created successfully.')  
-            create_notification(user=request.user,msg=f"new vendor {name} created successfully.")
+            create_notification(user=request.user,msg=f"New vendor '{name}' created successfully.")
             return Response({"message" : "new vendor created successfully!", "data" : ser.data}, status=status.HTTP_201_CREATED)
         return Response({"message":ser.errors}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -39,13 +41,13 @@ class VendorView(APIView):
             vendor = Vendors.objects.get(name=pk)
         except Vendors.DoesNotExist:
             return Response({"message": 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
+        original_data = model_to_dict(vendor)
         data = request.data
         ser = VendorsOperationSerializer(vendor, data=data, partial=True)
-        
         if ser.is_valid():
             ser.save()
-            name = ser.data["name"]
-            saveuserlog(request.user, description=f"vendor {name} updated successfully.")  # save log here  # todo: add logging functionality  # todo: add logging functionality
+            change_log = track_model_changes(vendor, original_data)
+            saveuserlog(request.user, description=f'Updated Vendor [{ser.data["name"]}]: {change_log}')
             # create_notification(user=request.user,msg=f"vendor {name} updated successfully.")
             return Response({"message" : "vendor updated successfully!", "data":ser.data}, status=status.HTTP_200_OK)
         return Response({"message": ser.errors}, status=status.HTTP_400_BAD_REQUEST)

@@ -10,6 +10,8 @@ from OnBoard.Organization.models import Organizations
 from ..Serializers.requestser import devicesSerializer, showdevicesSerializer,showOrganizations
 from authenticate.views import saveuserlog
 from Batch.views import create_notification
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 class DevicesView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -47,11 +49,13 @@ class DevicesView(APIView):
         obj = Device.objects.filter(id=pk).first()
         if not obj:
             return Response({"message":"Device not found"},status=status.HTTP_400_BAD_REQUEST)
+        original_data = model_to_dict(obj)
         ser = devicesSerializer(obj,data=request.data,partial=True)
         if ser.is_valid():
             ser.save()
             data = ser.data
-            saveuserlog(request.user, f"{data['device_type']} device updated for organization {data['sub_company']}.")
+            change_log = track_model_changes(obj, original_data)
+            saveuserlog(request.user, f"Updated Device [{data['device_type']} | Org: {data['sub_company']}]: {change_log}")
             # create_notification(request.user, f"{data['device_type']} device updated for organization {data['sub_company']}.",request.user.company)
             return Response({"message":"Device updated succesfully!"},status=status.HTTP_200_OK)
         else:

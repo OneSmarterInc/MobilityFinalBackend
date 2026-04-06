@@ -7,6 +7,8 @@ from ...Serializers.AdminPage import InvoiceMethodOperationSerializer, InvoiceMe
 from rest_framework.permissions import IsAuthenticated
 
 from authenticate.views import saveuserlog
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 
 
 class InvoiceMethodView(APIView):
@@ -37,10 +39,12 @@ class InvoiceMethodView(APIView):
             invoice_method = InvoiceMethod.objects.get(name=pk)
         except InvoiceMethod.DoesNotExist:
             return Response({"message": 'Invoice Method not found'}, status=status.HTTP_404_NOT_FOUND)
+        original_data = model_to_dict(invoice_method)
         ser = InvoiceMethodOperationSerializer(invoice_method, data=request.data, partial=True)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, description=f'Invoice Method updated: {ser.data["name"]}')
+            change_log = track_model_changes(invoice_method, original_data)
+            saveuserlog(request.user, description=f'Updated Invoice Method [{ser.data["name"]}]: {change_log}')
             return Response({"message" : "Invoice Method updated successfully!", "data" : ser.data}, status=status.HTTP_200_OK)
         return Response({"message":ser.errors}, status=status.HTTP_400_BAD_REQUEST)
     

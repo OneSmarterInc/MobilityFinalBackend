@@ -9,6 +9,8 @@ from ..ModelsByPage.Req import VendorDevice
 from OnBoard.Organization.models import Organizations
 from authenticate.views import saveuserlog
 from Batch.views import create_notification
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 class VendorDeviceView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -41,11 +43,13 @@ class VendorDeviceView(APIView):
         obj = VendorDevice.objects.filter(id=pk).first()
         if not obj:
             return Response({"message":"vendor device not found"},status=status.HTTP_400_BAD_REQUEST)
+        original_data = model_to_dict(obj)
         ser = VendorDeviceSerializer(obj,data=request.data,partial=True)
         if ser.is_valid():
             ser.save()
             name = obj.vendor.name
-            saveuserlog(request.user, f"New vendor device of vendor {name} updated")
+            change_log = track_model_changes(obj, original_data)
+            saveuserlog(request.user, f"Updated Vendor Device [Vendor: {name}]: {change_log}")
             # create_notification(request.user, f"New vendor device of vendor {name} updated",request.user.company)
             return Response({"message":"vendor device updated succesfully!"},status=status.HTTP_200_OK)
         else:

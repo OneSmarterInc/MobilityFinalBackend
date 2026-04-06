@@ -6,6 +6,8 @@ from ...ModelsByPage.DashAdmin import CostCenterType
 from ...Serializers.AdminPage import CostCenterTypeOperationSerializer, CostCenterTypeShowSerializer
 from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 
 
 class CostCenterTypeView(APIView):
@@ -37,10 +39,12 @@ class CostCenterTypeView(APIView):
             cost_center_type = CostCenterType.objects.get(name=pk)
         except CostCenterType.DoesNotExist:
             return Response({"message": 'Cost Center Type not found'}, status=status.HTTP_404_NOT_FOUND)
+        original_data = model_to_dict(cost_center_type)
         ser = CostCenterTypeOperationSerializer(cost_center_type, data=request.data)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, description=f'Cost Center Type updated: {ser.data["name"]}')  
+            change_log = track_model_changes(cost_center_type, original_data)
+            saveuserlog(request.user, description=f'Updated Cost Center Type [{ser.data["name"]}]: {change_log}')
             return Response({"message" : "Cost Center Type updated successfully!", "data":ser.data}, status=status.HTTP_200_OK)
         return Response({"message":ser.errors}, status=status.HTTP_400_BAD_REQUEST)
     

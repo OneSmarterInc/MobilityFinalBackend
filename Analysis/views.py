@@ -34,6 +34,7 @@ import pandas as pd
 from addon import extract_data_from_zip, has_field
 import json, os, zipfile
 import traceback
+from detect_model_changes import track_model_changes
 
 
 
@@ -157,10 +158,16 @@ class AnalysisView(APIView):
     
     def put(self, request, pk):
         try:
-            analysis = Analysis.objects.get(id=pk)
+            analysis = Analysis.objects.filter(id=pk)
+            analysis = analysis.first()
+            original_data = analysis.values().first()
             ser = AnalysisSaveSerializer(analysis, data=request.data)
             if ser.is_valid():
                 ser.save()
+                data = ser.data
+                change_log = track_model_changes(analysis, original_data)
+                msg = f"Following fields are updated of analysis {data.get("id")} : {change_log}"
+                saveuserlog(request.user, description=msg)
                 return Response({"message": "PDF analysis updated successfully.", "data": ser.data}, status=status.HTTP_200_OK)
         except Analysis.DoesNotExist:
             return Response({"message": "pdf not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -302,7 +309,7 @@ class MultipleUploadView(APIView):
             )
             create_notification(
                 request.user,
-                f"{request.user.email} uploaded {len(files)} {obj.vendor.name} file(s) for client {obj.client} for analysis", request.user.company
+                f"{request.user.email} uploaded {len(files)} {obj.vendor.name} file(s) for client {obj.client} for analysis.", request.user.company
             )
             Process_multiple_pdfs.delay(buffer_data, obj.id)
             return Response(
@@ -331,7 +338,7 @@ class MultipleUploadView(APIView):
             )
             create_notification(
                 request.user,
-                f"{request.user.email} deleted {vendor} analysis files of client {client if client else '-'}", request.user.company
+                f"{request.user.email} deleted {vendor} analysis files of client {client if client else '-'}.", request.user.company
             )
             return Response(
                 {"message": "Analysis files deleted successfully."},

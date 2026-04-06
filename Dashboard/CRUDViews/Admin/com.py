@@ -6,6 +6,8 @@ from ...ModelsByPage.DashAdmin import ManuallyAddedCompany
 from ...Serializers.AdminPage import CompanyOperationSerializer, CompanyShowSerializer
 from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 
 
 
@@ -33,10 +35,12 @@ class CompanyView(APIView):
     
     def put(self, request, pk):
         company = ManuallyAddedCompany.objects.get(name=pk)
+        original_data = model_to_dict(company)
         serializer = CompanyOperationSerializer(company, data=request.data)
         if serializer.is_valid():
             serializer.save()
-            saveuserlog(request.user, description=f'Company updated: {serializer.data["name"]}')
+            change_log = track_model_changes(company, original_data)
+            saveuserlog(request.user, description=f'Updated Company [{serializer.data["name"]}]: {change_log}')
             return Response({"message" : "Company updated successfully!", "data" : serializer.data}, status=status.HTTP_200_OK)
         return Response({"message" : serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
     

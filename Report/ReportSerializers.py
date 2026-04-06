@@ -64,7 +64,7 @@ class InventorySerializer(serializers.ModelSerializer):
         all_users = UniquePdfDataTable.objects.filter(
             banUploaded=wireless.banUploaded,
             banOnboarded=wireless.banOnboarded
-        ).exclude(upgrade_eligible_date__isnull=True).exclude(upgrade_eligible_date='')
+        ).exclude(upgrade_eligible_date__isnull=True).exclude(upgrade_eligible_date__in=(None,))
 
         today = datetime.today().date()
         passed_count, today_count = 0, 0

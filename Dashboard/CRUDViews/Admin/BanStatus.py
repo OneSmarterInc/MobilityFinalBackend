@@ -6,7 +6,8 @@ from ...ModelsByPage.DashAdmin import BanStatus
 from authenticate.views import saveuserlog
 from ...Serializers.AdminPage import BanStatusOperationSerializer, BanStatusShowSerializer
 from rest_framework.permissions import IsAuthenticated
-
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 
 class BanStatusView(APIView):
     permission_classes = [IsAuthenticated]
@@ -35,12 +36,14 @@ class BanStatusView(APIView):
     def put(self, request, pk):
         try:
             ban_status = BanStatus.objects.get(name=pk)
+            original_data = model_to_dict(ban_status)
         except BanStatus.DoesNotExist:
             return Response({"message": 'Ban Status not found'}, status=status.HTTP_404_NOT_FOUND)
         serializer = BanStatusOperationSerializer(ban_status, data=request.data)
         if serializer.is_valid():
             serializer.save()
-            saveuserlog(request.user, description=f'Ban Status updated: {serializer.data["name"]}')
+            change_log = track_model_changes(ban_status, original_data)
+            saveuserlog(request.user, description=f'Updated Ban Status [{serializer.data["name"]}]: {change_log}')
             return Response({"message" : "band status updated successfully!", "data":serializer.data}, status=status.HTTP_200_OK)
         return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
     

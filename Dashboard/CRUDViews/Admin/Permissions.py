@@ -9,6 +9,8 @@ from django.db.models import Q
 
 from Batch.views import create_notification
 from authenticate.views import saveuserlog
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 
 def is_superadmin(user):
     return not user.company
@@ -39,7 +41,7 @@ class PermissionView(APIView):
         if ser.is_valid():
             ser.save()
             saveuserlog(request.user, f"New permission added with name {ser.data['name']}")  # save user log for audit trail
-            create_notification(request.user, f"New permission added with name {ser.data['name']}",request.user.company) 
+            create_notification(request.user, f"New permission '{ser.data['name']}' added.",request.user.company)
             return Response({"message" : "new permission created successfully!", "data":ser.data}, status=status.HTTP_201_CREATED)
         return Response({"message":ser.errors}, status=status.HTTP_400_BAD_REQUEST)
     
@@ -48,10 +50,12 @@ class PermissionView(APIView):
             permission = Permission.objects.get(name=pk)
         except Permission.DoesNotExist:
             return Response({"message": 'Permission not found'}, status=status.HTTP_404_NOT_FOUND)
+        original_data = model_to_dict(permission)
         ser = PermissionOperationSerializer(permission, data=request.data)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, description=f'Permission updated: {ser.data["name"]}')
+            change_log = track_model_changes(permission, original_data)
+            saveuserlog(request.user, description=f'Updated Permission [{ser.data["name"]}]: {change_log}')
             # create_notification(request.user, description=f'Permission {ser.data["name"]} updated',company=request.user.company)
             return Response({"message" : "permission updated successfully!", "data":ser.data}, status=status.HTTP_200_OK)
         return Response({"message":ser.errors}, status=status.HTTP_400_BAD_REQUEST)

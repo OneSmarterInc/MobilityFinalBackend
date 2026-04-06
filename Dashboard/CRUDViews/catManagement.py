@@ -11,6 +11,8 @@ from rest_framework.permissions import IsAuthenticated
 from addon import parse_until_dict
 from authenticate.views import saveuserlog
 from Batch.views import create_notification
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 class CategoryView(APIView):
     # permission_classes = [IsAuthenticated]
     
@@ -79,15 +81,18 @@ class CategoryView(APIView):
                 {"message": "Missing required fields: organization, vendor, or BAN."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
+        data["banObj"] = obj.banObj.id
+        original_data = model_to_dict(obj)
         data = request.data
         ser = catserializer(obj, data=data)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, f"Baseline category {ser.data['category']} updated for ban {ban}.")
+            change_log = track_model_changes(obj, original_data)
+            saveuserlog(request.user, f"Updated Baseline Category [{ser.data['category']} | BAN: {ban}]: {change_log}")
             # create_notification(request.user, f"Baseline category {ser.data['category']} updated for ban {ban}.",request.user.company)
             return Response({"message" : "Category updated successfully!"}, status=status.HTTP_200_OK)
         else:
+            print(ser.errors)
             return Response({"message":"unable to update category."}, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request,pk, *args, **kwargs):
@@ -102,3 +107,94 @@ class CategoryView(APIView):
         except Exception as e:
             print(e)
             return Response({"message":"unable to delete category."}, status=status.HTTP_400_BAD_REQUEST)
+        
+
+import json
+def store_baseline_categories(objs, base_instance):
+        if base_instance.banUploaded:
+            vendor = base_instance.banUploaded.Vendor
+            organization = base_instance.banUploaded.organization 
+        elif base_instance.banOnboarded:
+            vendor = base_instance.banOnboarded.vendor
+            organization = base_instance.banOnboarded.organization 
+        ban = base_instance.accountnumber
+        from collections import defaultdict
+        def extract_categories(objs):
+            grouped = defaultdict(list)
+
+            for obj in objs:
+                raw = parse_until_dict(obj.category_object)
+                if not isinstance(raw, dict):
+                    continue
+
+                for category, sub_dict in raw.items():
+                    if not category or category == "NAN":
+                        continue
+                    if isinstance(sub_dict, dict):
+                        sub_keys = list(sub_dict.keys())
+                    else:
+                        continue
+
+                    grouped[category].extend(sub_keys)
+
+            for k in grouped:
+                grouped[k] = list(dict.fromkeys(grouped[k]))
+
+            return grouped
+        if not objs:
+            return
+        print(organization and vendor and base_instance)
+        if not (organization and vendor and base_instance):
+            return
+        # 🔥 Step A — group everything
+        grouped = extract_categories(objs)
+        if not grouped:
+            return
+
+        # 🔥 Step B — fetch existing
+        existing_qs = BaselineCategories.objects.filter(
+            organization=organization,
+            vendor=vendor,
+            banObj=base_instance,
+            ban=ban,
+            category__in=grouped.keys()
+        )
+
+        existing_map = {obj.category: obj for obj in existing_qs}
+
+        to_create = []
+        to_update = []
+
+        # 🔥 Step C — merge logic
+        for category, new_list in grouped.items():
+            if category in existing_map:
+                obj = existing_map[category]
+
+                existing = obj.sub_categories or []
+                merged = list(dict.fromkeys(existing + new_list))
+
+                if merged != existing:
+                    obj.sub_categories = merged
+                    to_update.append(obj)
+
+            else:
+                to_create.append(
+                    BaselineCategories(
+                        organization=organization,
+                        vendor=vendor,
+                        ban=ban,
+                        banObj=base_instance,
+                        category=category,
+                        sub_categories=new_list
+                    )
+                )
+
+        # 🔥 Step D — bulk write
+        if to_create:
+            BaselineCategories.objects.bulk_create(to_create)
+
+        if to_update:
+            BaselineCategories.objects.bulk_update(
+                to_update,
+                ["sub_categories"]
+            )

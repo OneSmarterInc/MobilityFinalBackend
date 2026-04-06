@@ -326,7 +326,10 @@ class BillAnalysis:
                         "bill_year": self.bill_year,
                         "user_name": row.get("User Name"),
                         "current_plan": row.get("Current Plan"),
-                        "current_plan_charges": row.get("Charges"),
+                        "current_plan_charges": (
+                            row.get("Charges")
+                            if pd.notna(row.get("Charges")) else None
+                        ),
                         "current_plan_usage": row.get("Data Usage (GB)"),
                         "data_usage_range": row.get("data_usage_range"),
                         "recommended_plan": row.get("Recommended Plan"),

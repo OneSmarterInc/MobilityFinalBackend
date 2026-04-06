@@ -11,6 +11,8 @@ from authenticate.models import PortalUser
 from OnBoard.Ban.models import UniquePdfDataTable
 from Dashboard.Serializers.requestser import EmployeeSerializer, SaveUpgradeDeviceRequestSerializer, ShowUpgradeDeviceRequestSerializer,PortalEmployeeSerializer
 from authenticate.views import saveuserlog
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 
 class EmployeeRequest(APIView):
     # permission_classes = [IsAuthenticated]
@@ -79,9 +81,12 @@ class DeviceUpgradeView(APIView):
         obj = upgrade_device_request.objects.filter(id=pk).first()
         if not obj:
             return Response({"message": "Request not found!"},status=status.HTTP_400_BAD_REQUEST)
+        original_data = model_to_dict(obj)
         ser = SaveUpgradeDeviceRequestSerializer(obj, data=data, partial=True)
         if ser.is_valid():
             ser.save()
+            change_log = track_model_changes(obj, original_data)
+            saveuserlog(request.user, f"Updated Device Upgrade Request [ID: {pk}]: {change_log}")
             return Response({"message":"Request updated successfully!"},status=status.HTTP_200_OK)
         else:
             return Response({"message": "Unable to update request!"},status=status.HTTP_400_BAD_REQUEST)

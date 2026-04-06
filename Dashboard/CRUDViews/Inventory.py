@@ -36,11 +36,13 @@ class InventoryView(APIView):
         }
     def put(self, request,org,pk=None, *args, **kwargs):
         data = request.data.copy()
-        accessories = data.get("accessories")
-        data["accessories"] = parse_until_dict(accessories)
+        
         if not pk:
             try:
                 for inv in data:
+                    print(inv)
+                    accessories = inv.get("accessories")
+                    inv["accessories"] = parse_until_dict(accessories)
                     obj = UniquePdfDataTable.objects.filter(sub_company=org).get(id=inv.get('id'))
                     
                     if (obj.banOnboarded):

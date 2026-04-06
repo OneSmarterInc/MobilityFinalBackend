@@ -11,18 +11,23 @@ class ReminderView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        # Placeholder for getting reminders
-        reminders = Reminder.objects.filter(log_email=request.user.email) 
+        user_role = request.user.designation
+        if user_role:
+            reminders = (
+                Reminder.objects.filter(company=request.user.company, to_roles=user_role) |
+                Reminder.objects.filter(log_email=request.user.email)
+            ).distinct()
+        else:
+            reminders = Reminder.objects.filter(log_email=request.user.email)
         reminders = ReminderSerializer(reminders, many=True).data
         return Response({"data": reminders}, status=status.HTTP_200_OK)
 
     def post(self, request):
         # Placeholder for creating a reminder
         data = request.data  # This should be validated and processed
-        roles = data.pop('to_roles', [])
         reminder_for = data.pop('reminder_for')
+        roles = data.pop('to_roles', [])
         if reminder_for == "all":
-            roles = data.pop('to_roles', [])
             to_roles = list(UserRoles.objects.filter(name__in=roles).values_list('id', flat=True))
         else:
             to_roles = [request.user.designation.id]
@@ -37,8 +42,8 @@ class ReminderView(APIView):
             data = request.data
             print(data)
             reminder_for = data.pop('reminder_for')
+            roles = data.pop('to_roles', [])
             if reminder_for == "all":
-                roles = data.pop('to_roles', [])
                 to_roles = list(UserRoles.objects.filter(name__in=roles).values_list('id', flat=True))
             else:
                 to_roles = [request.user.designation.id]

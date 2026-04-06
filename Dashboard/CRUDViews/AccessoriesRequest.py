@@ -9,6 +9,7 @@ from ..ModelsByPage.Req import AccessoriesRequest, CostCenters
 from ..Serializers.requestser import SaveaccessoriesRequestSer, ShowaccessoriesRequestSer
 from authenticate.views import saveuserlog
 from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 from Batch.views import create_notification
 from ..ModelsByPage.DashAdmin import Vendors
 from OnBoard.Organization.models import Organizations
@@ -79,16 +80,18 @@ class AccessoryRequestView(APIView):
             return Response({"message":"Request not found!"},status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        data = request.data.copy() 
+        original_data = model_to_dict(obj)
+        data = request.data.copy()
         data = json.loads(data) if not isinstance(data, dict) else data
         ser = SaveaccessoriesRequestSer(obj, data=data,partial=True)
         if ser.is_valid():
             ser.save()
             data = ser.data
-            saveuserlog(request.user, f"following fields of {data["request_type"]} Request for wireless number {data["line_of_service"]} updated.")
+            change_log = track_model_changes(obj, original_data)
+            saveuserlog(request.user, f"Updated Accessories Request [{data['request_type']} | Line: {data['line_of_service']}]: {change_log}")
             # create_notification(request.user, f"{data["request_type"]} Request for wireless number {data["line_of_service"]} updated.",request.user.company)
             return Response({"message":"Request updated successfully!"},status=status.HTTP_200_OK)
-        
+
         else:
             print(ser.errors)
             return Response({"message":"Unable to update request!"},status=status.HTTP_400_BAD_REQUEST)

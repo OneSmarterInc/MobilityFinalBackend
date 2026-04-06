@@ -15,6 +15,7 @@ from authenticate.models import PortalUser
 from Dashboard.ModelsByPage.ProfileManage import Profile
 from authenticate.views import saveuserlog
 from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 from Batch.views import create_notification
 from django.db.models import Q
 
@@ -53,25 +54,18 @@ class RequestsView(APIView):
             return Response({"message":"Request not found!"},status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        data = request.data.copy() 
+        original_data = model_to_dict(obj)
+        data = request.data.copy()
         data = json.loads(data) if not isinstance(data, dict) else data
         ser = RequestsSaveSerializer(obj, data=data,partial=True)
         if ser.is_valid():
             ser.save()
             data = ser.data
+            change_log = track_model_changes(obj, original_data)
             org_name = getattr(obj, "organization", None)
-            vendor_name = getattr(obj, "vendor", None)
-            
             ban_number = getattr(obj, "ban", None)
-            log_msg = (
-                f"Request {data.get('request_type')} updated"
-                f"{' for organization ' + str(org_name) if org_name else ''}"
-                f"{' | vendor ' + str(vendor_name) if vendor_name else ''}"
-                f"{' | BAN ' + str(ban_number) if ban_number else ''}."
-            )
-
-            saveuserlog(request.user, log_msg)
-            create_notification(request.user, f"request of type {ser.data['request_type']} updated successfully!",company=request.user.company)
+            saveuserlog(request.user, f"Updated Request [{data.get('request_type')} | Org: {org_name} | BAN: {ban_number}]: {change_log}")
+            create_notification(request.user, f"Request of type {ser.data['request_type']} updated successfully!",company=request.user.company)
             return Response({"message":"Request updated successfully!"},status=status.HTTP_200_OK)
         else:
             return Response({"message":"Unable to update request."},status=status.HTTP_400_BAD_REQUEST)
@@ -82,7 +76,7 @@ class RequestsView(APIView):
             line = re.mobile
             re.delete()
             saveuserlog(request.user, f"Request {re.request_type}  deleted.")
-            create_notification(request.user, f"Request {re.request_type} deleted.",request.user.company)
+            create_notification(request.user, f"Request of type {re.request_type} deleted.",request.user.company)
             return Response({"message": "Request deleted successfully!"}, status=status.HTTP_200_OK)
         except Requests.DoesNotExist:
             return Response({"message": "request does not exist"}, status=status.HTTP_400_BAD_REQUEST)
@@ -139,7 +133,7 @@ class OnlineFormView(APIView):
                 ser.save()
                 data = request.data
                 saveuserlog(request.user, f"request with type {r_type} created in organization {org_name}") 
-                create_notification(request.user, f"request with type {r_type} created in organization {org_name}",request.user.company) 
+                create_notification(request.user, f"Request of type {r_type} created in organization {org_name}.",request.user.company)
             else:
                 print(ser.errors)
                 return Response({"message":"Unable to create request"},status=status.HTTP_400_BAD_REQUEST)
@@ -179,14 +173,15 @@ class RequestLogsView(APIView):
             return Response({"message":"Request not found!"},status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        original_data = model_to_dict(obj)
         data = request.data.copy()
         org = obj.organization.Organization_name
         ser = RequestsSaveSerializer(obj, data=data,partial=True)
         if ser.is_valid():
             ser.save()
-            data = ser.data
-            saveuserlog(request.user, f"request of type {obj.request_type} updated for organization {org}")
-            create_notification(request.user, f"request of type {obj.request_type} updated for organization {org}",request.user.company)
+            change_log = track_model_changes(obj, original_data)
+            saveuserlog(request.user, f"Updated Request [{obj.request_type} | Org: {org}]: {change_log}")
+            create_notification(request.user, f"Request of type {obj.request_type} updated for organization {org}.",request.user.company)
             return Response({"message":"Request updated successfully!"},status=status.HTTP_200_OK)
         else:
             return Response({"message":"Unable to update request."},status=status.HTTP_400_BAD_REQUEST)
@@ -198,7 +193,7 @@ class RequestLogsView(APIView):
             rt = re.request_type
             re.delete()
             saveuserlog(request.user, f"request of type {rt} of organization {org} deleted.")
-            create_notification(request.user, f"request of type {rt} of organization {org} deleted.",request.user.company)
+            create_notification(request.user, f"Request of type {rt} for organization {org} deleted.",request.user.company)
             return Response({"message": "Request deleted successfully!"}, status=status.HTTP_200_OK)
         except Requests.DoesNotExist:
             return Response({"message": "request does not exist"}, status=status.HTTP_400_BAD_REQUEST)
@@ -343,12 +338,13 @@ class TrackingInfoView(APIView):
         obj = TrackingInfo.objects.filter(id=pk).first()
         if not obj:
             return Response({"message":"Tracking Information  not found"},status=status.HTTP_400_BAD_REQUEST)
+        original_data = model_to_dict(obj)
         ser = trackinfoSerializer(obj,data=request.data,partial=True)
         if ser.is_valid():
             ser.save()
             data = ser.data
-            print(data)
-            saveuserlog(request.user, f"Tracking info for request {data['tracking_id']} updated.")
+            change_log = track_model_changes(obj, original_data)
+            saveuserlog(request.user, f"Updated Tracking Info [ID: {data['tracking_id']}]: {change_log}")
             return Response({"message":"Tracking Information  updated succesfully!","data":ser.data},status=status.HTTP_200_OK)
         else:
             return Response({"message":str(ser.errors)},status=status.HTTP_400_BAD_REQUEST)

@@ -6,6 +6,8 @@ from ...ModelsByPage.DashAdmin import ManuallyAddedLocation
 from ...Serializers.AdminPage import LocOperationSerializer, LocShowSerializer
 from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 
 
 class LocView(APIView):
@@ -36,10 +38,12 @@ class LocView(APIView):
             location = ManuallyAddedLocation.objects.get(name=pk)
         except ManuallyAddedLocation.DoesNotExist:
             return Response({"message": 'Location not found'}, status=status.HTTP_404_NOT_FOUND)
+        original_data = model_to_dict(location)
         ser = LocOperationSerializer(location, data=request.data)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, description=f'Location updated: {ser.data["name"]}')
+            change_log = track_model_changes(location, original_data)
+            saveuserlog(request.user, description=f'Updated Location [{ser.data["name"]}]: {change_log}')
             return Response({"message" : "Location updated successfully!", "data":ser.data}, status=status.HTTP_200_OK)
         return Response({"message":ser.errors}, status=status.HTTP_400_BAD_REQUEST)
     

@@ -6,6 +6,8 @@ from ...ModelsByPage.DashAdmin import PaymentType
 from ...Serializers.AdminPage import PaymentTypeOperationSerializer, PaymentTypeShowSerializer
 from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 
 class PaymentTypeView(APIView):
     permission_classes = [IsAuthenticated]
@@ -36,10 +38,12 @@ class PaymentTypeView(APIView):
             payment_type = PaymentType.objects.get(name=pk)
         except PaymentType.DoesNotExist:
             return Response({"message": 'Payment Type not found'}, status=status.HTTP_404_NOT_FOUND)
+        original_data = model_to_dict(payment_type)
         ser = PaymentTypeOperationSerializer(payment_type, data=request.data)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, description=f'Payment Type updated: {ser.data["name"]}') 
+            change_log = track_model_changes(payment_type, original_data)
+            saveuserlog(request.user, description=f'Updated Payment Type [{ser.data["name"]}]: {change_log}')
             return Response({"message" : "payment type updated successfully!", "data":ser.data}, status=status.HTTP_200_OK)
         return Response({"message":ser.errors}, status=status.HTTP_400_BAD_REQUEST)
     

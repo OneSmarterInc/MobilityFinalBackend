@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 from ..Serializers.ven import VendorsSerializer, OrganizationListSerializer
 from authenticate.views import saveuserlog
+from detect_model_changes import track_model_changes
 from Batch.views import create_notification
 class VendorsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -29,6 +30,7 @@ class VendorsView(APIView):
         pass
     def put(self, request, pk, *args, **kwargs):
         vendor = Vendors.objects.filter(id=pk)
+        original_data = vendor.values()
         name = vendor.first().name
         org = request.data.pop('organization_name', None)
         org = Organizations.objects.get(Organization_name=org)
@@ -39,7 +41,10 @@ class VendorsView(APIView):
             print(vendor)
             org.favorite_vendors.remove(vendor.first())
             org.save()
-            saveuserlog(request.user, f"vendor {name} updated successfully!")
+            change_log = track_model_changes(vendor, original_data)
+            msg = f"Following fields are updated of vendor {vendor.first().name} : {change_log}"
+            saveuserlog(request.user, description=msg)
+            # saveuserlog(request.user, f"vendor {name} updated successfully!")
             # create_notification(user=request.user,msg=f"vendor {name} updated successfully.")
         return Response({"message":"vendor updated successfully!"})
     def delete(self, request, pk, *args, **kwargs):

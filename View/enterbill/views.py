@@ -365,9 +365,10 @@ class UploadfileView(APIView):
             ban=ban
         )
         obj.save()
-
-        if 'mobile' in str(obj.vendor.name) and obj.file.name.endswith('.pdf'):
+        print('mobile' in obj.vendor.name.lower().strip())
+        if 'mobile' in str(obj.vendor.name.lower().strip()) and obj.file.name.endswith('.pdf'):
             check_type = self.check_tmobile_type(obj.file.path)
+            print("check",check_type)
             if check_type == 1:
                 obj.types = 'first'
                 tp = 1
@@ -621,7 +622,7 @@ class InitialProcessPdf:
                     'error': -1
                 }
 
-
+        print("type",self.type)
         if "verizon" in self.vendor.lower():
             self.file_acc, self.file_bill_date, self.file_billing_name = checkVerizon(matching_page_basic)
         elif "mobile" in self.vendor.lower():
@@ -915,7 +916,7 @@ class ProcessZip:
                 obj.is_baseline_approved = is_approved
                 obj.bill_approved_date = timezone.now()
                 obj.save()                
-                create_notification(user=self.user_obj, msg=f"Bill with date {bill_date} of ban {self.account_number} uploaded.",company=self.company_obj)
+                create_notification(user=self.user_obj, msg=f"Bill with date {bill_date} for BAN {self.account_number} uploaded.",company=self.company_obj)
                 return {'message' : 'RDD uploaded successfully!', 'error' : 1}
         except Exception as e:
             print(f'Error occurred while processing zip file: {str(e)}')
@@ -2023,7 +2024,6 @@ class AprroveAllView(APIView):
             enter_bill_unique_obj.category_object = approve_obj
             enter_bill_unique_obj.is_baseline_approved = check_true_false(enter_bill_unique_obj.category_object)
             enter_bill_unique_obj.save()
-            print(enter_bill_unique_obj)
 
             enter_bill_baseline_objs = BaselineDataTable.objects.filter(viewuploaded=main_uploaded_id.viewuploaded,viewpapered=main_uploaded_id.viewpapered).filter(is_pending=False, is_draft=False)
 

@@ -111,7 +111,7 @@ class ProcessCSVOnboard:
         keys_to_keep = ['company', 'vendor', 'sub_company', 'accountnumber', 'Entry_type', 'location', 'master_account']
         b_dict = {key: base_dict[key] for key in keys_to_keep if key in base_dict}
 
-        BaseDataTable.objects.create(banOnboarded=self.instance, uploaded_by=PortalUser.objects.filter(email=self.email).first(),**b_dict)
+        ban_obj = BaseDataTable.objects.create(banOnboarded=self.instance, uploaded_by=PortalUser.objects.filter(email=self.email).first(),**b_dict)
         print("Data added to BaseDataTable")
         self.account_number = file_account_number
         df_csv['wireless_number'] = df_csv['wireless_number'].apply(self.format_wireless_number)
@@ -147,7 +147,9 @@ class ProcessCSVOnboard:
         ]
 
         print(df_csv_dict[0])
-        BaselineDataTable.objects.bulk_create(clean_items)
+        created_items = BaselineDataTable.objects.bulk_create(clean_items)
+        from Dashboard.CRUDViews.catManagement import store_baseline_categories
+        store_baseline_categories(created_items,base_instance=ban_obj)
         self.save_to_portal_info({'Website':None})
         self.instance.account_number = self.account_number
         self.instance.is_processed = True

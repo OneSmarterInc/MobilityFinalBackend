@@ -68,9 +68,10 @@ class ProcessPdf2:
             "Entry_type":self.entry_type,
             "variance":self.variance
         }
-        BaseDataTable.objects.create(uploaded_by=PortalUser.objects.filter(email=self.email).first(),**baseDatamapped)
+        ban_obj = BaseDataTable.objects.create(uploaded_by=PortalUser.objects.filter(email=self.email).first(),**baseDatamapped)
         self.instance.account_number = self.account_number
         self.instance.save()
+        return ban_obj
         
         print("Added to base data table")
     def pdf_data_table(self, datadf):
@@ -197,27 +198,29 @@ class ProcessPdf2:
     def baseline_data_table(self, datadf):
         baseline_mapping = {
             'Wireless Number': "Wireless_number",
-            'Username': "user_name", 
-            'Data Usage':"data_usage", 
-            'Message Usage':"messaging_usage",
-            'Voice Plan Usage':"voice_plan_usage", 
-            'Total Charges':"total_charges",
-            'Third Party Charges (includes Tax)':"third_party_charges_includes_tax",
-            'Taxes, Governmental Surcharges and Fees':"taxes_governmental_surcharges_and_fees",
+            'Username': "user_name",
+            'Data Usage': "data_usage",
+            'Message Usage': "messaging_usage",
+            'Voice Plan Usage': "voice_plan_usage",
+            'Total Charges': "total_charges",
+            'Third Party Charges (includes Tax)': "third_party_charges_includes_tax",
+            'Taxes, Governmental Surcharges and Fees': "taxes_governmental_surcharges_and_fees",
             "Government fees and taxes": "taxes_governmental_surcharges_and_fees",
-            "Company fees and surcharges":"surcharges_and_other_charges_and_credits",
-            'Surcharges and Other Charges and Credits':"surcharges_and_other_charges_and_credits", 
-            'Equipment Charges':"equipment_charges",
-            'Usage and Purchase Charges':"usage_and_purchase_charges", 
+            "Company fees and surcharges": "surcharges_and_other_charges_and_credits",
+            'Surcharges and Other Charges and Credits': "surcharges_and_other_charges_and_credits",
+            'Equipment Charges': "equipment_charges",
+            'Usage and Purchase Charges': "usage_and_purchase_charges",
             'Monthly Charges': "monthly_charges",
             "Plans": "plans",
             "Taxes and Surcharges": "taxes_governmental_surcharges_and_fees",
-            "Third Party Services":"third_party_charges_includes_tax",
-            "Usage Charges": "usage_and_purchase_charges", 
+            "Third Party Services": "third_party_charges_includes_tax",
+            "Usage Charges": "usage_and_purchase_charges",
             "Credits & Adjustments": "surcharges_and_other_charges_and_credits",
         }
-        
+
         datadf = datadf.rename(columns=baseline_mapping)
+
+        # Add static fields
         datadf["company"] = self.company_name
         datadf["sub_company"] = self.sub_company
         datadf["vendor"] = self.vendor_name
@@ -225,18 +228,31 @@ class ProcessPdf2:
         datadf["bill_date"] = self.bill_date
         datadf["banOnboarded"] = self.instance
 
+        # Grouping
         category_df = datadf.groupby('Wireless_number').apply(
-            lambda x: pd.Series({'category_object': self.build_category_object(x) if self.baseline_check else {}})
+            lambda x: pd.Series({
+                'category_object': self.build_category_object(x) if self.baseline_check else {}
+            })
         ).reset_index()
 
-        result_df = category_df.merge(datadf.drop_duplicates(subset='Wireless_number'), on="Wireless_number")
+        result_df = category_df.merge(
+            datadf.drop_duplicates(subset='Wireless_number'),
+            on="Wireless_number"
+        )
+
         model_fields = [f.name for f in BaselineDataTable._meta.fields]
+
+        # Build objects list
+        objects_to_create = []
         for _, row in result_df.iterrows():
             data = {field: row[field] for field in model_fields if field in row}
-            BaselineDataTable.objects.create(**data)
+            objects_to_create.append(BaselineDataTable(**data))
+
+        # Bulk insert
+        objs = BaselineDataTable.objects.bulk_create(objects_to_create, batch_size=1000)
 
         print("Added to baseline data table")
-
+        return objs
     
     def portal_information(self, data):
         portal_mapping = {
@@ -290,13 +306,15 @@ class ProcessPdf2:
             self.account_number = basic_data.get("Account Number")
             self.net_amount = basic_data.get("Total Amount")
             self.bill_date = basic_data.get("Bill Date")
-            self.base_data_table(basic_data)
+            ban_obj = self.base_data_table(basic_data)
             if not "master" in self.entry_type.lower():
                 self.portal_information(basic_data)
                 self.pdf_data_table(baseline_df)
                 self.unique_data_table(unique_df)
                 if self.baseline_check:
-                    self.baseline_data_table(baseline_df)
+                    objs = self.baseline_data_table(baseline_df)
+                    from Dashboard.CRUDViews.catManagement import store_baseline_categories
+                    store_baseline_categories(objs,base_instance=ban_obj)
                 self.reflect_category_object()
                 
             print("Process completed successfully.")

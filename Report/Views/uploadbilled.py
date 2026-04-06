@@ -224,8 +224,8 @@ class UploadBilledReportView(APIView):
                 f"{self.report_type} report attributions company:{self.com}, organization:{self.org}, vendor:{self.vendor}, month:{self.month}, year:{self.year}. account number:{self.account_number}, month:{self.month}, and year:{self.year} deleted successfully."
             )
             create_notification(
-                request.user, 
-                f"{self.report_type} report attributions company:{self.com}, organization:{self.org}, vendor:{self.vendor}, month:{self.month}, year:{self.year}. account number:{self.account_number}, month:{self.month}, and year:{self.year} deleted successfully.", request.user.company
+                request.user,
+                f"{self.report_type} report deleted for company: {self.com}, organization: {self.org}, vendor: {self.vendor}, account number: {self.account_number}, month: {self.month}, year: {self.year}.", request.user.company
             )
             return Response({"message": f"{self.report_type} Report deleted successfully"}, status=status.HTTP_200_OK)
         except Exception as e:

@@ -424,6 +424,8 @@ class ProcessPdf2:
 
     def dataframe_to_excel(self, df1, df2, df3, df4):
         print("def dataframe_to_excel")
+        df1 = df1.drop(columns=["Company",])
+        df1 = df1.rename(columns={"Sub Company":"Organization"})
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df1.to_excel(writer, sheet_name='Sheet1', index=False)
@@ -653,7 +655,7 @@ class ProcessPdf2:
                 print(e)
                 message = str(e).strip()
             print("Process completed successfully.")
-            create_notification(user=self.user_obj, msg=f"Bill with date {self.bill_date} of ban {self.account_number} uploaded.",company=self.company_obj)
+            create_notification(user=self.user_obj, msg=f"Bill with date {self.bill_date} for BAN {self.account_number} uploaded.",company=self.company_obj)
             return True, message, ProcessTime
         except Exception as e:
             logger.error(f"Error processing PDF: {e}")

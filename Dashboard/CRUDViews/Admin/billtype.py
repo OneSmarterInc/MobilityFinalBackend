@@ -5,6 +5,8 @@ from rest_framework import status
 from ...ModelsByPage.DashAdmin import BillType
 from authenticate.views import saveuserlog
 from ...Serializers.AdminPage import saveBilltypeSerializer, BilltypeShowSerializer
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 from rest_framework.permissions import IsAuthenticated
 
 
@@ -34,10 +36,12 @@ class BillTypeView(APIView):
     def put(self, request, pk):
         if pk:
             bill_type = BillType.objects.get(name=pk)
+            original_data = model_to_dict(bill_type)
             serializer = saveBilltypeSerializer(bill_type, data=request.data)
             if serializer.is_valid():
                 serializer.save()
-                saveuserlog(request.user, description=f'Bill Type updated: {serializer.data["name"]}')
+                change_log = track_model_changes(bill_type, original_data)
+                saveuserlog(request.user, description=f'Updated Bill Type [{serializer.data["name"]}]: {change_log}')
                 return Response({"message": "Bill Type updated successfully!", "data": serializer.data}, status=status.HTTP_200_OK)
             return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
         else:

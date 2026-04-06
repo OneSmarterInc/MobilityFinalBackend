@@ -97,6 +97,7 @@ class UploadBANView(APIView):
         
         return mutable_data, lines
     def post(self, request):
+        print(request.data)
         ban = BaseDataTable.objects.filter(accountnumber=request.data.get('account_number')).first()
         if ban:
             return Response({"message": "Account number already exists!"}, status=status.HTTP_400_BAD_REQUEST)
@@ -263,28 +264,80 @@ class UploadBANView(APIView):
         print(lines)
         if lines:
             try:
+                # Step 1: Clean and prepare data
+                cleaned_lines = []
+                wireless_numbers = []
+
                 for line in lines:
                     line = {key: (value if value != "" else None) for key, value in line.items()}
-                    line.pop('vendor')
-                    line['category_object'] = json.dumps(line.pop('category_object')) if 'category_object' in line else {}
-                    wn = line.pop('wireless_number')
-                    check_exist = UniquePdfDataTable.objects.filter(banUploaded=upload_ban, company=upload_ban.company.Company_name, sub_company=upload_ban.organization.Organization_name, vendor=upload_ban.Vendor.name, wireless_number=wn).exists()
-                    if not check_exist and (isinstance(line, dict) and wn): 
-                        lineobj = UniquePdfDataTable.objects.create(banUploaded=upload_ban, company=upload_ban.company.Company_name, sub_company=upload_ban.organization.Organization_name, vendor=upload_ban.Vendor.name, wireless_number=wn, **line)
-                        lineobj.save()
-                        updated = self.remove_filds(BaselineDataTable, line)
-                        baselineobj = BaselineDataTable.objects.create(banUploaded=upload_ban, company=upload_ban.company.Company_name, sub_company=upload_ban.organization.Organization_name, vendor=upload_ban.Vendor.name, Wireless_number=wn, **updated)
-                        baselineobj.save()
-                        saveuserlog(
-                            request.user, 
-                            f"Line with wireless number {lineobj.wireless_number} in account number {upload_ban.account_number} created successfully!"
-                        )
-                        
-                    else:
-                        print("Skipping invalid line entry:", line)
+                    line.pop('vendor', None)
+
+                    if 'category_object' in line:
+                        line['category_object'] = json.dumps(line['category_object'])
+
+                    wn = line.pop('wireless_number', None)
+
+                    if wn and isinstance(line, dict):
+                        line['_wn'] = wn  # temp store
+                        cleaned_lines.append(line)
+                        wireless_numbers.append(wn)
+
+                # Step 2: Fetch existing wireless numbers in ONE query
+                existing_numbers = set(
+                    UniquePdfDataTable.objects.filter(
+                        banUploaded=upload_ban,
+                        company=upload_ban.company.Company_name,
+                        sub_company=upload_ban.organization.Organization_name,
+                        vendor=upload_ban.Vendor.name,
+                        wireless_number__in=wireless_numbers
+                    ).values_list('wireless_number', flat=True)
+                )
+
+                # Step 3: Prepare bulk objects
+                unique_objs = []
+                baseline_objs = []
+
+                for line in cleaned_lines:
+                    wn = line.pop('_wn')
+
+                    if wn in existing_numbers:
+                        continue
+
+                    unique_obj = UniquePdfDataTable(
+                        banUploaded=upload_ban,
+                        company=upload_ban.company.Company_name,
+                        sub_company=upload_ban.organization.Organization_name,
+                        vendor=upload_ban.Vendor.name,
+                        wireless_number=wn,
+                        **line
+                    )
+                    unique_objs.append(unique_obj)
+
+                    updated = self.remove_filds(BaselineDataTable, line.copy())
+
+                    baseline_obj = BaselineDataTable(
+                        banUploaded=upload_ban,
+                        company=upload_ban.company.Company_name,
+                        sub_company=upload_ban.organization.Organization_name,
+                        vendor=upload_ban.Vendor.name,
+                        Wireless_number=wn,
+                        **updated
+                    )
+                    baseline_objs.append(baseline_obj)
+
+                # Step 4: Bulk insert
+                UniquePdfDataTable.objects.bulk_create(unique_objs, batch_size=1000)
+                objs = BaselineDataTable.objects.bulk_create(baseline_objs, batch_size=1000)
+                from Dashboard.CRUDViews.catManagement import store_baseline_categories
+                store_baseline_categories(objs,base_instance=obj)
+                saveuserlog(
+                    request.user,
+                    f"{len(unique_objs)} new wireless numbers in account number {upload_ban.account_number} created successfully!"
+                )
 
             except Exception as e:
-                if upload_ban and upload_ban.pk: upload_ban.delete()
+                if upload_ban and upload_ban.pk:
+                    upload_ban.delete()
                 print(f"Error in line creation: {e}")
                 return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -377,7 +430,7 @@ from .models import OnboardBan, BaseDataTable
 from .ser import OnboardBanSerializer, EntryTypeShowSerializer, BillTypeShowSerializer, OrganizationShowOnboardSerializer, BaseBansSerializer
 from Dashboard.ModelsByPage.DashAdmin import EntryType, BillType
 from .models import UploadBAN, MappingObjectBan
-from OnBoard.Ban.Background.tasks import process_pdf_task, process_csv, verizon_att_onboardPDF_processor
+from OnBoard.Ban.Background.tasks import process_csv, verizon_att_onboardPDF_processor
 from OnBoard.Ban.Background.tasks import process_csv
 from OnBoard.Ban.Background.cp import ProcessCSVOnboard
 
@@ -1291,7 +1344,9 @@ class ProcessZip:
                     entry['company'] = self.company
                     entry['vendor'] = self.vendor
                 # if self.baseline:
-                self.save_to_baseline_data_table(category_data, self.vendor, self.types)
+                objs = self.save_to_baseline_data_table(category_data, self.vendor, self.types)
+                from Dashboard.CRUDViews.catManagement import store_baseline_categories
+                store_baseline_categories(objs,base_instance=obj)
                 print("saved to baseline data table")
                 
                 dataforportal = {
@@ -1308,7 +1363,7 @@ class ProcessZip:
         except Exception as e:
             print(f'Error occurred while processing zip file: {str(e)}')
             return {'message' : f'Error occurred while processing zip file: {str(e)}', 'error' : -1}
-    
+
     def save_to_portal(self,data):
         portal = PortalInformation.objects.create(
             banOnboarded = self.instance,
@@ -1401,7 +1456,8 @@ class ProcessZip:
         ]
 
         # Step 5: Bulk insert
-        BaselineDataTable.objects.bulk_create(objects_to_create, ignore_conflicts=True)
+        objs = BaselineDataTable.objects.bulk_create(objects_to_create, ignore_conflicts=True)
+        return objs
 
     def reflect_category_object(self):
         uniques = UniquePdfDataTable.objects.filter(

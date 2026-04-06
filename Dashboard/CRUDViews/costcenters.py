@@ -13,6 +13,8 @@ from ..ModelsByPage.Req import CostCenters
 from ..Serializers.requestser import CostCentersSaveSerializer, CostCentersShowSerializer
 from Dashboard.ModelsByPage.DashAdmin import Vendors
 from authenticate.views import saveuserlog
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 
 class CostCentersView(APIView):
     permission_classes = [IsAuthenticated]
@@ -52,12 +54,13 @@ class CostCentersView(APIView):
         obj = CostCenters.objects.filter(id=pk).first()
         if not obj:
             return Response({"message": "Cost Center not found"}, status=status.HTTP_400_BAD_REQUEST)
+        original_data = model_to_dict(obj)
         ser = CostCentersSaveSerializer(obj, data=request.data, partial=True)
         if ser.is_valid():
             ser.save()
             data = ser.data
-            print(data)
-            saveuserlog(request.user, f"Cost Center updated for account {data['ban']}")
+            change_log = track_model_changes(obj, original_data)
+            saveuserlog(request.user, f"Updated Cost Center [BAN: {data['ban']}]: {change_log}")
             return Response({"message": "Cost Center updated successfully!"}, status=status.HTTP_200_OK)
         else:
             print(ser.errors)

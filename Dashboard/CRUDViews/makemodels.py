@@ -8,6 +8,8 @@ from rest_framework.permissions import IsAuthenticated
 from ..ModelsByPage.Req import MakeModel
 from OnBoard.Organization.models import Organizations
 from authenticate.views import saveuserlog
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 from Batch.views import create_notification
 class MakeModelView(APIView):
     # permission_classes = [IsAuthenticated]
@@ -28,7 +30,7 @@ class MakeModelView(APIView):
         if ser.is_valid():
             ser.save()
             data = ser.data
-            saveuserlog(request.user, f"New model {data['name']} of device type {data['device_type']} added.")
+            # saveuserlog(request.user, f"New model {data['name']} of device type {data['device_type']} added.")
             create_notification(request.user, f"New model {data['name']} of device type {data['device_type']} added.",request.user.company)
             return Response({"message":"Model added succesfully!"},status=status.HTTP_200_OK)
         else:
@@ -36,13 +38,16 @@ class MakeModelView(APIView):
             return Response({"message":"Unable to add new model."},status=status.HTTP_400_BAD_REQUEST)
     def put(self, request, pk, *args, **kwargs):
         obj = MakeModel.objects.filter(id=pk).first()
+        original_data = model_to_dict(obj)
         if not obj:
             return Response({"message":"Model not found"},status=status.HTTP_400_BAD_REQUEST)
         ser = MakeModelSerializer(obj,data=request.data,partial=True)
         if ser.is_valid():
             ser.save()
             data = ser.data
-            saveuserlog(request.user, f"Model {data['name']} of device type {data['device_type']} updated.")
+            change_log = track_model_changes(obj, original_data)
+            msg = f"Following fields are updated of make model {data["name"]} : {change_log}"
+            saveuserlog(request.user, description=msg)
             create_notification(request.user, f"Model {data['name']} of device type {data['device_type']} updated.",request.user.company)
             return Response({"message":"Model updated succesfully!"},status=status.HTTP_200_OK)
         else:

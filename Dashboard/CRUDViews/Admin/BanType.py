@@ -6,6 +6,8 @@ from ...ModelsByPage.DashAdmin import BanType
 from ...Serializers.AdminPage import BanTypeOperationSerializer, BanTypeShowSerializer
 from rest_framework.permissions import IsAuthenticated
 from authenticate.views import saveuserlog
+from django.forms.models import model_to_dict
+from detect_model_changes import track_model_changes
 
 
 class BanTypeView(APIView):
@@ -39,10 +41,12 @@ class BanTypeView(APIView):
             ban_type = BanType.objects.get(name=pk)
         except BanType.DoesNotExist:
             return Response({"message": 'Ban Type not found'}, status=status.HTTP_404_NOT_FOUND)
+        original_data = model_to_dict(ban_type)
         ser = BanTypeOperationSerializer(ban_type, data=request.data)
         if ser.is_valid():
             ser.save()
-            saveuserlog(request.user, description=f'Ban Type updated: {ser.data["name"]}')
+            change_log = track_model_changes(ban_type, original_data)
+            saveuserlog(request.user, description=f'Updated Ban Type [{ser.data["name"]}]: {change_log}')
             return Response({"message" : "BanType updated successfully", "data":ser.data}, status=status.HTTP_200_OK)
         return Response({"message":ser.errors}, status=status.HTTP_400_BAD_REQUEST)
     

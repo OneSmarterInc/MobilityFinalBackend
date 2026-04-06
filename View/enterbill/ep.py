@@ -683,6 +683,6 @@ class EnterBillProcessExcel:
             print(e)
             message = str(e).strip()
 
-        create_notification(user=self.user_obj, msg=f"Bill with date {bill_date} of ban {self.account_number} uploaded.",company=self.company_obj)
+        create_notification(user=self.user_obj, msg=f"Bill with date {bill_date} for BAN {self.account_number} uploaded.",company=self.company_obj)
         return {"message":"Bill uploaded successully", 'code':0}
 
