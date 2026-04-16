@@ -43,7 +43,6 @@ class ProcessCSVOnboard:
             self.process_excel_csv_data()
 
     def format_wireless_number(self, number):
-        print("number===",number)
         
         if len(str(number)) <= 10:
             return
@@ -127,7 +126,6 @@ class ProcessCSVOnboard:
             plan = item.get("Plan_name")
             monthly_charges = item.get("monthly_charges")
             item["category_object"] = self.create_category_object(plan, monthly_charges)
-            print("object created")
         # Bulk insert into UniquePDFDataTable
         UniquePdfDataTable.objects.bulk_create([UniquePdfDataTable(banOnboarded=self.instance,**item) for item in df_csv_dict])
         print("Data added to UniquePdfDataTable")
@@ -135,7 +133,6 @@ class ProcessCSVOnboard:
         df_csv = pd.DataFrame(df_csv_dict)
         df_csv = df_csv.rename(columns={'wireless_number': 'Wireless_number'})
 
-        print(df_csv.head())
         df_csv_dict = df_csv.to_dict(orient='records')
         
         model_fields = [field.name for field in BaselineDataTable._meta.get_fields() if field.concrete and not field.auto_created]
@@ -146,11 +143,13 @@ class ProcessCSVOnboard:
             for item in df_csv_dict
         ]
 
-        print(df_csv_dict[0])
         created_items = BaselineDataTable.objects.bulk_create(clean_items)
+        print("added to baseline")
         from Dashboard.CRUDViews.catManagement import store_baseline_categories
         store_baseline_categories(created_items,base_instance=ban_obj)
+        print("baseline categories stored")
         self.save_to_portal_info({'Website':None})
+        print("saved to portal info")
         self.instance.account_number = self.account_number
         self.instance.is_processed = True
         self.instance.save()

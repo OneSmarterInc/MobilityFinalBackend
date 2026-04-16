@@ -1,10 +1,74 @@
-,Charges,User Name,Current Plan,Data Usage (GB),Wireless Number,Recommended Plan,Recommended Plan Charges,Recommended Plan Savings,is_plan_recommended,data_usage_range
-0,NA,"Mpp Management, Inc.",Bus Unl Phone,0.7309,480-399-4006,,,,False,less_than_5_gb
-1,NA,"Mpp Management, Inc.",Bus Unl Phone,0.1897,480-399-4009,,,,False,less_than_5_gb
-2,NA,"Mpp Management, Inc.",Bus Unl Phone,2.1026,480-658-4491,,,,False,less_than_5_gb
-3,NA,"Mpp Management, Inc.",Bus Unl Phone,0.2744,602-312-9456,,,,False,less_than_5_gb
-4,NA,"Mpp Management, Inc.",Bus Unl Phone,0.8089,816-219-7594,,,,False,less_than_5_gb
-5,NA,"Mpp Management, Inc.",Bus Unl Phone,0.4362,816-308-8363,,,,False,less_than_5_gb
-6,NA,"Mpp Management, Inc.",Bus Unl Phone,39.7755,816-695-0668,,,,False,more_than_15_gb
-7,NA,"Mpp Management, Inc.",Bus Unl Phone,4.8902,816-820-8998,,,,False,less_than_5_gb
-8,NA,"Mpp Management, Inc.",Bus Unl Phone,0.5526,903-229-2563,,,,False,less_than_5_gb
+,User Name,Data Usage (GB),Charges,Wireless Number,Current Plan,Recommended Plan,Recommended Plan Charges,Recommended Plan Savings,is_plan_recommended,data_usage_range
+0,Store #0449,0,$31.50,314-203-1016,Flex Business Data Device 2GB,,,,False,zero_usage
+1,Jason Bryant,0,$31.50,314-203-1585,Flex Business Data Device 2GB,,,,False,zero_usage
+2,Store 1,0,$31.50,314-281-8557,Flex Business Data Device 2GB,,,,False,zero_usage
+3,Store 2,0,$31.50,314-281-8559,Flex Business Data Device 2GB,,,,False,zero_usage
+4,Store 3,0,$31.50,314-281-8684,Flex Business Data Device 2GB,,,,False,zero_usage
+5,Store 4,0,$31.50,314-281-8715,Flex Business Data Device 2GB,,,,False,zero_usage
+6,Store 5,0,$31.50,314-281-9082,Flex Business Data Device 2GB,,,,False,zero_usage
+7,Jason Bryant,0,$31.50,314-304-1441,Flex Business Data Device 2GB,,,,False,zero_usage
+8,Store 0248,0,$31.50,314-330-2096,Flex Business Data Device 2GB,,,,False,zero_usage
+9,Christopher Eime,0,$70.00,314-365-7430,Business Unlimited Smartphone,,,,False,zero_usage
+10,Store 388,0,$31.50,314-410-0743,Flex Business Data Device 2GB,,,,False,zero_usage
+11,Store 430,0,$31.50,314-410-0840,Flex Business Data Device 2GB,,,,False,zero_usage
+12,Device 1,0,$31.50,314-502-5963,Flex Business Data Device 2GB,,,,False,zero_usage
+13,Store 0128,0,$31.50,314-610-0072,Flex Business Data Device 2GB,,,,False,zero_usage
+14,Device 4,0,$31.50,314-708-0613,Flex Business Data Device 2GB,,,,False,zero_usage
+15,Device 5,0,$31.50,314-708-1270,Flex Business Data Device 2GB,,,,False,zero_usage
+16,Device 3,0,$31.50,314-708-1558,Flex Business Data Device 2GB,,,,False,zero_usage
+17,Device 2,0,$31.50,314-708-3776,Flex Business Data Device 2GB,,,,False,zero_usage
+18,Device 6,0,$31.50,314-708-3799,Flex Business Data Device 2GB,,,,False,zero_usage
+19,Device 7,0,$31.50,314-708-5100,Flex Business Data Device 2GB,,,,False,zero_usage
+20,Bab Store,0,$31.50,314-708-6260,Flex Business Data Device 2GB,,,,False,zero_usage
+21,David Brawner,0,$31.50,314-740-0470,Flex Business Data Device 2GB,,,,False,zero_usage
+22,David Brawner,0,$31.50,314-740-0614,Flex Business Data Device 2GB,,,,False,zero_usage
+23,David Brawner,0,$31.50,314-740-1574,Flex Business Data Device 2GB,,,,False,zero_usage
+24,David Brawner,0,$31.50,314-740-2247,Flex Business Data Device 2GB,,,,False,zero_usage
+25,David Brawner,0,$31.50,314-740-2446,Flex Business Data Device 2GB,,,,False,zero_usage
+26,David Brawner,0,$31.50,314-740-2532,Flex Business Data Device 2GB,,,,False,zero_usage
+27,David Brawner,0,$31.50,314-740-2997,Flex Business Data Device 2GB,,,,False,zero_usage
+28,David Brawner,0,$31.50,314-740-3077,Flex Business Data Device 2GB,,,,False,zero_usage
+29,David Brawner,0,$31.50,314-740-3277,Flex Business Data Device 2GB,,,,False,zero_usage
+30,David Brawner,0,$31.50,314-740-3540,Flex Business Data Device 2GB,,,,False,zero_usage
+31,David Brawner,0,$31.50,314-740-6186,Flex Business Data Device 2GB,,,,False,zero_usage
+32,David Brawner,0,$31.50,314-740-6272,Flex Business Data Device 2GB,,,,False,zero_usage
+33,David Brawner,0,$31.50,314-740-6575,Flex Business Data Device 2GB,,,,False,zero_usage
+34,Jason Bryant,0,$31.50,314-740-6842,Flex Business Data Device 2GB,,,,False,zero_usage
+35,David Brawner,0,$31.50,314-740-6861,Flex Business Data Device 2GB,,,,False,zero_usage
+36,David Brawner,0,$31.50,314-740-7031,Flex Business Data Device 2GB,,,,False,zero_usage
+37,David Brawner,0,$31.50,314-740-7254,Flex Business Data Device 2GB,,,,False,zero_usage
+38,David Brawner,0,$31.50,314-740-7932,Flex Business Data Device 2GB,,,,False,zero_usage
+39,David Brawner,0,$31.50,314-740-8021,Flex Business Data Device 2GB,,,,False,zero_usage
+40,David Brawner,0,$31.50,314-740-8028,Flex Business Data Device 2GB,,,,False,zero_usage
+41,David Brawner,0,$31.50,314-740-8106,Flex Business Data Device 2GB,,,,False,zero_usage
+42,David Brawner,0,$31.50,314-740-8713,Flex Business Data Device 2GB,,,,False,zero_usage
+43,Daniel Elder,0,$45.00,314-780-4994,4G Mobile Broadband 5GB,,,,False,zero_usage
+44,Vacant Vacant,0,$58.50,314-797-9222,Flexible Business Smartphn 2GB,,,,False,zero_usage
+45,Line 2,0,$58.50,314-797-9294,Flexible Business Smartphn 2GB,,,,False,zero_usage
+46,Store #354,0,$31.50,314-818-9094,Flex Business Data Device 2GB,,,,False,zero_usage
+47,Store #5354,0,$31.50,314-818-9110,Flex Business Data Device 2GB,,,,False,zero_usage
+48,Store #427,0,$31.50,314-882-0146,Flex Business Data Device 2GB,,,,False,zero_usage
+49,Store #439,0,$31.50,314-913-0604,Flex Business Data Device 2GB,,,,False,zero_usage
+50,Daniel Elder,0,$31.50,314-924-0218,Flex Business Data Device 2GB,,,,False,zero_usage
+51,Jason Faraone,0,$31.50,314-943-6558,Flex Business Data Device 2GB,,,,False,zero_usage
+52,Brandon Hickey,0,$70.00,360-509-2851,Business Unlimited Smartphone,,,,False,zero_usage
+53,Jason Richter,0,$31.50,513-503-2752,Flex Business Data Device 2GB,,,,False,zero_usage
+54,Jason Richter,.975GB,$31.50,513-503-2925,Flex Business Data Device 2GB,,,,False,less_than_5_gb
+55,Jason Richter,2.707GB,$31.50,513-503-3190,Flex Business Data Device 2GB,,,,False,less_than_5_gb
+56,Jason Richter,0,$31.50,513-503-3270,Flex Business Data Device 2GB,,,,False,zero_usage
+57,Jason Richter,0,$31.50,513-503-3280,Flex Business Data Device 2GB,,,,False,zero_usage
+58,Jason Richter,0,$31.50,513-503-3507,Flex Business Data Device 2GB,,,,False,zero_usage
+59,Jason Richter,0,$31.50,513-503-3564,Flex Business Data Device 2GB,,,,False,zero_usage
+60,Jason Richter,2.584GB,$31.50,513-503-3683,Flex Business Data Device 2GB,,,,False,less_than_5_gb
+61,Jason Richter,.003GB,$31.50,513-503-3745,Flex Business Data Device 2GB,,,,False,less_than_5_gb
+62,Jason Richter,0,$31.50,513-503-3759,Flex Business Data Device 2GB,,,,False,zero_usage
+63,Jason Richter,0,$31.50,513-503-4235,Flex Business Data Device 2GB,,,,False,zero_usage
+64,Jason Richter,2.582GB,$31.50,513-503-4279,Flex Business Data Device 2GB,,,,False,less_than_5_gb
+65,Jason Richter,0,$31.50,513-503-4474,Flex Business Data Device 2GB,,,,False,zero_usage
+66,Jason Richter,0,$31.50,513-503-4991,Flex Business Data Device 2GB,,,,False,zero_usage
+67,Jason Richter,.645GB,$31.50,513-503-7207,Flex Business Data Device 2GB,,,,False,less_than_5_gb
+68,Jason Richter,.451GB,$31.50,513-503-7212,Flex Business Data Device 2GB,,,,False,less_than_5_gb
+69,Jason Richter,0,$31.50,513-503-7344,Flex Business Data Device 2GB,,,,False,zero_usage
+70,Jason Richter,0,$31.50,513-503-7437,Flex Business Data Device 2GB,,,,False,zero_usage
+71,Jason Richter,.638GB,$31.50,513-503-7448,Flex Business Data Device 2GB,,,,False,less_than_5_gb
+72,Jason Richter,2.338GB,$31.50,513-503-8396,Flex Business Data Device 2GB,,,,False,less_than_5_gb

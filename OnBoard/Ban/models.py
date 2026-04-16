@@ -468,7 +468,7 @@ class BaseDataTable(models.Model):
     class Meta:
         db_table = 'BaseDataTable'
     def __str__(self):
-        return self.accountnumber
+        return str(self.accountnumber)
 
     def save(self, *args, **kwargs):
 

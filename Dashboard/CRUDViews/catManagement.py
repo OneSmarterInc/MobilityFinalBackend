@@ -143,7 +143,6 @@ def store_baseline_categories(objs, base_instance):
             return grouped
         if not objs:
             return
-        print(organization and vendor and base_instance)
         if not (organization and vendor and base_instance):
             return
         # 🔥 Step A — group everything
